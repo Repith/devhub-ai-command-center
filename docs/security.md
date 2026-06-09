@@ -11,8 +11,10 @@ enforcement boundary.
 
 Passwords use Argon2id with application-defined parameters. Short-lived access
 JWTs carry subject, active tenant, role, session identifier, issuer, audience,
-and expiry. Refresh tokens are opaque, rotated on every use, stored only as
-hashes, and revoked on logout or detected reuse.
+and expiry. Refresh tokens are opaque, delivered only through a scoped
+`HttpOnly` and `SameSite=Strict` cookie, rotated on every use, stored only as
+SHA-256 hashes, and revoked on logout or detected reuse. Reuse revokes the
+entire refresh-token family.
 
 ## Tenant Isolation
 
