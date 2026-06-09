@@ -1,0 +1,89 @@
+{
+  "version": 1,
+  "auditedAt": "2026-06-09",
+  "policy": "Repository requirements and ADRs override external skill guidance.",
+  "skills": [
+    {
+      "name": "next-best-practices",
+      "source": "vercel-labs/next-skills",
+      "ref": "dc1de9caf7612d73f56a8dec3cb1bd6c9ec096b9",
+      "purpose": "Next.js App Router conventions and runtime boundaries",
+      "audit": "accepted"
+    },
+    {
+      "name": "vercel-react-best-practices",
+      "source": "vercel-labs/agent-skills",
+      "ref": "4ec6f84b61cd3c931046c3e6e398f3ae7de372f7",
+      "purpose": "React and Next.js performance review",
+      "audit": "accepted"
+    },
+    {
+      "name": "vercel-composition-patterns",
+      "source": "vercel-labs/agent-skills",
+      "ref": "4ec6f84b61cd3c931046c3e6e398f3ae7de372f7",
+      "purpose": "Reusable React component APIs",
+      "audit": "accepted"
+    },
+    {
+      "name": "web-design-guidelines",
+      "source": "vercel-labs/agent-skills",
+      "ref": "4ec6f84b61cd3c931046c3e6e398f3ae7de372f7",
+      "purpose": "UI and accessibility review",
+      "audit": "accepted-with-network-restriction",
+      "note": "Fetches current review rules; use only during explicit UI audits."
+    },
+    {
+      "name": "prisma",
+      "source": "Mindrally/skills",
+      "ref": "47f47c12e62f62b5e171bd5af61d0fc24b329701",
+      "purpose": "Prisma schema and query guidance",
+      "audit": "accepted-with-overrides",
+      "note": "Soft deletes and repository patterns are optional, not defaults."
+    },
+    {
+      "name": "api-development",
+      "source": "Mindrally/skills",
+      "ref": "47f47c12e62f62b5e171bd5af61d0fc24b329701",
+      "purpose": "NestJS API boundaries and validation",
+      "audit": "accepted-with-overrides",
+      "note": "Use Zod contracts instead of class-validator and avoid barrel files."
+    },
+    {
+      "name": "postgresql-best-practices",
+      "source": "Mindrally/skills",
+      "ref": "47f47c12e62f62b5e171bd5af61d0fc24b329701",
+      "purpose": "PostgreSQL schema, indexing, and tenant security",
+      "audit": "accepted"
+    },
+    {
+      "name": "redis-best-practices",
+      "source": "Mindrally/skills",
+      "ref": "47f47c12e62f62b5e171bd5af61d0fc24b329701",
+      "purpose": "BullMQ and Redis operational guidance",
+      "audit": "accepted-reference-only",
+      "note": "Contains administrative command examples; agents may not execute destructive Redis commands without approval."
+    },
+    {
+      "name": "websocket-development",
+      "source": "Mindrally/skills",
+      "ref": "47f47c12e62f62b5e171bd5af61d0fc24b329701",
+      "purpose": "Socket lifecycle, authorization, and recovery",
+      "audit": "accepted"
+    },
+    {
+      "name": "observability-guidelines",
+      "source": "Mindrally/skills",
+      "ref": "47f47c12e62f62b5e171bd5af61d0fc24b329701",
+      "purpose": "Structured logs, metrics, and correlation",
+      "audit": "accepted"
+    },
+    {
+      "name": "technical-writing",
+      "source": "Mindrally/skills",
+      "ref": "47f47c12e62f62b5e171bd5af61d0fc24b329701",
+      "purpose": "Developer-facing documentation",
+      "audit": "accepted-with-style-overrides",
+      "note": "Repository Markdown conventions may use concise lists and tables."
+    }
+  ]
+}
