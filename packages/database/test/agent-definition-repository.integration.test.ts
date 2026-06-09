@@ -53,7 +53,12 @@ describeWithDatabase("PrismaAgentDefinitionRepository", () => {
       name: "Private Alpha Agent",
       provider: "ollama",
       model: "qwen3:8b",
-      systemPrompt: "Use Alpha knowledge only."
+      systemPrompt: "Use Alpha knowledge only.",
+      maxSteps: 8,
+      maxToolCalls: 4,
+      timeoutMs: 120_000,
+      enabledToolIds: [],
+      knowledgeBaseIds: []
     });
 
     await expect(

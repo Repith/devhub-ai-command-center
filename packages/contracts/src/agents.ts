@@ -25,3 +25,22 @@ export const updateAgentDefinitionSchema = createAgentDefinitionSchema
     message: "At least one field must be provided."
   });
 export type UpdateAgentDefinition = z.infer<typeof updateAgentDefinitionSchema>;
+
+export const agentDefinitionSchema = createAgentDefinitionSchema.extend({
+  id: uuidSchema,
+  description: z.string().nullable(),
+  maxTokens: z.number().int().positive().nullable(),
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime()
+});
+export type AgentDefinition = z.infer<typeof agentDefinitionSchema>;
+
+export const agentDefinitionListSchema = z.object({
+  data: z.array(agentDefinitionSchema),
+  page: z.object({
+    cursor: z.null(),
+    nextCursor: z.null(),
+    limit: z.number().int().min(1).max(100)
+  })
+});
+export type AgentDefinitionList = z.infer<typeof agentDefinitionListSchema>;

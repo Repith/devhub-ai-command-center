@@ -51,6 +51,9 @@ membership selected by the verified access token and session.
 
 Agent input contains name, description, model configuration, system prompt,
 limits, enabled tool identifiers, and selected knowledge base identifiers.
+List and detail responses intentionally omit `tenantId`; ownership remains
+server-side authorization context. Owners and admins may create, update, and
+soft-delete definitions. Members have read-only access inside their tenant.
 
 ## Runs
 

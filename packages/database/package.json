@@ -12,9 +12,10 @@
     "prisma:generate": "prisma generate",
     "test": "vitest run --exclude test/**/*.integration.test.ts",
     "test:integration": "vitest run test/agent-definition-repository.integration.test.ts",
-    "typecheck": "npm run prisma:generate && tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@devhub/contracts": "0.0.0",
     "@devhub/domain": "0.0.0",
     "@prisma/adapter-pg": "7.8.0",
     "@prisma/client": "7.8.0",
