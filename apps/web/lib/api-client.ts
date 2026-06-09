@@ -62,7 +62,7 @@ export async function apiRequestEmpty(
   }
 }
 
-async function parseApiError(response: Response): Promise<ApiError> {
+export async function parseApiError(response: Response): Promise<ApiError> {
   const fallback: ApiError = {
     code: "HTTP_ERROR",
     message: `Request failed with status ${response.status}.`,

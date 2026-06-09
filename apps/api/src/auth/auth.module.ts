@@ -7,6 +7,7 @@ import { DatabaseModule } from "../database/database.module";
 import { AUTH_CONFIG, loadAuthConfig } from "./auth.config";
 import { AuthController } from "./auth.controller";
 import { AuthGuard } from "./auth.guard";
+import { AuthPrincipalService } from "./auth-principal.service";
 import { AuthService } from "./auth.service";
 import {
   AUTH_REFLECTOR,
@@ -31,6 +32,7 @@ import { TokenService } from "./token.service";
     { provide: TOKEN_SERVICE, useExisting: TokenService },
     { provide: AUTH_SERVICE, useExisting: AuthService },
     AuthGuard,
+    AuthPrincipalService,
     AuthService,
     PasswordService,
     RolesGuard,
@@ -42,6 +44,7 @@ import { TokenService } from "./token.service";
     JWT_SERVICE,
     TOKEN_SERVICE,
     AuthGuard,
+    AuthPrincipalService,
     RolesGuard
   ]
 })

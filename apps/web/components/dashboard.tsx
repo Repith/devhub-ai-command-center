@@ -1,6 +1,9 @@
 "use client";
 
+import { useState } from "react";
+
 import { AgentWorkspace } from "./agent-workspace";
+import { ChatWorkspace } from "./chat-workspace";
 import type { AuthenticatedUser } from "@devhub/contracts";
 
 interface DashboardProps {
@@ -10,12 +13,15 @@ interface DashboardProps {
 }
 
 const plannedSections = ["Knowledge", "Runs", "Evaluations"];
+type DashboardSection = "agents" | "chat";
 
 export function Dashboard({
   accessToken,
   user,
   onLogout
 }: DashboardProps): React.JSX.Element {
+  const [section, setSection] = useState<DashboardSection>("agents");
+
   return (
     <div className="dashboard-shell">
       <a className="skip-link" href="#main-content">
@@ -29,13 +35,27 @@ export function Dashboard({
           <span>DevHub</span>
         </div>
         <nav aria-label="Primary navigation">
-          <a className="nav-item active" href="#agents" aria-current="page">
+          <button
+            className={`nav-item ${section === "agents" ? "active" : ""}`}
+            type="button"
+            aria-current={section === "agents" ? "page" : undefined}
+            onClick={() => setSection("agents")}
+          >
             <span aria-hidden="true">01</span>
             Agents
-          </a>
+          </button>
+          <button
+            className={`nav-item ${section === "chat" ? "active" : ""}`}
+            type="button"
+            aria-current={section === "chat" ? "page" : undefined}
+            onClick={() => setSection("chat")}
+          >
+            <span aria-hidden="true">02</span>
+            Chat
+          </button>
           {plannedSections.map((section, index) => (
             <span className="nav-item planned" key={section}>
-              <span aria-hidden="true">0{index + 2}</span>
+              <span aria-hidden="true">0{index + 3}</span>
               {section}
               <small>Planned</small>
             </span>
@@ -67,10 +87,14 @@ export function Dashboard({
           </div>
         </header>
 
-        <AgentWorkspace
-          accessToken={accessToken}
-          canManage={user.role !== "MEMBER"}
-        />
+        {section === "agents" ? (
+          <AgentWorkspace
+            accessToken={accessToken}
+            canManage={user.role !== "MEMBER"}
+          />
+        ) : (
+          <ChatWorkspace accessToken={accessToken} />
+        )}
       </main>
     </div>
   );
