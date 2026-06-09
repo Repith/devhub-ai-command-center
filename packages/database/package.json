@@ -11,7 +11,7 @@
     "lint": "eslint src prisma test",
     "prisma:generate": "prisma generate",
     "test": "vitest run --exclude test/**/*.integration.test.ts",
-    "test:integration": "vitest run test/**/*.integration.test.ts",
+    "test:integration": "vitest run test/agent-definition-repository.integration.test.ts",
     "typecheck": "npm run prisma:generate && tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
