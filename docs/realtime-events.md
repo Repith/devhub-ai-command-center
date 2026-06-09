@@ -13,6 +13,17 @@ verification it may emit `subscribe_to_run` with a `runId`. The gateway loads
 the run using authenticated tenant context before joining room `run:<runId>`.
 Clients cannot choose a tenant room.
 
+## Connectivity Probe
+
+The `/realtime` namespace exposes an authenticated `realtime.probe` event for
+the Chat connectivity workspace. It validates a versioned payload and returns
+an acknowledgement with server timestamps. The acknowledgement deliberately
+contains no tenant identifier or user data.
+
+This probe verifies the browser-to-API WebSocket path. Chat model tokens remain
+on the streamed HTTP endpoint until the live run timeline stage introduces
+versioned Socket.IO run events.
+
 ## Event Envelope
 
 ```ts

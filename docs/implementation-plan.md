@@ -56,10 +56,10 @@ Acceptance: a user can create and edit an agent definition from the UI.
 
 ## PR 6: Ollama Chat Foundation
 
-- [ ] Add `LlmProviderPort` and OpenAI-compatible Ollama adapter.
-- [ ] Add conversations, messages, streaming, timeouts, and fake provider.
-- [ ] Track preliminary token usage and duration.
-- [ ] Document required Ollama models and environment variables.
+- [x] Add `LlmProviderPort` and OpenAI-compatible Ollama adapter.
+- [x] Add conversations, messages, streaming, timeouts, and fake provider.
+- [x] Track preliminary token usage and duration.
+- [x] Document required Ollama models and environment variables.
 
 Acceptance: a persisted conversation streams a local-model response.
 

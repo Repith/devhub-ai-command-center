@@ -4,6 +4,8 @@ import {
   API_PREFIX,
   agentDefinitionSchema,
   apiErrorSchema,
+  chatStreamEventSchema,
+  createChatMessageSchema,
   createAgentDefinitionSchema,
   documentStatusSchema,
   registerSchema,
@@ -85,6 +87,25 @@ describe("contracts", () => {
       email: "owner@example.com",
       password: "correct horse battery staple",
       tenantName: "Example",
+      tenantId: "64fe81ba-7faf-4b37-a2b8-347cd19b5550"
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  it("validates versioned chat stream events", () => {
+    const result = chatStreamEventSchema.safeParse({
+      version: 1,
+      type: "chat.delta",
+      text: "Hello"
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects tenant identifiers in chat input", () => {
+    const result = createChatMessageSchema.safeParse({
+      message: "Hello",
       tenantId: "64fe81ba-7faf-4b37-a2b8-347cd19b5550"
     });
 

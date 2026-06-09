@@ -48,12 +48,19 @@ membership selected by the verified access token and session.
 - `GET /conversations`
 - `GET /conversations/:conversationId`
 - `GET /conversations/:conversationId/messages`
+- `POST /agents/:agentId/chat`
 
 Agent input contains name, description, model configuration, system prompt,
 limits, enabled tool identifiers, and selected knowledge base identifiers.
 List and detail responses intentionally omit `tenantId`; ownership remains
 server-side authorization context. Owners and admins may create, update, and
 soft-delete definitions. Members have read-only access inside their tenant.
+
+Chat accepts a message and an optional existing conversation identifier. The
+response is `application/x-ndjson` with versioned `chat.started`, `chat.delta`,
+`chat.completed`, or `chat.error` records. A completed record contains the
+persisted assistant message and preliminary provider, model, token, and
+duration usage. Conversation and message responses never expose `tenantId`.
 
 ## Runs
 

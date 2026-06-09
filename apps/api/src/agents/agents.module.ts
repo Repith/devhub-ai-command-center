@@ -23,6 +23,7 @@ import { AGENT_DEFINITION_REPOSITORY } from "./agents.tokens";
         new PrismaAgentDefinitionRepository(database)
     },
     AgentsService
-  ]
+  ],
+  exports: [AGENT_DEFINITION_REPOSITORY]
 })
 export class AgentsModule {}

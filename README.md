@@ -6,8 +6,9 @@ configuration, MCP tools, RAG, multi-tenant data isolation, background jobs,
 real-time run timelines, usage tracking, and quality evaluation in one compact
 system.
 
-> Status: authentication, tenant isolation, and agent configuration are
-> implemented. Runtime, RAG, MCP, and evaluation stages remain in progress.
+> Status: authentication, tenant isolation, agent configuration, and the Ollama
+> chat foundation are implemented. RAG, MCP, durable agent runs, and evaluation
+> remain in progress.
 
 ## Target Demo
 

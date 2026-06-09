@@ -23,6 +23,7 @@ const seedData = [
 
 async function seed(): Promise<void> {
   const connectionString = process.env.DATABASE_URL;
+  const chatModel = process.env.OLLAMA_CHAT_MODEL ?? "qwen3:8b";
   if (!connectionString) {
     throw new Error("DATABASE_URL is required to seed the database.");
   }
@@ -76,6 +77,9 @@ async function seed(): Promise<void> {
         },
         update: {
           name: "Knowledge Assistant",
+          provider: "ollama",
+          model: chatModel,
+          systemPrompt: "Answer using authorized workspace knowledge.",
           deletedAt: null
         },
         create: {
@@ -83,7 +87,7 @@ async function seed(): Promise<void> {
           tenantId: entry.tenantId,
           name: "Knowledge Assistant",
           provider: "ollama",
-          model: "qwen3:8b",
+          model: chatModel,
           systemPrompt: "Answer using authorized workspace knowledge."
         }
       });

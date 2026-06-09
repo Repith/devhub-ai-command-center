@@ -3,7 +3,7 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build", "generate"],
-      "env": ["API_ORIGIN"],
+      "env": ["API_ORIGIN", "NEXT_PUBLIC_API_ORIGIN"],
       "outputs": [".next/**", "!.next/cache/**", "dist/**"]
     },
     "dev": {
@@ -16,8 +16,13 @@
         "JWT_AUDIENCE",
         "JWT_ISSUER",
         "JWT_SECRET",
+        "OLLAMA_API_KEY",
+        "OLLAMA_BASE_URL",
+        "OLLAMA_CHAT_MODEL",
+        "NEXT_PUBLIC_API_ORIGIN",
         "REFRESH_COOKIE_SECURE",
-        "REFRESH_TOKEN_TTL_SECONDS"
+        "REFRESH_TOKEN_TTL_SECONDS",
+        "WEB_ORIGIN"
       ],
       "persistent": true
     },
@@ -40,6 +45,9 @@
         "JWT_AUDIENCE",
         "JWT_ISSUER",
         "JWT_SECRET",
+        "OLLAMA_API_KEY",
+        "OLLAMA_BASE_URL",
+        "OLLAMA_CHAT_MODEL",
         "REFRESH_COOKIE_SECURE",
         "REFRESH_TOKEN_TTL_SECONDS"
       ],
