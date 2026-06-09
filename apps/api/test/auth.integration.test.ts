@@ -33,8 +33,8 @@ function refreshCookie(response: request.Response): string {
 }
 
 describe("authentication and tenancy", () => {
-  let app: INestApplication;
-  let database: DatabaseClient;
+  let app: INestApplication | undefined;
+  let database: DatabaseClient | undefined;
   let alphaAccessToken: string;
   let alphaCookie: string;
   let alphaUser: AuthenticatedUser;
@@ -56,14 +56,16 @@ describe("authentication and tenancy", () => {
   });
 
   afterAll(async () => {
-    await database.user.deleteMany({
-      where: { email: { in: [alphaEmail, betaEmail] } }
-    });
-    await app.close();
+    if (database) {
+      await database.user.deleteMany({
+        where: { email: { in: [alphaEmail, betaEmail] } }
+      });
+    }
+    await app?.close();
   });
 
   it("registers owners and derives tenant context from the access token", async () => {
-    const alpha = await request(app.getHttpServer())
+    const alpha = await request(app!.getHttpServer())
       .post("/api/v1/auth/register")
       .send({
         email: alphaEmail,
@@ -74,7 +76,7 @@ describe("authentication and tenancy", () => {
     alphaAccessToken = (alpha.body as AccessTokenResponse).accessToken;
     alphaCookie = refreshCookie(alpha);
 
-    const beta = await request(app.getHttpServer())
+    const beta = await request(app!.getHttpServer())
       .post("/api/v1/auth/register")
       .send({
         email: betaEmail,
@@ -83,11 +85,11 @@ describe("authentication and tenancy", () => {
       })
       .expect(201);
 
-    const alphaMe = await request(app.getHttpServer())
+    const alphaMe = await request(app!.getHttpServer())
       .get("/api/v1/me")
       .set("Authorization", `Bearer ${alphaAccessToken}`)
       .expect(200);
-    const betaMe = await request(app.getHttpServer())
+    const betaMe = await request(app!.getHttpServer())
       .get("/api/v1/me")
       .set(
         "Authorization",
@@ -103,24 +105,24 @@ describe("authentication and tenancy", () => {
   });
 
   it("rotates refresh tokens and revokes the family when an old token is reused", async () => {
-    const rotated = await request(app.getHttpServer())
+    const rotated = await request(app!.getHttpServer())
       .post("/api/v1/auth/refresh")
       .set("Cookie", alphaCookie)
       .expect(200);
     const rotatedCookie = refreshCookie(rotated);
 
-    await request(app.getHttpServer())
+    await request(app!.getHttpServer())
       .post("/api/v1/auth/refresh")
       .set("Cookie", alphaCookie)
       .expect(401);
-    await request(app.getHttpServer())
+    await request(app!.getHttpServer())
       .post("/api/v1/auth/refresh")
       .set("Cookie", rotatedCookie)
       .expect(401);
   });
 
   it("rejects a signed token whose tenant does not match its session", async () => {
-    const login = await request(app.getHttpServer())
+    const login = await request(app!.getHttpServer())
       .post("/api/v1/auth/login")
       .send({ email: alphaEmail, password })
       .expect(200);
@@ -138,36 +140,36 @@ describe("authentication and tenancy", () => {
       }
     );
 
-    await request(app.getHttpServer())
+    await request(app!.getHttpServer())
       .get("/api/v1/me")
       .set("Authorization", `Bearer ${forged}`)
       .expect(401);
   });
 
   it("revokes the active session on logout", async () => {
-    const login = await request(app.getHttpServer())
+    const login = await request(app!.getHttpServer())
       .post("/api/v1/auth/login")
       .send({ email: betaEmail, password })
       .expect(200);
     const cookie = refreshCookie(login);
     const accessToken = (login.body as AccessTokenResponse).accessToken;
 
-    await request(app.getHttpServer())
+    await request(app!.getHttpServer())
       .post("/api/v1/auth/logout")
       .set("Cookie", cookie)
       .expect(204);
-    await request(app.getHttpServer())
+    await request(app!.getHttpServer())
       .get("/api/v1/me")
       .set("Authorization", `Bearer ${accessToken}`)
       .expect(401);
-    await request(app.getHttpServer())
+    await request(app!.getHttpServer())
       .post("/api/v1/auth/refresh")
       .set("Cookie", cookie)
       .expect(401);
   });
 
   it("uses the shared error envelope for invalid credentials", async () => {
-    const response = await request(app.getHttpServer())
+    const response = await request(app!.getHttpServer())
       .post("/api/v1/auth/login")
       .send({ email: alphaEmail, password: "definitely-wrong-password" })
       .expect(401);
