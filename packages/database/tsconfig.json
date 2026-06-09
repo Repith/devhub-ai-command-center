@@ -1,0 +1,7 @@
+{
+  "extends": "../config/node.json",
+  "compilerOptions": {
+    "rootDir": "."
+  },
+  "include": ["prisma/**/*.ts", "src/**/*.ts", "test/**/*.ts"]
+}

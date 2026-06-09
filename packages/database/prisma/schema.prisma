@@ -1,0 +1,306 @@
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum MembershipRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+enum DocumentStatus {
+  UPLOADED
+  PROCESSING
+  INDEXED
+  FAILED
+  DELETING
+}
+
+enum AgentRunStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCEL_REQUESTED
+  CANCELLED
+  TIMED_OUT
+}
+
+enum RunStepStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  SKIPPED
+}
+
+enum EvaluationStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+model User {
+  id           String       @id @default(uuid()) @db.Uuid
+  email        String       @unique
+  passwordHash String
+  displayName  String?
+  memberships  Membership[]
+  createdAt    DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime     @updatedAt @db.Timestamptz(3)
+}
+
+model Tenant {
+  id             String            @id @default(uuid()) @db.Uuid
+  name           String
+  slug           String            @unique
+  memberships    Membership[]
+  agents         AgentDefinition[]
+  conversations  Conversation[]
+  documents      Document[]
+  agentRuns      AgentRun[]
+  goldenCases    GoldenCase[]
+  evaluationRuns EvaluationRun[]
+  createdAt      DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime          @updatedAt @db.Timestamptz(3)
+}
+
+model Membership {
+  id        String         @id @default(uuid()) @db.Uuid
+  tenantId  String         @db.Uuid
+  userId    String         @db.Uuid
+  role      MembershipRole
+  tenant    Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime       @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime       @updatedAt @db.Timestamptz(3)
+
+  @@unique([tenantId, userId])
+  @@index([userId])
+}
+
+model AgentDefinition {
+  id               String       @id @default(uuid()) @db.Uuid
+  tenantId         String       @db.Uuid
+  name             String
+  description      String?
+  provider         String
+  model            String
+  systemPrompt     String
+  maxSteps         Int          @default(8)
+  maxToolCalls     Int          @default(4)
+  maxTokens        Int?
+  timeoutMs        Int          @default(120000)
+  enabledToolIds   String[]     @default([])
+  knowledgeBaseIds String[]     @default([])
+  tenant           Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  runs             AgentRun[]
+  goldenCases      GoldenCase[]
+  createdAt        DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime     @updatedAt @db.Timestamptz(3)
+  deletedAt        DateTime?    @db.Timestamptz(3)
+
+  @@unique([tenantId, id])
+  @@index([tenantId, deletedAt])
+}
+
+model Conversation {
+  id        String     @id @default(uuid()) @db.Uuid
+  tenantId  String     @db.Uuid
+  title     String?
+  tenant    Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  messages  Message[]
+  runs      AgentRun[]
+  createdAt DateTime   @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime   @updatedAt @db.Timestamptz(3)
+  deletedAt DateTime?  @db.Timestamptz(3)
+
+  @@unique([tenantId, id])
+  @@index([tenantId, updatedAt(sort: Desc)])
+}
+
+model Message {
+  id             String       @id @default(uuid()) @db.Uuid
+  tenantId       String       @db.Uuid
+  conversationId String       @db.Uuid
+  role           String
+  content        String
+  sequence       Int
+  conversation   Conversation @relation(fields: [tenantId, conversationId], references: [tenantId, id], onDelete: Cascade)
+  createdAt      DateTime     @default(now()) @db.Timestamptz(3)
+
+  @@unique([tenantId, conversationId, sequence])
+  @@index([tenantId, conversationId, createdAt])
+}
+
+model Document {
+  id            String          @id @default(uuid()) @db.Uuid
+  tenantId      String          @db.Uuid
+  fileName      String
+  storageKey    String
+  mimeType      String
+  sizeBytes     BigInt
+  checksum      String
+  status        DocumentStatus  @default(UPLOADED)
+  failureCode   String?
+  failureDetail String?
+  tenant        Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  chunks        DocumentChunk[]
+  createdAt     DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime        @updatedAt @db.Timestamptz(3)
+  deletedAt     DateTime?       @db.Timestamptz(3)
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, storageKey])
+  @@index([tenantId, status, createdAt(sort: Desc)])
+}
+
+model DocumentChunk {
+  id         String   @id @default(uuid()) @db.Uuid
+  tenantId   String   @db.Uuid
+  documentId String   @db.Uuid
+  ordinal    Int
+  content    String
+  tokenCount Int?
+  pageNumber Int?
+  vectorId   String?  @unique
+  document   Document @relation(fields: [tenantId, documentId], references: [tenantId, id], onDelete: Cascade)
+  createdAt  DateTime @default(now()) @db.Timestamptz(3)
+
+  @@unique([tenantId, documentId, ordinal])
+  @@index([tenantId, documentId])
+}
+
+model AgentRun {
+  id             String          @id @default(uuid()) @db.Uuid
+  tenantId       String          @db.Uuid
+  agentId        String          @db.Uuid
+  conversationId String?         @db.Uuid
+  status         AgentRunStatus  @default(QUEUED)
+  input          Json
+  configSnapshot Json
+  correlationId  String
+  startedAt      DateTime?       @db.Timestamptz(3)
+  completedAt    DateTime?       @db.Timestamptz(3)
+  errorCode      String?
+  errorMessage   String?
+  tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  agent          AgentDefinition @relation(fields: [tenantId, agentId], references: [tenantId, id], onDelete: Restrict)
+  conversation   Conversation?   @relation(fields: [tenantId, conversationId], references: [tenantId, id], onDelete: Restrict)
+  steps          AgentRunStep[]
+  tokenUsage     TokenUsage[]
+  createdAt      DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime        @updatedAt @db.Timestamptz(3)
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, correlationId])
+  @@index([tenantId, status, createdAt(sort: Desc)])
+  @@index([tenantId, agentId, createdAt(sort: Desc)])
+}
+
+model AgentRunStep {
+  id            String        @id @default(uuid()) @db.Uuid
+  tenantId      String        @db.Uuid
+  agentRunId    String        @db.Uuid
+  sequence      Int
+  kind          String
+  status        RunStepStatus @default(PENDING)
+  inputPreview  String?
+  outputPreview String?
+  durationMs    Int?
+  errorCode     String?
+  errorMessage  String?
+  startedAt     DateTime?     @db.Timestamptz(3)
+  completedAt   DateTime?     @db.Timestamptz(3)
+  agentRun      AgentRun      @relation(fields: [tenantId, agentRunId], references: [tenantId, id], onDelete: Cascade)
+  tokenUsage    TokenUsage[]
+  createdAt     DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime      @updatedAt @db.Timestamptz(3)
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, agentRunId, sequence])
+  @@index([tenantId, agentRunId, status])
+}
+
+model TokenUsage {
+  id           String        @id @default(uuid()) @db.Uuid
+  tenantId     String        @db.Uuid
+  agentRunId   String        @db.Uuid
+  runStepId    String?       @db.Uuid
+  provider     String
+  model        String
+  inputTokens  Int
+  outputTokens Int
+  costMicros   BigInt        @default(0)
+  latencyMs    Int
+  retryCount   Int           @default(0)
+  agentRun     AgentRun      @relation(fields: [tenantId, agentRunId], references: [tenantId, id], onDelete: Cascade)
+  runStep      AgentRunStep? @relation(fields: [tenantId, runStepId], references: [tenantId, id], onDelete: Restrict)
+  createdAt    DateTime      @default(now()) @db.Timestamptz(3)
+
+  @@index([tenantId, createdAt])
+  @@index([tenantId, agentRunId])
+}
+
+model GoldenCase {
+  id              String             @id @default(uuid()) @db.Uuid
+  tenantId        String             @db.Uuid
+  agentId         String             @db.Uuid
+  name            String
+  input           String
+  expectedFacts   String[]           @default([])
+  forbiddenClaims String[]           @default([])
+  expectedSources String[]           @default([])
+  tenant          Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  agent           AgentDefinition    @relation(fields: [tenantId, agentId], references: [tenantId, id], onDelete: Cascade)
+  results         EvaluationResult[]
+  createdAt       DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime           @updatedAt @db.Timestamptz(3)
+  deletedAt       DateTime?          @db.Timestamptz(3)
+
+  @@unique([tenantId, id])
+  @@index([tenantId, agentId, deletedAt])
+}
+
+model EvaluationRun {
+  id            String             @id @default(uuid()) @db.Uuid
+  tenantId      String             @db.Uuid
+  status        EvaluationStatus   @default(QUEUED)
+  configVersion String
+  startedAt     DateTime?          @db.Timestamptz(3)
+  completedAt   DateTime?          @db.Timestamptz(3)
+  tenant        Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  results       EvaluationResult[]
+  createdAt     DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime           @updatedAt @db.Timestamptz(3)
+
+  @@unique([tenantId, id])
+  @@index([tenantId, status, createdAt(sort: Desc)])
+}
+
+model EvaluationResult {
+  id              String        @id @default(uuid()) @db.Uuid
+  tenantId        String        @db.Uuid
+  evaluationRunId String        @db.Uuid
+  goldenCaseId    String        @db.Uuid
+  passed          Boolean
+  score           Float
+  details         Json
+  latencyMs       Int
+  inputTokens     Int
+  outputTokens    Int
+  retrievalHit    Boolean
+  evaluationRun   EvaluationRun @relation(fields: [tenantId, evaluationRunId], references: [tenantId, id], onDelete: Cascade)
+  goldenCase      GoldenCase    @relation(fields: [tenantId, goldenCaseId], references: [tenantId, id], onDelete: Cascade)
+  createdAt       DateTime      @default(now()) @db.Timestamptz(3)
+
+  @@unique([tenantId, evaluationRunId, goldenCaseId])
+  @@index([tenantId, goldenCaseId])
+}

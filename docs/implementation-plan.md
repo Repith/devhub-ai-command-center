@@ -21,16 +21,17 @@ workflow decision.
 - [x] Scaffold web, API, worker, contracts, domain, and config workspaces.
 - [x] Add pinned PostgreSQL, Redis, and Qdrant Compose services.
 - [x] Add CI for install, lint, typecheck, unit tests, and build.
-- [ ] Owner review and merge.
+- [x] Owner review and merge.
 
 Acceptance: all empty applications build and checks pass locally and in CI.
 
 ## PR 3: Contracts, Domain, and Persistence
 
-- [ ] Add shared Zod contracts, error envelope, statuses, and event envelope.
-- [ ] Add tenant-aware repository ports and domain transition policies.
-- [ ] Add Prisma schema, initial migration, indexes, constraints, and seed.
-- [ ] Test migrations and cross-tenant repository behavior.
+- [x] Add shared Zod contracts, error envelope, statuses, and event envelope.
+- [x] Add tenant-aware repository ports and domain transition policies.
+- [x] Add Prisma schema, initial migration, indexes, constraints, and seed.
+- [x] Test migrations and cross-tenant repository behavior.
+- [ ] Owner review and merge.
 
 Acceptance: the database can be recreated and seeded deterministically.
 

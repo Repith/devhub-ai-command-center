@@ -17,6 +17,22 @@ jobs:
   quality:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:18.4-alpine3.23
+        env:
+          POSTGRES_DB: devhub
+          POSTGRES_PASSWORD: devhub
+          POSTGRES_USER: devhub
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U devhub -d devhub"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://devhub:devhub@localhost:5432/devhub?schema=public
 
     steps:
       - name: Checkout
@@ -45,6 +61,17 @@ jobs:
 
       - name: Test
         run: npm test
+
+      - name: Apply database migrations
+        run: npm run db:migrate --workspace packages/database
+
+      - name: Seed database twice
+        run: |
+          npm run db:seed --workspace packages/database
+          npm run db:seed --workspace packages/database
+
+      - name: Integration test
+        run: npm run test:integration
 
       - name: Build
         run: npm run build
