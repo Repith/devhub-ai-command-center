@@ -16,6 +16,10 @@ and expiry. Refresh tokens are opaque, delivered only through a scoped
 SHA-256 hashes, and revoked on logout or detected reuse. Reuse revokes the
 entire refresh-token family.
 
+The web application keeps access tokens only in React memory. It restores a
+session through the scoped refresh cookie after reload and proxies `/api/v1`
+through the Next.js origin so browser code never reads the refresh token.
+
 ## Tenant Isolation
 
 Every repository call accepts server-derived tenant context. Foreign resources

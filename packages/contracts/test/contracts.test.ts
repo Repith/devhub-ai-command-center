@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   API_PREFIX,
+  agentDefinitionSchema,
   apiErrorSchema,
   createAgentDefinitionSchema,
   documentStatusSchema,
@@ -56,6 +57,27 @@ describe("contracts", () => {
     });
 
     expect(result.success).toBe(false);
+  });
+
+  it("validates an agent definition response without tenant context", () => {
+    const result = agentDefinitionSchema.safeParse({
+      id: "64fe81ba-7faf-4b37-a2b8-347cd19b5550",
+      name: "Knowledge Assistant",
+      description: null,
+      provider: "ollama",
+      model: "qwen3:8b",
+      systemPrompt: "Use authorized knowledge.",
+      maxSteps: 8,
+      maxToolCalls: 4,
+      maxTokens: null,
+      timeoutMs: 120_000,
+      enabledToolIds: [],
+      knowledgeBaseIds: [],
+      createdAt: "2026-06-09T12:00:00.000Z",
+      updatedAt: "2026-06-09T12:00:00.000Z"
+    });
+
+    expect(result.success).toBe(true);
   });
 
   it("rejects tenant identifiers in registration input", () => {

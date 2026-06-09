@@ -41,16 +41,16 @@ Acceptance: the database can be recreated and seeded deterministically.
 - [x] Implement access JWTs and rotating hashed refresh sessions.
 - [x] Add guards, role checks, logout, `/me`, and session reuse detection.
 - [x] Add isolation and session integration tests.
-- [ ] Owner review and merge.
+- [x] Owner review and merge.
 
 Acceptance: two seeded tenants cannot access each other's resources.
 
 ## PR 5: Dashboard and Agent Configuration
 
-- [ ] Build application shell, navigation, and TanStack Query client.
-- [ ] Implement tenant-scoped agent CRUD.
-- [ ] Add React Hook Form forms using shared Zod schemas.
-- [ ] Test validation, loading, empty, error, and authorization states.
+- [x] Build application shell, navigation, and TanStack Query client.
+- [x] Implement tenant-scoped agent CRUD.
+- [x] Add React Hook Form forms using shared Zod schemas.
+- [x] Test validation, loading, empty, error, and authorization states.
 
 Acceptance: a user can create and edit an agent definition from the UI.
 

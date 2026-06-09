@@ -36,6 +36,13 @@ import { TokenService } from "./token.service";
     RolesGuard,
     TokenService
   ],
-  exports: [AuthGuard, RolesGuard]
+  exports: [
+    AUTH_CONFIG,
+    AUTH_REFLECTOR,
+    JWT_SERVICE,
+    TOKEN_SERVICE,
+    AuthGuard,
+    RolesGuard
+  ]
 })
 export class AuthModule {}

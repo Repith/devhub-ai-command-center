@@ -20,7 +20,7 @@
     "test": "turbo run test",
     "test:integration": "turbo run test:integration",
     "test:e2e": "turbo run test:e2e",
-    "typecheck": "turbo run typecheck"
+    "typecheck": "npm run prisma:generate --workspace @devhub/database && turbo run typecheck"
   },
   "lint-staged": {
     "*.{js,mjs,cjs,ts,tsx,json,yml,yaml,md,css}": "prettier --check",
