@@ -75,3 +75,8 @@ contracts and reusable logic, not framework-specific shortcuts.
 Version 0.1.0 is local-only. PostgreSQL, Redis, and Qdrant run in Docker
 Compose; Ollama runs on the host for GPU access. RabbitMQ and cloud deployment
 remain explicit future decisions.
+
+Next.js, NestJS, and the worker also run on the host during development for
+fast reloads. Production application images are deferred until a deployment
+target exists; this does not change the application boundaries or Compose-based
+stateful dependencies.

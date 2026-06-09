@@ -5,9 +5,10 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "build": "npm run prisma:generate && tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.build.json",
     "db:migrate": "prisma migrate deploy",
     "db:seed": "prisma db seed",
+    "generate": "prisma generate",
     "lint": "eslint src prisma test",
     "prisma:generate": "prisma generate",
     "test": "vitest run --exclude test/**/*.integration.test.ts",

@@ -12,15 +12,23 @@
   },
   "scripts": {
     "build": "turbo run build",
-    "dev": "turbo run dev",
+    "db:setup": "npm run db:migrate --workspace @devhub/database && npm run db:seed --workspace @devhub/database",
+    "dev": "node scripts/run-dev.mjs",
+    "env:init": "node scripts/init-env.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "lint": "turbo run lint",
+    "generate": "turbo run generate",
+    "infra:down": "node scripts/infra.mjs down",
+    "infra:logs": "node scripts/infra.mjs logs",
+    "infra:status": "node scripts/infra.mjs status",
+    "infra:up": "node scripts/infra.mjs up",
+    "lint": "eslint scripts && turbo run lint",
     "prepare": "husky",
+    "setup": "npm run env:init && npm run infra:up && npm run db:setup",
     "test": "turbo run test",
     "test:integration": "turbo run test:integration",
     "test:e2e": "turbo run test:e2e",
-    "typecheck": "npm run prisma:generate --workspace @devhub/database && turbo run typecheck"
+    "typecheck": "turbo run typecheck"
   },
   "lint-staged": {
     "*.{js,mjs,cjs,ts,tsx,json,yml,yaml,md,css}": "prettier --check",
