@@ -39,7 +39,8 @@ the learning objective.
 
 1. Read the relevant files in `docs/` and the matching role definition in
    `.agents/agents/`.
-2. Load only the skills relevant to the current task from `.agents/skills/`.
+2. Install missing local skills with `.agents/setup-skills.ps1`, then load only
+   the skills relevant to the current task from `.agents/skills/`.
 3. Work on a branch named `docs/*`, `feat/*`, `fix/*`, or `chore/*`.
 4. Keep one logical stage per pull request.
 5. Run the documented checks and report anything that could not be run.
