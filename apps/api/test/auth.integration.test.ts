@@ -130,7 +130,12 @@ describe("authentication and tenancy", () => {
     const jwt = new JwtService();
     const claims = jwt.decode<AccessClaims>(access);
     const forged = await jwt.signAsync(
-      { ...claims, tenantId: betaUser.tenantId },
+      {
+        sub: claims.sub,
+        tenantId: betaUser.tenantId,
+        role: claims.role,
+        sessionId: claims.sessionId
+      },
       {
         secret: jwtSecret,
         algorithm: "HS256",
