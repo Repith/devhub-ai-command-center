@@ -36,10 +36,10 @@ Development commands will be introduced in the monorepo foundation pull
 request. The intended workflow will be:
 
 ```bash
-pnpm install
+npm install
 docker compose up -d
-pnpm db:migrate
-pnpm dev
+npm run db:migrate
+npm run dev
 ```
 
 Ollama runs on the host to use the local GPU. No cloud model or API key is

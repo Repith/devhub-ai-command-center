@@ -1,0 +1,21 @@
+{
+  "name": "@devhub/worker",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsx watch src/index.ts",
+    "lint": "eslint src test",
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@devhub/domain": "0.0.0"
+  },
+  "devDependencies": {
+    "@devhub/config": "0.0.0",
+    "@types/node": "25.9.2",
+    "tsx": "4.22.4"
+  }
+}

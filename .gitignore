@@ -1,13 +1,14 @@
 # Dependencies
 node_modules/
-.pnpm-store/
 .agents/skills/
+.local-bin/
 
 # Build output
 .next/
 dist/
 coverage/
 .turbo/
+*.tsbuildinfo
 
 # Environment and secrets
 .env

@@ -1,0 +1,24 @@
+{
+  "name": "@devhub/web",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "build": "next build",
+    "dev": "next dev",
+    "lint": "eslint app lib test",
+    "start": "next start",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@devhub/contracts": "0.0.0",
+    "next": "16.2.7",
+    "react": "19.2.7",
+    "react-dom": "19.2.7"
+  },
+  "devDependencies": {
+    "@devhub/config": "0.0.0",
+    "@types/react": "19.2.17",
+    "@types/react-dom": "19.2.3"
+  }
+}

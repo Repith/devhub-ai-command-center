@@ -1,0 +1,27 @@
+{
+  "name": "@devhub/api",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsx watch src/main.ts",
+    "lint": "eslint src test",
+    "start": "node dist/main.js",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@devhub/contracts": "0.0.0",
+    "@nestjs/common": "11.1.26",
+    "@nestjs/core": "11.1.26",
+    "@nestjs/platform-express": "11.1.26",
+    "reflect-metadata": "0.2.2",
+    "rxjs": "7.8.2"
+  },
+  "devDependencies": {
+    "@devhub/config": "0.0.0",
+    "@nestjs/testing": "11.1.26",
+    "@types/node": "25.9.2",
+    "tsx": "4.22.4"
+  }
+}
