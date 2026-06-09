@@ -1,0 +1,30 @@
+{
+  "name": "@devhub/database",
+  "version": "0.0.0",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "npm run prisma:generate && tsc -p tsconfig.build.json",
+    "db:migrate": "prisma migrate deploy",
+    "db:seed": "prisma db seed",
+    "lint": "eslint src prisma test",
+    "prisma:generate": "prisma generate",
+    "test": "vitest run --exclude test/**/*.integration.test.ts",
+    "test:integration": "vitest run test/agent-definition-repository.integration.test.ts",
+    "typecheck": "npm run prisma:generate && tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@devhub/domain": "0.0.0",
+    "@prisma/adapter-pg": "7.8.0",
+    "@prisma/client": "7.8.0",
+    "dotenv": "17.4.2",
+    "pg": "8.21.0"
+  },
+  "devDependencies": {
+    "@devhub/config": "0.0.0",
+    "@types/pg": "8.20.0",
+    "prisma": "7.8.0",
+    "tsx": "4.22.4"
+  }
+}

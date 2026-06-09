@@ -8,6 +8,7 @@ export default tseslint.config(
       "**/.next/**",
       "**/coverage/**",
       "**/dist/**",
+      "**/generated/**",
       "**/node_modules/**",
       ".agents/skills/**"
     ]

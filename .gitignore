@@ -9,6 +9,7 @@ dist/
 coverage/
 .turbo/
 *.tsbuildinfo
+packages/database/src/generated/
 
 # Environment and secrets
 .env

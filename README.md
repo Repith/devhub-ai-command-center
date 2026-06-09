@@ -32,13 +32,15 @@ and [implementation plan](docs/implementation-plan.md) before contributing.
 
 ## Local Development
 
-Development commands will be introduced in the monorepo foundation pull
-request. The intended workflow will be:
+Copy the environment template, start infrastructure, and initialize the
+database before running the applications:
 
 ```bash
 npm install
-docker compose up -d
-npm run db:migrate
+cp .env.example .env
+docker compose up -d postgres redis qdrant
+npm run db:migrate --workspace packages/database
+npm run db:seed --workspace packages/database
 npm run dev
 ```
 
