@@ -3,10 +3,22 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build", "generate"],
+      "env": ["API_ORIGIN"],
       "outputs": [".next/**", "!.next/cache/**", "dist/**"]
     },
     "dev": {
       "cache": false,
+      "env": [
+        "ACCESS_TOKEN_TTL_SECONDS",
+        "API_ORIGIN",
+        "API_PORT",
+        "DATABASE_URL",
+        "JWT_AUDIENCE",
+        "JWT_ISSUER",
+        "JWT_SECRET",
+        "REFRESH_COOKIE_SECURE",
+        "REFRESH_TOKEN_TTL_SECONDS"
+      ],
       "persistent": true
     },
     "lint": {
