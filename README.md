@@ -6,8 +6,8 @@ configuration, MCP tools, RAG, multi-tenant data isolation, background jobs,
 real-time run timelines, usage tracking, and quality evaluation in one compact
 system.
 
-> Status: documentation and architecture design. Application scaffolding starts
-> after the documentation pull request is approved.
+> Status: authentication, tenant isolation, and agent configuration are
+> implemented. Runtime, RAG, MCP, and evaluation stages remain in progress.
 
 ## Target Demo
 
@@ -32,20 +32,21 @@ and [implementation plan](docs/implementation-plan.md) before contributing.
 
 ## Local Development
 
-Copy the environment template, start infrastructure, and initialize the
-database before running the applications:
+Install dependencies, initialize the local environment and Docker
+infrastructure, then run the host applications with hot reload:
 
 ```bash
 npm install
-cp .env.example .env
-docker compose up -d postgres redis qdrant
-npm run db:migrate --workspace packages/database
-npm run db:seed --workspace packages/database
+npm run setup
 npm run dev
 ```
 
 Ollama runs on the host to use the local GPU. No cloud model or API key is
-required for the MVP.
+required for the MVP. PostgreSQL, Redis, and Qdrant run in Docker Compose;
+Next.js, NestJS, and the worker run on the host.
+
+See [local development](docs/local-development.md) for service ports, daily
+commands, environment handling, and troubleshooting.
 
 ## Delivery Model
 
