@@ -16,6 +16,9 @@
         "JWT_AUDIENCE",
         "JWT_ISSUER",
         "JWT_SECRET",
+        "OLLAMA_API_KEY",
+        "OLLAMA_BASE_URL",
+        "OLLAMA_CHAT_MODEL",
         "REFRESH_COOKIE_SECURE",
         "REFRESH_TOKEN_TTL_SECONDS"
       ],
@@ -40,6 +43,9 @@
         "JWT_AUDIENCE",
         "JWT_ISSUER",
         "JWT_SECRET",
+        "OLLAMA_API_KEY",
+        "OLLAMA_BASE_URL",
+        "OLLAMA_CHAT_MODEL",
         "REFRESH_COOKIE_SECURE",
         "REFRESH_TOKEN_TTL_SECONDS"
       ],

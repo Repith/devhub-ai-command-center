@@ -80,3 +80,8 @@ Next.js, NestJS, and the worker also run on the host during development for
 fast reloads. Production application images are deferred until a deployment
 target exists; this does not change the application boundaries or Compose-based
 stateful dependencies.
+
+The PR 6 chat foundation streams directly from the API to establish provider,
+conversation, cancellation, and usage contracts without introducing the agent
+queue early. PR 10 replaces this direct orchestration path with durable worker
+runs while preserving the provider port and persisted conversation model.

@@ -46,6 +46,17 @@ npm run dev
 `npm run dev` refuses to start when `.env` is missing or the JWT secret is too
 short. It loads the root environment before Turborepo starts each application.
 
+Install Ollama separately and pull the configured chat model before using the
+chat endpoint:
+
+```bash
+ollama pull qwen3:8b
+```
+
+`OLLAMA_BASE_URL` defaults to `http://localhost:11434/v1`,
+`OLLAMA_CHAT_MODEL` defaults to `qwen3:8b`, and `OLLAMA_API_KEY` defaults to
+the ignored compatibility value `ollama`.
+
 ## Daily Commands
 
 ```bash
