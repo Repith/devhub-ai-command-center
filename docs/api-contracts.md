@@ -35,7 +35,10 @@ Errors use:
 - `GET /me`
 
 Registration creates a user, tenant, owner membership, and refresh session in
-one transaction. Refresh tokens rotate on use and are stored as hashes.
+one transaction. Refresh tokens rotate on use, are stored as hashes, and are
+transported in a scoped `HttpOnly` cookie. Login may select a tenant by slug;
+when omitted, the oldest membership is used. `/me` returns the persisted active
+membership selected by the verified access token and session.
 
 ## Agents and Conversations
 

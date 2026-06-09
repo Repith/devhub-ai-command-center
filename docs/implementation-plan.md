@@ -31,16 +31,17 @@ Acceptance: all empty applications build and checks pass locally and in CI.
 - [x] Add tenant-aware repository ports and domain transition policies.
 - [x] Add Prisma schema, initial migration, indexes, constraints, and seed.
 - [x] Test migrations and cross-tenant repository behavior.
-- [ ] Owner review and merge.
+- [x] Owner review and merge.
 
 Acceptance: the database can be recreated and seeded deterministically.
 
 ## PR 4: Authentication and Tenancy
 
-- [ ] Implement Argon2id registration and login.
-- [ ] Implement access JWTs and rotating hashed refresh sessions.
-- [ ] Add guards, role checks, logout, `/me`, and session reuse detection.
-- [ ] Add isolation and session integration tests.
+- [x] Implement Argon2id registration and login.
+- [x] Implement access JWTs and rotating hashed refresh sessions.
+- [x] Add guards, role checks, logout, `/me`, and session reuse detection.
+- [x] Add isolation and session integration tests.
+- [ ] Owner review and merge.
 
 Acceptance: two seeded tenants cannot access each other's resources.
 

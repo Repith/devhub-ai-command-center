@@ -5,6 +5,7 @@ import {
   apiErrorSchema,
   createAgentDefinitionSchema,
   documentStatusSchema,
+  registerSchema,
   realtimeEventSchema
 } from "../src";
 
@@ -51,6 +52,17 @@ describe("contracts", () => {
       provider: "ollama",
       model: "qwen3:8b",
       systemPrompt: "Use authorized knowledge.",
+      tenantId: "64fe81ba-7faf-4b37-a2b8-347cd19b5550"
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects tenant identifiers in registration input", () => {
+    const result = registerSchema.safeParse({
+      email: "owner@example.com",
+      password: "correct horse battery staple",
+      tenantName: "Example",
       tenantId: "64fe81ba-7faf-4b37-a2b8-347cd19b5550"
     });
 

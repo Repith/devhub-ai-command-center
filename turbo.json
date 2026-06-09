@@ -19,6 +19,15 @@
     },
     "test:integration": {
       "dependsOn": ["^build"],
+      "env": [
+        "ACCESS_TOKEN_TTL_SECONDS",
+        "DATABASE_URL",
+        "JWT_AUDIENCE",
+        "JWT_ISSUER",
+        "JWT_SECRET",
+        "REFRESH_COOKIE_SECURE",
+        "REFRESH_TOKEN_TTL_SECONDS"
+      ],
       "outputs": ["coverage/**"]
     },
     "test:e2e": {

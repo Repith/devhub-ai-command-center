@@ -33,6 +33,12 @@ jobs:
           --health-retries 10
     env:
       DATABASE_URL: postgresql://devhub:devhub@localhost:5432/devhub?schema=public
+      JWT_SECRET: ci-only-secret-with-at-least-32-characters
+      JWT_ISSUER: devhub-ai-command-center
+      JWT_AUDIENCE: devhub-api
+      ACCESS_TOKEN_TTL_SECONDS: 900
+      REFRESH_TOKEN_TTL_SECONDS: 2592000
+      REFRESH_COOKIE_SECURE: false
 
     steps:
       - name: Checkout

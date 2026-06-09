@@ -2,14 +2,12 @@ import "reflect-metadata";
 
 import { NestFactory } from "@nestjs/core";
 
-import { API_PREFIX } from "@devhub/contracts";
-
+import { configureApp } from "./app-config";
 import { AppModule } from "./app.module";
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule);
-  app.setGlobalPrefix(API_PREFIX.slice(1));
-
+  configureApp(app);
   const port = Number(process.env.API_PORT ?? 4000);
   await app.listen(port);
 }
