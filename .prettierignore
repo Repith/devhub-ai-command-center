@@ -1,0 +1,13 @@
+.agents/skills/
+.agents/
+.github/ISSUE_TEMPLATE/
+.github/pull_request_template.md
+.next/
+coverage/
+dist/
+docs/
+node_modules/
+package-lock.json
+AGENTS.md
+CONTRIBUTING.md
+README.md

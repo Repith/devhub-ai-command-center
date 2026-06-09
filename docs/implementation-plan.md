@@ -9,17 +9,19 @@ dependency is merged.
   documentation.
 - [x] ADRs for major technology choices.
 - [x] Agent roles, audited repository skills, contribution rules, and templates.
-- [ ] Owner review and merge.
+- [x] Owner review and merge.
 
 Acceptance: an implementer can start PR 2 without making an architectural or
 workflow decision.
 
 ## PR 2: Monorepo Foundation
 
-- [ ] Configure pnpm, Turborepo, strict TypeScript, ESLint, Prettier, and Husky.
-- [ ] Scaffold web, API, worker, contracts, domain, and config workspaces.
-- [ ] Add pinned PostgreSQL, Redis, and Qdrant Compose services.
-- [ ] Add CI for install, lint, typecheck, unit tests, and build.
+- [x] Configure npm workspaces, Turborepo, strict TypeScript, ESLint, Prettier,
+  and Husky.
+- [x] Scaffold web, API, worker, contracts, domain, and config workspaces.
+- [x] Add pinned PostgreSQL, Redis, and Qdrant Compose services.
+- [x] Add CI for install, lint, typecheck, unit tests, and build.
+- [ ] Owner review and merge.
 
 Acceptance: all empty applications build and checks pass locally and in CI.
 

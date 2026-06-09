@@ -51,13 +51,13 @@ the learning objective.
 These commands become authoritative after the monorepo foundation is merged:
 
 ```bash
-pnpm lint
-pnpm typecheck
-pnpm test
-pnpm test:integration
-pnpm test:e2e
-pnpm build
-pnpm eval:golden
+npm run lint
+npm run typecheck
+npm test
+npm run test:integration
+npm run test:e2e
+npm run build
+npm run eval:golden
 ```
 
 ## Skill Precedence

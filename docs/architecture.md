@@ -43,7 +43,7 @@ packages/
   config/
 ```
 
-Turborepo coordinates builds while pnpm owns workspace dependency resolution.
+Turborepo coordinates builds while npm workspaces own dependency resolution.
 Applications are independently runnable processes. Shared packages contain
 contracts and reusable logic, not framework-specific shortcuts.
 
