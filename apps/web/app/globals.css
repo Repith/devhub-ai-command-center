@@ -925,6 +925,116 @@ button.nav-item {
   padding: 1.25rem;
 }
 
+.knowledge-section {
+  display: grid;
+  gap: 1rem;
+  border-bottom: 1px solid #252936;
+  padding: 1.25rem;
+}
+
+.knowledge-section h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.upload-row,
+.knowledge-search {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 0.75rem;
+}
+
+.status-pill {
+  border: 1px solid #303543;
+  border-radius: 999px;
+  padding: 0.45rem 0.7rem;
+  background: #171a22;
+  color: #cbd1df;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.status-pill.indexed {
+  border-color: #31543f;
+  color: #8fe3b0;
+}
+
+.status-pill.failed {
+  border-color: #62343b;
+  color: #ffb1b8;
+}
+
+.status-pill.processing,
+.status-pill.uploaded {
+  border-color: #5b4f2a;
+  color: #f2c66d;
+}
+
+.knowledge-results,
+.chunk-list {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.knowledge-results li,
+.chunk-list li {
+  border: 1px solid #2d3240;
+  border-radius: 0.85rem;
+  padding: 0.85rem;
+  background: #11141b;
+}
+
+.knowledge-results li > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.knowledge-results strong,
+.chunk-list span {
+  color: #c8c0ff;
+  font-family: ui-monospace, monospace;
+  font-size: 0.78rem;
+}
+
+.knowledge-results span,
+.knowledge-results small {
+  color: #858da0;
+  font-size: 0.76rem;
+}
+
+.knowledge-results p,
+.chunk-list p {
+  display: -webkit-box;
+  overflow: hidden;
+  margin: 0.55rem 0 0.45rem;
+  color: #e7eaf1;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+}
+
+.chunk-list li {
+  display: grid;
+  grid-template-columns: 3rem minmax(0, 1fr);
+  gap: 0.75rem;
+}
+
+.chunk-list p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.compact-state {
+  min-height: 8rem;
+}
+
 .timeline-list {
   display: grid;
   gap: 0.75rem;
@@ -1163,6 +1273,11 @@ button.nav-item {
   }
 
   .chat-composer {
+    grid-template-columns: 1fr;
+  }
+
+  .upload-row,
+  .knowledge-search {
     grid-template-columns: 1fr;
   }
 }
