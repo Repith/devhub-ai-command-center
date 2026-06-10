@@ -72,4 +72,45 @@ describe("QdrantVectorStore", () => {
       }
     });
   });
+
+  it("returns no search results when the collection does not exist yet", async () => {
+    const store = new QdrantVectorStore({
+      url: "http://qdrant.test",
+      collectionName: "documents",
+      fetch: (() =>
+        Promise.resolve(
+          new Response(JSON.stringify({ status: "not found" }), {
+            status: 404,
+            headers: { "Content-Type": "application/json" }
+          })
+        )) as typeof fetch
+    });
+
+    await expect(
+      store.search({
+        tenantId: "tenant-a",
+        vector: [0.1, 0.2],
+        limit: 3
+      })
+    ).resolves.toEqual([]);
+  });
+
+  it("raises a typed error when Qdrant is unavailable", async () => {
+    const store = new QdrantVectorStore({
+      url: "http://qdrant.test",
+      collectionName: "documents",
+      fetch: (() => Promise.reject(new Error("ECONNREFUSED"))) as typeof fetch
+    });
+
+    await expect(
+      store.search({
+        tenantId: "tenant-a",
+        vector: [0.1, 0.2],
+        limit: 3
+      })
+    ).rejects.toMatchObject({
+      code: "VECTOR_STORE_UNAVAILABLE",
+      message: "Unable to connect to Qdrant."
+    });
+  });
 });

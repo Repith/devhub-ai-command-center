@@ -15,6 +15,7 @@ import {
   searchKnowledge,
   uploadDocument
 } from "@/lib/documents-api";
+import { ApiClientError } from "@/lib/api-client";
 
 interface KnowledgeWorkspaceProps {
   accessToken: string;
@@ -60,7 +61,12 @@ export function KnowledgeWorkspace({
   const chunksQuery = useQuery({
     queryKey: ["document-chunks", activeDocumentId],
     queryFn: () => listDocumentChunks(accessToken, activeDocumentId!),
-    enabled: Boolean(activeDocumentId)
+    enabled: Boolean(activeDocumentId),
+    refetchInterval:
+      selectedDocument?.status === "UPLOADED" ||
+      selectedDocument?.status === "PROCESSING"
+        ? 2500
+        : false
   });
 
   const uploadMutation = useMutation({
@@ -150,9 +156,10 @@ export function KnowledgeWorkspace({
             isUploading={uploadMutation.isPending}
             error={
               uploadMutation.error instanceof Error
-                ? uploadMutation.error.message
+                ? formatError(uploadMutation.error)
                 : null
             }
+            uploadedDocument={uploadMutation.data ?? null}
             onFileChange={setSelectedFile}
             onUpload={() => {
               if (selectedFile) {
@@ -167,10 +174,11 @@ export function KnowledgeWorkspace({
             isSearching={searchMutation.isPending}
             error={
               searchMutation.error instanceof Error
-                ? searchMutation.error.message
+                ? formatError(searchMutation.error)
                 : null
             }
-            disabled={!activeDocumentId}
+            disabled={selectedDocument?.status !== "INDEXED"}
+            disabledReason={searchDisabledReason(selectedDocument)}
             onQueryChange={setQuery}
             onSearch={() => void searchMutation.mutate()}
           />
@@ -259,6 +267,7 @@ function UploadPanel({
   selectedFile,
   isUploading,
   error,
+  uploadedDocument,
   onFileChange,
   onUpload
 }: {
@@ -266,6 +275,7 @@ function UploadPanel({
   selectedFile: File | null;
   isUploading: boolean;
   error: string | null;
+  uploadedDocument: Document | null;
   onFileChange(file: File | null): void;
   onUpload(): void;
 }): React.JSX.Element {
@@ -288,6 +298,7 @@ function UploadPanel({
           />
           <small>
             Supported: Markdown, TXT, PDF. Uploads are tenant-scoped.
+            {selectedFile ? ` Selected: ${selectedFile.name}.` : ""}
           </small>
         </label>
         <button
@@ -296,9 +307,18 @@ function UploadPanel({
           disabled={!canManage || !selectedFile || isUploading}
           onClick={onUpload}
         >
-          Upload
+          {isUploading ? "Uploading..." : "Upload"}
         </button>
       </div>
+      {isUploading ? (
+        <p className="muted">Uploading file and queueing ingestion...</p>
+      ) : null}
+      {uploadedDocument ? (
+        <p className="muted">
+          {uploadedDocument.fileName} is queued for ingestion. Keep the worker
+          running until status becomes indexed.
+        </p>
+      ) : null}
       {!canManage ? (
         <p className="permission-note">
           Only owners and admins can upload documents.
@@ -315,6 +335,7 @@ function SearchPanel({
   isSearching,
   error,
   disabled,
+  disabledReason,
   onQueryChange,
   onSearch
 }: {
@@ -323,6 +344,7 @@ function SearchPanel({
   isSearching: boolean;
   error: string | null;
   disabled: boolean;
+  disabledReason: string;
   onQueryChange(query: string): void;
   onSearch(): void;
 }): React.JSX.Element {
@@ -356,6 +378,7 @@ function SearchPanel({
           Search
         </button>
       </form>
+      {disabled ? <p className="muted">{disabledReason}</p> : null}
       {error ? <p role="alert">{error}</p> : null}
       {result ? <SearchResults result={result} /> : null}
     </section>
@@ -412,6 +435,10 @@ function ChunkPreview({
         </div>
       ) : !document ? (
         <p className="muted">Select or upload a document to inspect chunks.</p>
+      ) : document.status === "FAILED" ? (
+        <p className="muted">
+          Ingestion failed: {document.failureDetail ?? document.failureCode}.
+        </p>
       ) : chunks.length === 0 ? (
         <p className="muted">
           No chunks yet. Current status: {document.status.toLowerCase()}.
@@ -428,4 +455,23 @@ function ChunkPreview({
       )}
     </section>
   );
+}
+
+function searchDisabledReason(document: Document | null): string {
+  if (!document) {
+    return "Upload and select an indexed document before testing retrieval.";
+  }
+  if (document.status === "FAILED") {
+    return `This document failed ingestion: ${
+      document.failureDetail ?? document.failureCode ?? "unknown failure"
+    }.`;
+  }
+  return `Retrieval is available after ingestion reaches indexed. Current status: ${document.status.toLowerCase()}.`;
+}
+
+function formatError(error: Error): string {
+  if (error instanceof ApiClientError) {
+    return `${error.response.message} [${error.response.code}, correlation: ${error.response.correlationId}]`;
+  }
+  return error.message;
 }

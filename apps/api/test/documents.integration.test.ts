@@ -15,7 +15,11 @@ import type {
 } from "@devhub/contracts";
 import type { EmbeddingProviderPort } from "@devhub/ai";
 import type { DatabaseClient } from "@devhub/database";
-import type { VectorSearchHit, VectorStorePort } from "@devhub/rag";
+import {
+  VectorStoreError,
+  type VectorSearchHit,
+  type VectorStorePort
+} from "@devhub/rag";
 
 import { configureApp } from "../src/app-config";
 import { AppModule } from "../src/app.module";
@@ -37,6 +41,7 @@ describe("document upload and tenant isolation", () => {
   let ownerToken: string;
   let outsiderToken: string;
   let searchHits: VectorSearchHit[] = [];
+  let vectorSearchError: Error | null = null;
   const jobs: DocumentIngestionJob[] = [];
 
   beforeAll(async () => {
@@ -59,7 +64,14 @@ describe("document upload and tenant isolation", () => {
       .overrideProvider(EMBEDDING_PROVIDER)
       .useValue(fakeEmbeddingProvider())
       .overrideProvider(VECTOR_STORE)
-      .useValue(fakeVectorStore(() => searchHits))
+      .useValue(
+        fakeVectorStore(() => {
+          if (vectorSearchError) {
+            throw vectorSearchError;
+          }
+          return searchHits;
+        })
+      )
       .compile();
     app = module.createNestApplication();
     configureApp(app);
@@ -221,6 +233,27 @@ describe("document upload and tenant isolation", () => {
       `doc:${document.id.slice(0, 8)}#0`
     );
   });
+
+  it("returns a diagnostic response when retrieval infrastructure is unavailable", async () => {
+    vectorSearchError = new VectorStoreError(
+      "VECTOR_STORE_UNAVAILABLE",
+      "Unable to connect to Qdrant."
+    );
+
+    const response = await request(app!.getHttpServer())
+      .post("/api/v1/documents/search")
+      .set("Authorization", `Bearer ${ownerToken}`)
+      .send({ query: "knowledge", limit: 5 })
+      .expect(503);
+
+    expect(response.body).toMatchObject({
+      code: "VECTOR_STORE_UNAVAILABLE",
+      message: "Unable to connect to Qdrant."
+    });
+    expect(response.body).toHaveProperty("correlationId");
+
+    vectorSearchError = null;
+  });
 });
 
 function fakeEmbeddingProvider(): EmbeddingProviderPort {
@@ -241,7 +274,7 @@ function fakeVectorStore(
   return {
     name: "fake",
     deleteDocument: () => Promise.resolve(),
-    search: () => Promise.resolve(hits()),
+    search: async () => hits(),
     upsert: () => Promise.resolve()
   };
 }

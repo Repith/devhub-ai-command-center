@@ -96,6 +96,23 @@ if (require.main === module) {
     }
   );
 
+  documentWorker.on("completed", (job) => {
+    console.log(`Document ingestion completed: ${job.id}`);
+  });
+  documentWorker.on("failed", (job, error) => {
+    console.error(
+      `Document ingestion failed: ${job?.id ?? "unknown"} ${error.message}`
+    );
+  });
+  agentWorker.on("failed", (job, error) => {
+    console.error(`Agent run failed: ${job?.id ?? "unknown"} ${error.message}`);
+  });
+  goldenEvaluationWorker.on("failed", (job, error) => {
+    console.error(
+      `Golden evaluation failed: ${job?.id ?? "unknown"} ${error.message}`
+    );
+  });
+
   const shutdown = async (): Promise<void> => {
     await Promise.all([
       documentWorker.close(),

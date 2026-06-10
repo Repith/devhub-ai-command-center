@@ -5,7 +5,9 @@ import {
   BadRequestException,
   Inject,
   Injectable,
-  NotFoundException
+  Logger,
+  NotFoundException,
+  ServiceUnavailableException
 } from "@nestjs/common";
 
 import {
@@ -18,9 +20,13 @@ import {
   type KnowledgeSearchResponse,
   type SupportedDocumentMimeType
 } from "@devhub/contracts";
-import type { EmbeddingProviderPort } from "@devhub/ai";
+import { EmbeddingProviderError, type EmbeddingProviderPort } from "@devhub/ai";
 import type { PrismaDocumentRepository } from "@devhub/database";
-import type { VectorSearchHit, VectorStorePort } from "@devhub/rag";
+import {
+  VectorStoreError,
+  type VectorSearchHit,
+  type VectorStorePort
+} from "@devhub/rag";
 import type { TenantContext } from "@devhub/domain";
 
 import type { RequestPrincipal } from "../auth/auth.types";
@@ -52,6 +58,8 @@ export interface UploadedMultipartFile {
 
 @Injectable()
 export class DocumentsService {
+  private readonly logger = new Logger(DocumentsService.name);
+
   public constructor(
     @Inject(DOCUMENT_REPOSITORY)
     private readonly documents: PrismaDocumentRepository,
@@ -88,10 +96,24 @@ export class DocumentsService {
       sizeBytes: valid.size,
       checksum
     });
-    await this.queue.enqueue(
-      this.toJob(principal, record.id, storageKey, valid.mimeType, checksum)
-    );
-    await this.audit.record(principal, {
+    try {
+      await this.queue.enqueue(
+        this.toJob(principal, record.id, storageKey, valid.mimeType, checksum)
+      );
+    } catch {
+      await this.documents.markFailed(
+        context,
+        record.id,
+        "DOCUMENT_QUEUE_UNAVAILABLE",
+        "Document was stored, but ingestion could not be queued. Confirm Redis is running and restart setup/dev."
+      );
+      throw new ServiceUnavailableException({
+        code: "DOCUMENT_QUEUE_UNAVAILABLE",
+        message:
+          "Document was stored, but ingestion could not be queued. Confirm Redis is running and try again."
+      });
+    }
+    await this.recordAudit(principal, {
       action: "document.uploaded",
       resourceType: "document",
       resourceId: record.id,
@@ -148,22 +170,13 @@ export class DocumentsService {
     input: KnowledgeSearchRequest
   ): Promise<KnowledgeSearchResponse> {
     const context = this.context(principal);
-    const embeddings = await this.embeddingProvider.embed({
-      model: this.config.embeddingModel,
-      texts: [input.query],
-      timeoutMs: this.config.embeddingTimeoutMs
-    });
+    const embeddings = await this.embedQuery(input);
     const [queryVector] = embeddings.vectors;
     if (!queryVector) {
       return { query: input.query, results: [] };
     }
 
-    const hits = await this.vectorStore.search({
-      vector: queryVector,
-      tenantId: context.tenantId,
-      limit: input.limit,
-      ...(input.documentIds ? { documentIds: input.documentIds } : {})
-    });
+    const hits = await this.searchVectors(context, queryVector, input);
     const chunks = await this.documents.findIndexedChunksByIds(
       context,
       hits.map((hit) => hit.payload.chunkId)
@@ -191,7 +204,7 @@ export class DocumentsService {
         ];
       })
     };
-    await this.audit.record(principal, {
+    await this.recordAudit(principal, {
       action: "document.search",
       resourceType: "document",
       metadata: {
@@ -200,6 +213,62 @@ export class DocumentsService {
       }
     });
     return response;
+  }
+
+  private async embedQuery(
+    input: KnowledgeSearchRequest
+  ): Promise<Awaited<ReturnType<EmbeddingProviderPort["embed"]>>> {
+    try {
+      return await this.embeddingProvider.embed({
+        model: this.config.embeddingModel,
+        texts: [input.query],
+        timeoutMs: this.config.embeddingTimeoutMs
+      });
+    } catch (error) {
+      if (error instanceof EmbeddingProviderError) {
+        throw new ServiceUnavailableException({
+          code: error.code,
+          message: error.message
+        });
+      }
+      throw error;
+    }
+  }
+
+  private async searchVectors(
+    context: TenantContext,
+    queryVector: readonly number[],
+    input: KnowledgeSearchRequest
+  ): Promise<readonly VectorSearchHit[]> {
+    try {
+      return await this.vectorStore.search({
+        vector: queryVector,
+        tenantId: context.tenantId,
+        limit: input.limit,
+        ...(input.documentIds ? { documentIds: input.documentIds } : {})
+      });
+    } catch (error) {
+      if (error instanceof VectorStoreError) {
+        throw new ServiceUnavailableException({
+          code: error.code,
+          message: error.message
+        });
+      }
+      throw error;
+    }
+  }
+
+  private async recordAudit(
+    principal: RequestPrincipal,
+    input: Parameters<AuditService["record"]>[1]
+  ): Promise<void> {
+    try {
+      await this.audit.record(principal, input);
+    } catch (error) {
+      this.logger.warn(
+        `Audit write failed for ${input.action}: ${errorMessage(error)}`
+      );
+    }
   }
 
   private validateFile(file: UploadedMultipartFile | undefined): {
@@ -298,4 +367,8 @@ export class DocumentsService {
 
 function citationLabel(hit: VectorSearchHit): string {
   return `doc:${hit.payload.documentId.slice(0, 8)}#${hit.payload.ordinal}`;
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "Unknown error.";
 }
