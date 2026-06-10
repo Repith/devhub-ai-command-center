@@ -15,6 +15,7 @@ import type { TenantContext } from "@devhub/domain";
 
 import type { RequestPrincipal } from "../auth/auth.types";
 import { AGENT_DEFINITION_REPOSITORY } from "../agents/agents.tokens";
+import { AuditService } from "../audit/audit.service";
 import type { AgentRunQueue } from "./agent-run-queue.service";
 import { AGENT_RUN_QUEUE, AGENT_RUN_REPOSITORY } from "./runs.tokens";
 
@@ -25,7 +26,8 @@ export class RunsService {
     private readonly agents: PrismaAgentDefinitionRepository,
     @Inject(AGENT_RUN_REPOSITORY)
     private readonly runs: PrismaAgentRunRepository,
-    @Inject(AGENT_RUN_QUEUE) private readonly queue: AgentRunQueue
+    @Inject(AGENT_RUN_QUEUE) private readonly queue: AgentRunQueue,
+    @Inject(AuditService) private readonly audit: AuditService
   ) {}
 
   public async start(
@@ -45,6 +47,12 @@ export class RunsService {
       userId: context.userId,
       correlationId: run.correlationId,
       runId: run.id
+    });
+    await this.audit.record(principal, {
+      action: "agent_run.started",
+      resourceType: "agent_run",
+      resourceId: run.id,
+      metadata: { agentId: agent.id }
     });
     return this.runs.toRunResponse(run);
   }
@@ -100,6 +108,11 @@ export class RunsService {
     if (!run) {
       throw new NotFoundException("Running agent run was not found.");
     }
+    await this.audit.record(principal, {
+      action: "agent_run.cancel_requested",
+      resourceType: "agent_run",
+      resourceId: run.id
+    });
     return this.runs.toRunResponse(run);
   }
 

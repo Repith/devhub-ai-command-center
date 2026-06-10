@@ -1,5 +1,3 @@
-import { randomUUID } from "node:crypto";
-
 import {
   Catch,
   HttpException,
@@ -8,6 +6,8 @@ import {
   type ExceptionFilter
 } from "@nestjs/common";
 import type { Request, Response } from "express";
+
+import { getCorrelationId } from "./request-context";
 
 interface ErrorBody {
   code?: string;
@@ -34,8 +34,7 @@ export class ApiExceptionFilter implements ExceptionFilter {
         ? exception.getStatus()
         : HttpStatus.INTERNAL_SERVER_ERROR;
     const body = this.getBody(exception);
-    const correlationId =
-      request.header("x-correlation-id")?.slice(0, 128) ?? randomUUID();
+    const correlationId = getCorrelationId(request);
 
     response.status(status).json({
       code: body.code ?? ERROR_CODES[status] ?? "INTERNAL_SERVER_ERROR",

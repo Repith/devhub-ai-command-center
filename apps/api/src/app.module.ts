@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 
 import { AppController } from "./app.controller";
 import { AgentsModule } from "./agents/agents.module";
+import { AuditModule } from "./audit/audit.module";
 import { AuthModule } from "./auth/auth.module";
 import { ChatModule } from "./chat/chat.module";
 import { DocumentsModule } from "./documents/documents.module";
@@ -13,6 +14,7 @@ import { UsageModule } from "./usage/usage.module";
 @Module({
   imports: [
     AgentsModule,
+    AuditModule,
     AuthModule,
     ChatModule,
     DocumentsModule,

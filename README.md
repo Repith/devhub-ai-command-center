@@ -6,9 +6,11 @@ configuration, MCP tools, RAG, multi-tenant data isolation, background jobs,
 real-time run timelines, usage tracking, and quality evaluation in one compact
 system.
 
-> Status: authentication, tenant isolation, agent configuration, and the Ollama
-> chat foundation are implemented. RAG, MCP, durable agent runs, and evaluation
-> remain in progress.
+> Status: `v0.1.0` portfolio MVP is feature-complete for local review:
+> authentication, tenant isolation, agent configuration, chat, document
+> ingestion, embeddings, Qdrant retrieval, MCP tools, durable runs, live
+> timelines, usage budgets, golden-set evaluation, rate limits, structured
+> request logs, and audit views are implemented.
 
 ## Target Demo
 
@@ -29,7 +31,8 @@ of truth, Qdrant performs semantic retrieval, Redis supports BullMQ and
 cross-process events, and Ollama provides local chat and embedding models.
 
 Read the [architecture](docs/architecture.md), [product requirements](docs/product-requirements.md),
-and [implementation plan](docs/implementation-plan.md) before contributing.
+[implementation plan](docs/implementation-plan.md), and [portfolio release notes](docs/portfolio-release.md)
+before contributing.
 
 ## Local Development
 
@@ -48,6 +51,13 @@ Next.js, NestJS, and the worker run on the host.
 
 See [local development](docs/local-development.md) for service ports, daily
 commands, environment handling, and troubleshooting.
+
+## Portfolio Demo
+
+Use [docs/demo-script.md](docs/demo-script.md) to run the same local demo from a
+clean checkout. The script covers workspace registration, agent configuration,
+document upload, indexing, RAG search, MCP use, live timeline recovery, usage
+budgets, audit-log review, and golden-set evaluation.
 
 ## Delivery Model
 

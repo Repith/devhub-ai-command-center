@@ -7,6 +7,7 @@ import type {
   AccessTokenResponse,
   AgentDefinition,
   AgentDefinitionList,
+  AuditLogList,
   AuthenticatedUser
 } from "@devhub/contracts";
 import type { DatabaseClient } from "@devhub/database";
@@ -130,6 +131,16 @@ describe("agent configuration and tenant isolation", () => {
       name: "Updated Knowledge Assistant",
       maxSteps: 10
     });
+
+    const auditResponse = await request(app!.getHttpServer())
+      .get("/api/v1/audit-log")
+      .set("Authorization", `Bearer ${ownerToken}`)
+      .expect(200);
+    const auditLog = auditResponse.body as AuditLogList;
+    expect(auditLog.data.map((entry) => entry.action)).toEqual(
+      expect.arrayContaining(["agent.created", "agent.updated"])
+    );
+    expect(JSON.stringify(auditLog)).not.toContain(member.tenantId);
   });
 
   it("rejects client-provided tenant context", async () => {

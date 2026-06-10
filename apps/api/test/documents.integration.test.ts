@@ -142,6 +142,17 @@ describe("document upload and tenant isolation", () => {
       .expect(400);
   });
 
+  it("rejects a PDF upload without a PDF signature", async () => {
+    await request(app!.getHttpServer())
+      .post("/api/v1/documents")
+      .set("Authorization", `Bearer ${ownerToken}`)
+      .attach("file", Buffer.from("not really a pdf"), {
+        filename: "fake.pdf",
+        contentType: "application/pdf"
+      })
+      .expect(400);
+  });
+
   it("returns only PostgreSQL-authorized indexed search hits", async () => {
     const owner = await database!.user.findUniqueOrThrow({
       where: { email: ownerEmail },
