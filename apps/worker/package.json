@@ -15,6 +15,7 @@
     "@devhub/contracts": "0.0.0",
     "@devhub/database": "0.0.0",
     "@devhub/domain": "0.0.0",
+    "@devhub/mcp": "0.0.0",
     "@devhub/rag": "0.0.0",
     "bullmq": "5.78.0",
     "pdf-parse": "2.4.5"
