@@ -1,6 +1,8 @@
 import { Module } from "@nestjs/common";
 
+import { OllamaOpenAiEmbeddingProvider } from "@devhub/ai";
 import { PrismaDocumentRepository } from "@devhub/database";
+import { QdrantVectorStore } from "@devhub/rag";
 
 import { AuthModule } from "../auth/auth.module";
 import { DATABASE_CLIENT } from "../database/database.module";
@@ -10,7 +12,9 @@ import { DocumentsController } from "./documents.controller";
 import { DocumentsService } from "./documents.service";
 import {
   DOCUMENT_INGESTION_QUEUE,
-  DOCUMENT_REPOSITORY
+  DOCUMENT_REPOSITORY,
+  EMBEDDING_PROVIDER,
+  VECTOR_STORE
 } from "./documents.tokens";
 import { LocalDocumentStorage } from "./local-document-storage.service";
 
@@ -37,6 +41,24 @@ import { LocalDocumentStorage } from "./local-document-storage.service";
       useFactory: (
         config: ConstructorParameters<typeof LocalDocumentStorage>[0]
       ): LocalDocumentStorage => new LocalDocumentStorage(config)
+    },
+    {
+      provide: EMBEDDING_PROVIDER,
+      inject: ["DOCUMENTS_CONFIG"],
+      useFactory: (config: ReturnType<typeof loadDocumentsConfig>) =>
+        new OllamaOpenAiEmbeddingProvider({
+          baseUrl: config.ollamaBaseUrl,
+          apiKey: config.ollamaApiKey
+        })
+    },
+    {
+      provide: VECTOR_STORE,
+      inject: ["DOCUMENTS_CONFIG"],
+      useFactory: (config: ReturnType<typeof loadDocumentsConfig>) =>
+        new QdrantVectorStore({
+          url: config.qdrantUrl,
+          collectionName: config.qdrantCollectionName
+        })
     },
     DocumentsService
   ],

@@ -16,6 +16,7 @@
     "@devhub/contracts": "0.0.0",
     "@devhub/database": "0.0.0",
     "@devhub/domain": "0.0.0",
+    "@devhub/rag": "0.0.0",
     "@nestjs/common": "11.1.26",
     "@nestjs/core": "11.1.26",
     "@nestjs/jwt": "11.0.2",

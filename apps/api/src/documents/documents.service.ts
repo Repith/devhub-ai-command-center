@@ -14,17 +14,24 @@ import {
   type DocumentChunkList,
   type DocumentIngestionJob,
   type DocumentList,
+  type KnowledgeSearchRequest,
+  type KnowledgeSearchResponse,
   type SupportedDocumentMimeType
 } from "@devhub/contracts";
+import type { EmbeddingProviderPort } from "@devhub/ai";
 import type { PrismaDocumentRepository } from "@devhub/database";
+import type { VectorSearchHit, VectorStorePort } from "@devhub/rag";
 import type { TenantContext } from "@devhub/domain";
 
 import type { RequestPrincipal } from "../auth/auth.types";
 import { maxDocumentUploadBytes } from "./documents.config";
 import {
   DOCUMENT_INGESTION_QUEUE,
-  DOCUMENT_REPOSITORY
+  DOCUMENT_REPOSITORY,
+  EMBEDDING_PROVIDER,
+  VECTOR_STORE
 } from "./documents.tokens";
+import type { DocumentsConfig } from "./documents.config";
 import type { DocumentIngestionQueue } from "./document-queue.service";
 import { LocalDocumentStorage } from "./local-document-storage.service";
 
@@ -49,7 +56,13 @@ export class DocumentsService {
     @Inject(DOCUMENT_INGESTION_QUEUE)
     private readonly queue: DocumentIngestionQueue,
     @Inject(LocalDocumentStorage)
-    private readonly storage: LocalDocumentStorage
+    private readonly storage: LocalDocumentStorage,
+    @Inject(EMBEDDING_PROVIDER)
+    private readonly embeddingProvider: EmbeddingProviderPort,
+    @Inject(VECTOR_STORE)
+    private readonly vectorStore: VectorStorePort,
+    @Inject("DOCUMENTS_CONFIG")
+    private readonly config: DocumentsConfig
   ) {}
 
   public async upload(
@@ -117,6 +130,56 @@ export class DocumentsService {
     };
   }
 
+  public async search(
+    principal: RequestPrincipal,
+    input: KnowledgeSearchRequest
+  ): Promise<KnowledgeSearchResponse> {
+    const context = this.context(principal);
+    const embeddings = await this.embeddingProvider.embed({
+      model: this.config.embeddingModel,
+      texts: [input.query],
+      timeoutMs: this.config.embeddingTimeoutMs
+    });
+    const [queryVector] = embeddings.vectors;
+    if (!queryVector) {
+      return { query: input.query, results: [] };
+    }
+
+    const hits = await this.vectorStore.search({
+      vector: queryVector,
+      tenantId: context.tenantId,
+      limit: input.limit,
+      ...(input.documentIds ? { documentIds: input.documentIds } : {})
+    });
+    const chunks = await this.documents.findIndexedChunksByIds(
+      context,
+      hits.map((hit) => hit.payload.chunkId)
+    );
+    const chunkById = new Map(chunks.map((chunk) => [chunk.id, chunk]));
+
+    return {
+      query: input.query,
+      results: hits.flatMap((hit) => {
+        const chunk = chunkById.get(hit.payload.chunkId);
+        if (!chunk || !chunk.document) {
+          return [];
+        }
+        return [
+          {
+            citationLabel: citationLabel(hit),
+            score: hit.score,
+            documentId: chunk.documentId,
+            chunkId: chunk.id,
+            fileName: chunk.document.fileName,
+            ordinal: chunk.ordinal,
+            pageNumber: chunk.pageNumber,
+            content: chunk.content
+          }
+        ];
+      })
+    };
+  }
+
   private validateFile(file: UploadedMultipartFile | undefined): {
     originalName: string;
     mimeType: SupportedDocumentMimeType;
@@ -175,4 +238,8 @@ export class DocumentsService {
       correlationId: principal.sessionId
     };
   }
+}
+
+function citationLabel(hit: VectorSearchHit): string {
+  return `doc:${hit.payload.documentId.slice(0, 8)}#${hit.payload.ordinal}`;
 }

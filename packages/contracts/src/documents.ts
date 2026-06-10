@@ -49,6 +49,37 @@ export const documentChunkListSchema = z.object({
 });
 export type DocumentChunkList = z.infer<typeof documentChunkListSchema>;
 
+export const knowledgeSearchRequestSchema = z
+  .object({
+    query: z.string().trim().min(1).max(4000),
+    limit: z.number().int().min(1).max(20).default(5),
+    documentIds: z.array(uuidSchema).max(50).optional()
+  })
+  .strict();
+export type KnowledgeSearchRequest = z.infer<
+  typeof knowledgeSearchRequestSchema
+>;
+
+export const knowledgeSearchResultSchema = z.object({
+  citationLabel: z.string().min(1),
+  score: z.number(),
+  documentId: uuidSchema,
+  chunkId: uuidSchema,
+  fileName: z.string().min(1),
+  ordinal: z.number().int().nonnegative(),
+  pageNumber: z.number().int().positive().nullable(),
+  content: z.string()
+});
+export type KnowledgeSearchResult = z.infer<typeof knowledgeSearchResultSchema>;
+
+export const knowledgeSearchResponseSchema = z.object({
+  query: z.string(),
+  results: z.array(knowledgeSearchResultSchema)
+});
+export type KnowledgeSearchResponse = z.infer<
+  typeof knowledgeSearchResponseSchema
+>;
+
 export const supportedDocumentMimeTypes = [
   "text/markdown",
   "text/plain",

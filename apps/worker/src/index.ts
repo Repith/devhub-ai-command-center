@@ -1,7 +1,9 @@
 import { Worker } from "bullmq";
 
+import { OllamaOpenAiEmbeddingProvider } from "@devhub/ai";
 import { createDatabaseClient } from "@devhub/database";
 import { formatServiceName } from "@devhub/domain";
+import { QdrantVectorStore } from "@devhub/rag";
 
 import { loadWorkerConfig } from "./config.js";
 import { processDocument } from "./document-processor.js";
@@ -15,13 +17,25 @@ export function getWorkerName(): string {
 if (require.main === module) {
   const config = loadWorkerConfig();
   const database = createDatabaseClient(config.databaseUrl);
+  const embeddingProvider = new OllamaOpenAiEmbeddingProvider({
+    baseUrl: config.ollamaBaseUrl,
+    apiKey: config.ollamaApiKey
+  });
+  const vectorStore = new QdrantVectorStore({
+    url: config.qdrantUrl,
+    collectionName: config.qdrantCollectionName
+  });
   const worker = new Worker(
     processDocumentQueueName,
     async (job) => {
       await processDocument({
         database,
+        embeddingModel: config.embeddingModel,
+        embeddingProvider,
+        embeddingTimeoutMs: config.embeddingTimeoutMs,
         storageDir: config.storageDir,
-        input: job.data
+        input: job.data,
+        vectorStore
       });
     },
     {

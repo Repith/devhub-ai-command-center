@@ -4,6 +4,7 @@ import {
   HttpCode,
   HttpStatus,
   Inject,
+  Body,
   Param,
   Post,
   UploadedFile,
@@ -17,7 +18,10 @@ import {
   uuidSchema,
   type Document,
   type DocumentChunkList,
-  type DocumentList
+  type DocumentList,
+  type KnowledgeSearchRequest,
+  type KnowledgeSearchResponse,
+  knowledgeSearchRequestSchema
 } from "@devhub/contracts";
 
 import { AuthGuard } from "../auth/auth.guard";
@@ -61,6 +65,17 @@ export class DocumentsController {
     @Param("documentId", new ZodValidationPipe(uuidSchema)) documentId: string
   ): Promise<DocumentChunkList> {
     return this.documents.listChunks(principal, documentId);
+  }
+
+  @Post("search")
+  @Roles("OWNER", "ADMIN", "MEMBER")
+  @HttpCode(HttpStatus.OK)
+  public search(
+    @CurrentUser() principal: RequestPrincipal,
+    @Body(new ZodValidationPipe(knowledgeSearchRequestSchema))
+    input: KnowledgeSearchRequest
+  ): Promise<KnowledgeSearchResponse> {
+    return this.documents.search(principal, input);
   }
 
   @Post()
