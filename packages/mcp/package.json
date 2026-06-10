@@ -1,0 +1,25 @@
+{
+  "name": "@devhub/mcp",
+  "version": "0.0.0",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "lint": "eslint src test",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@devhub/ai": "0.0.0",
+    "@devhub/contracts": "0.0.0",
+    "@devhub/database": "0.0.0",
+    "@devhub/domain": "0.0.0",
+    "@devhub/rag": "0.0.0",
+    "fast-xml-parser": "5.8.0",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@devhub/config": "0.0.0"
+  }
+}
