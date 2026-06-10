@@ -1,29 +1,49 @@
 import { Inject } from "@nestjs/common";
 import {
   Ack,
+  ConnectedSocket,
   MessageBody,
   SubscribeMessage,
   WebSocketGateway,
+  WebSocketServer,
   type OnGatewayInit
 } from "@nestjs/websockets";
 import type { Namespace, Socket } from "socket.io";
 
 import {
   realtimeProbeRequestSchema,
-  type RealtimeProbeAck
+  subscribeToRunRequestSchema,
+  type RealtimeEvent,
+  type RealtimeProbeAck,
+  type SubscribeToRunAck
 } from "@devhub/contracts";
 
 import { AuthPrincipalService } from "../auth/auth-principal.service";
 import type { RequestPrincipal } from "../auth/auth.types";
+import { RunsService } from "../runs/runs.service";
+import { RealtimeRedisSubscriber } from "./realtime-pubsub.service";
 
 interface AuthenticatedSocketData {
   principal: RequestPrincipal;
 }
 
 type AuthenticatedSocket = Socket<
-  Record<string, never>,
-  Record<string, never>,
-  Record<string, never>,
+  {
+    "run.event": (event: RealtimeEvent) => void;
+  },
+  {
+    "realtime.probe": (
+      input: unknown,
+      ack: (response: RealtimeProbeAck) => void
+    ) => void;
+    subscribe_to_run: (
+      input: unknown,
+      ack: (response: SubscribeToRunAck) => void
+    ) => void;
+  },
+  {
+    "run.event": (event: RealtimeEvent) => void;
+  },
   AuthenticatedSocketData
 >;
 
@@ -35,12 +55,19 @@ type AuthenticatedSocket = Socket<
   }
 })
 export class RealtimeGateway implements OnGatewayInit {
+  @WebSocketServer()
+  private server!: Namespace;
+
   public constructor(
     @Inject(AuthPrincipalService)
-    private readonly principals: AuthPrincipalService
+    private readonly principals: AuthPrincipalService,
+    @Inject(RunsService) private readonly runs: RunsService,
+    @Inject(RealtimeRedisSubscriber)
+    private readonly subscriber: RealtimeRedisSubscriber
   ) {}
 
   public afterInit(server: Namespace): void {
+    this.server = server;
     server.use(async (socket: AuthenticatedSocket, next) => {
       try {
         const token = socket.handshake.auth.token;
@@ -54,6 +81,7 @@ export class RealtimeGateway implements OnGatewayInit {
         next(new Error("Authentication failed."));
       }
     });
+    void this.subscriber.start((event) => this.publish(event));
   }
 
   @SubscribeMessage("realtime.probe")
@@ -85,4 +113,52 @@ export class RealtimeGateway implements OnGatewayInit {
       }
     });
   }
+
+  @SubscribeMessage("subscribe_to_run")
+  public async subscribeToRun(
+    @ConnectedSocket() socket: AuthenticatedSocket,
+    @MessageBody() input: unknown,
+    @Ack() ack: (response: SubscribeToRunAck) => void
+  ): Promise<void> {
+    const parsed = subscribeToRunRequestSchema.safeParse(input);
+    if (!parsed.success) {
+      ack({
+        ok: false,
+        error: {
+          code: "INVALID_SUBSCRIPTION",
+          message: "The run subscription payload is invalid."
+        }
+      });
+      return;
+    }
+
+    try {
+      const snapshot = await this.runs.get(
+        socket.data.principal,
+        parsed.data.runId
+      );
+      await socket.join(
+        roomName(socket.data.principal.tenantId, parsed.data.runId)
+      );
+      ack({ ok: true, snapshot });
+    } catch {
+      ack({
+        ok: false,
+        error: {
+          code: "RUN_NOT_FOUND",
+          message: "The agent run was not found for this tenant."
+        }
+      });
+    }
+  }
+
+  private publish(event: RealtimeEvent): void {
+    this.server
+      .to(roomName(event.tenantId, event.payload.runId))
+      .emit("run.event", event);
+  }
+}
+
+function roomName(tenantId: string, runId: string): string {
+  return `tenant:${tenantId}:run:${runId}`;
 }

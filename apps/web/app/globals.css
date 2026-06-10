@@ -918,6 +918,76 @@ button.nav-item {
   line-height: 1.5;
 }
 
+.run-launcher {
+  display: grid;
+  gap: 1rem;
+  border-bottom: 1px solid #252936;
+  padding: 1.25rem;
+}
+
+.timeline-list {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1.25rem;
+  margin: 0;
+  list-style: none;
+}
+
+.timeline-step {
+  display: grid;
+  grid-template-columns: 2.4rem minmax(0, 1fr);
+  gap: 0.85rem;
+  border: 1px solid #2d3240;
+  border-radius: 0.9rem;
+  padding: 0.9rem;
+  background: #151820;
+}
+
+.timeline-step.completed {
+  border-color: #31543f;
+}
+
+.timeline-step.failed {
+  border-color: #62343b;
+}
+
+.timeline-step.running {
+  border-color: #4a427d;
+}
+
+.timeline-index {
+  display: grid;
+  width: 2.1rem;
+  height: 2.1rem;
+  place-items: center;
+  border-radius: 999px;
+  background: #202431;
+  color: #a99fff;
+  font-family: ui-monospace, monospace;
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.timeline-step div {
+  display: grid;
+  min-width: 0;
+  gap: 0.25rem;
+}
+
+.timeline-step span:not(.timeline-index) {
+  color: #858da0;
+  font-size: 0.74rem;
+  text-transform: uppercase;
+}
+
+.timeline-step p {
+  overflow: hidden;
+  margin: 0.3rem 0 0;
+  color: #e7eaf1;
+  text-overflow: ellipsis;
+  white-space: pre-wrap;
+}
+
 @keyframes spin {
   to {
     transform: rotate(360deg);

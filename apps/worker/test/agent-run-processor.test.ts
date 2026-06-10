@@ -5,7 +5,8 @@ import type {
   AgentRunConfigSnapshot,
   AgentRunJob,
   CreateAgentRun,
-  McpToolId
+  McpToolId,
+  RealtimeEvent
 } from "@devhub/contracts";
 import type {
   AgentRunRecord,
@@ -20,6 +21,7 @@ import type {
 } from "@devhub/mcp";
 
 import { AgentRunProcessor } from "../src/agent-run-processor";
+import type { RealtimeEventPublisher } from "../src/realtime-event-publisher";
 
 describe("AgentRunProcessor", () => {
   it("completes retrieval, one MCP tool call, and generation durably", async () => {
@@ -33,12 +35,18 @@ describe("AgentRunProcessor", () => {
     });
     const runs = new FakeRunRepository(input, config);
     const tools = new FakeToolRegistry();
+    const publisher = new FakeRealtimePublisher();
     const llmProvider = new FakeLlmProvider({
       chunks: ["Final answer"],
       usage: { inputTokens: 11, outputTokens: 7 }
     });
 
-    await new AgentRunProcessor({ llmProvider, runs, tools }).process(job());
+    await new AgentRunProcessor({
+      llmProvider,
+      publisher,
+      runs,
+      tools
+    }).process(job());
 
     expect(runs.completed).toBe(true);
     expect(runs.steps.map((step) => step.kind)).toEqual([
@@ -60,6 +68,17 @@ describe("AgentRunProcessor", () => {
         inputTokens: 11,
         outputTokens: 7
       })
+    ]);
+    expect(publisher.events.map((event) => event.type)).toEqual([
+      "agent_run.started",
+      "agent_run.step_changed",
+      "agent_run.step_changed",
+      "agent_run.step_changed",
+      "agent_run.step_changed",
+      "agent_run.step_changed",
+      "agent_run.token_delta",
+      "agent_run.step_changed",
+      "agent_run.status_changed"
     ]);
   });
 
@@ -208,6 +227,15 @@ class FakeToolRegistry implements ToolRegistryPort {
       output: { ok: true } as TOutput,
       outputPreview: `${input.toolId} output`
     });
+  }
+}
+
+class FakeRealtimePublisher implements RealtimeEventPublisher {
+  public readonly events: RealtimeEvent[] = [];
+
+  public publish(event: RealtimeEvent): Promise<void> {
+    this.events.push(event);
+    return Promise.resolve();
   }
 }
 

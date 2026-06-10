@@ -1,6 +1,7 @@
 import type {
   AgentRunConfigSnapshot,
   AgentRunJob,
+  AgentRunStatus,
   CreateAgentRun,
   KnowledgeSearchResponse,
   NewsFetchRssOutput
@@ -30,6 +31,12 @@ import {
   type ToolRegistryPort
 } from "@devhub/mcp";
 import type { VectorStorePort } from "@devhub/rag";
+import {
+  NoopRealtimeEventPublisher,
+  runEventBase,
+  toStepEventPayload,
+  type RealtimeEventPublisher
+} from "./realtime-event-publisher.js";
 
 export interface AgentRunProcessorOptions {
   database: DatabaseClient;
@@ -37,6 +44,7 @@ export interface AgentRunProcessorOptions {
   embeddingProvider: EmbeddingProviderPort;
   embeddingTimeoutMs: number;
   llmProvider: LlmProviderPort;
+  publisher?: RealtimeEventPublisher;
   vectorStore: VectorStorePort;
   rssTimeoutMs: number;
 }
@@ -58,6 +66,7 @@ export async function processAgentRun(
   ]);
   const processor = new AgentRunProcessor({
     llmProvider: options.llmProvider,
+    ...(options.publisher ? { publisher: options.publisher } : {}),
     runs,
     tools
   });
@@ -66,6 +75,7 @@ export async function processAgentRun(
 
 export interface AgentRunProcessorDependencies {
   llmProvider: LlmProviderPort;
+  publisher?: RealtimeEventPublisher;
   runs: Pick<
     PrismaAgentRunRepository,
     | "completeStep"
@@ -116,6 +126,11 @@ export class AgentRunProcessor {
     try {
       const outputs: string[] = [];
       const state: ExecutionState = { toolCalls: 0 };
+      await this.publish(context, {
+        ...runEventBase(context),
+        type: "agent_run.started",
+        payload: { runId: job.runId, status: "RUNNING" }
+      });
       outputs.push(
         await this.runRetrievalStep(context, job.runId, input, config, state)
       );
@@ -124,6 +139,7 @@ export class AgentRunProcessor {
       );
       await this.runLlmStep(context, job.runId, input, config, outputs, signal);
       await this.deps.runs.markCompleted(context, job.runId);
+      await this.publishStatus(context, job.runId, "COMPLETED");
     } catch (error) {
       await this.handleError(context, job.runId, error, startedAt);
       throw error;
@@ -233,7 +249,16 @@ export class AgentRunProcessor {
       "llm.generate",
       input.message,
       config,
-      () => this.generateAnswer(input, config, contextOutputs, signal)
+      (stepId) =>
+        this.generateAnswer(
+          context,
+          runId,
+          stepId,
+          input,
+          config,
+          contextOutputs,
+          signal
+        )
     );
   }
 
@@ -258,6 +283,9 @@ export class AgentRunProcessor {
   }
 
   private async generateAnswer(
+    context: TenantContext,
+    runId: string,
+    stepId: string,
     input: CreateAgentRun,
     config: AgentRunConfigSnapshot,
     contextOutputs: readonly string[],
@@ -287,6 +315,15 @@ export class AgentRunProcessor {
     })) {
       if (event.type === "delta") {
         content += event.text;
+        await this.publish(context, {
+          ...runEventBase(context),
+          type: "agent_run.token_delta",
+          payload: {
+            runId,
+            stepId,
+            text: event.text
+          }
+        });
       } else {
         completed = event;
       }
@@ -313,7 +350,7 @@ export class AgentRunProcessor {
     kind: string,
     inputPreview: string,
     config: AgentRunConfigSnapshot,
-    execute: () => Promise<StepExecutionResult>
+    execute: (stepId: string) => Promise<StepExecutionResult>
   ): Promise<string> {
     if (sequence > config.maxSteps) {
       throw new Error("Agent run exceeded its maximum step budget.");
@@ -329,35 +366,51 @@ export class AgentRunProcessor {
     if (step.status === "COMPLETED" || step.status === "SKIPPED") {
       return step.outputPreview ?? "";
     }
+    await this.publish(context, {
+      ...runEventBase(context),
+      type: "agent_run.step_changed",
+      payload: toStepEventPayload(step)
+    });
 
     const startedAt = performance.now();
     try {
-      const result = await execute();
+      const result = await execute(step.id);
       const durationMs = Math.round(performance.now() - startedAt);
+      let updatedStep;
       if (result.skipped) {
-        await this.deps.runs.skipStep(
+        updatedStep = await this.deps.runs.skipStep(
           context,
           step.id,
           result.outputPreview,
           durationMs
         );
       } else {
-        await this.deps.runs.completeStep(context, step.id, {
+        updatedStep = await this.deps.runs.completeStep(context, step.id, {
           outputPreview: result.outputPreview,
           durationMs,
           ...(result.usage ?? {})
         });
       }
+      await this.publish(context, {
+        ...runEventBase(context),
+        type: "agent_run.step_changed",
+        payload: toStepEventPayload(updatedStep)
+      });
       return result.outputPreview;
     } catch (error) {
       const durationMs = Math.round(performance.now() - startedAt);
-      await this.deps.runs.failStep(
+      const failedStep = await this.deps.runs.failStep(
         context,
         step.id,
         errorCode(error),
         errorMessage(error),
         durationMs
       );
+      await this.publish(context, {
+        ...runEventBase(context),
+        type: "agent_run.step_changed",
+        payload: toStepEventPayload(failedStep)
+      });
       throw error;
     }
   }
@@ -379,6 +432,7 @@ export class AgentRunProcessor {
   ): Promise<void> {
     if (error instanceof RunCancelledError) {
       await this.deps.runs.markCancelled(context, runId);
+      await this.publishStatus(context, runId, "CANCELLED", "RUN_CANCELLED");
       return;
     }
     if (isTimeout(error)) {
@@ -389,6 +443,7 @@ export class AgentRunProcessor {
           performance.now() - startedAt
         )}ms.`
       );
+      await this.publishStatus(context, runId, "TIMED_OUT", "RUN_TIMED_OUT");
       return;
     }
     await this.deps.runs.markFailed(
@@ -396,6 +451,41 @@ export class AgentRunProcessor {
       runId,
       errorCode(error),
       errorMessage(error)
+    );
+    await this.publishStatus(
+      context,
+      runId,
+      "FAILED",
+      errorCode(error),
+      errorMessage(error)
+    );
+  }
+
+  private async publishStatus(
+    context: TenantContext,
+    runId: string,
+    status: AgentRunStatus,
+    errorCode?: string,
+    errorMessage?: string
+  ): Promise<void> {
+    await this.publish(context, {
+      ...runEventBase(context),
+      type: "agent_run.status_changed",
+      payload: {
+        runId,
+        status,
+        ...(errorCode ? { errorCode } : {}),
+        ...(errorMessage ? { errorMessage } : {})
+      }
+    });
+  }
+
+  private publish(
+    _context: TenantContext,
+    event: Parameters<RealtimeEventPublisher["publish"]>[0]
+  ): Promise<void> {
+    return (this.deps.publisher ?? new NoopRealtimeEventPublisher()).publish(
+      event
     );
   }
 }
