@@ -1,0 +1,26 @@
+{
+  "name": "@devhub/mcp-news",
+  "version": "0.0.0",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsx src/index.ts",
+    "lint": "eslint src",
+    "start": "node dist/index.js",
+    "test": "vitest run --passWithNoTests",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@devhub/contracts": "0.0.0",
+    "@devhub/mcp": "0.0.0",
+    "@modelcontextprotocol/sdk": "1.29.0",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@devhub/config": "0.0.0",
+    "@types/node": "25.9.2",
+    "tsx": "4.22.4"
+  }
+}
