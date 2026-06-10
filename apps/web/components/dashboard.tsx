@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import { AgentWorkspace } from "./agent-workspace";
 import { ChatWorkspace } from "./chat-workspace";
+import { RunsWorkspace } from "./runs-workspace";
 import type { AuthenticatedUser } from "@devhub/contracts";
 
 interface DashboardProps {
@@ -12,8 +13,8 @@ interface DashboardProps {
   onLogout(): Promise<void>;
 }
 
-const plannedSections = ["Knowledge", "Runs", "Evaluations"];
-type DashboardSection = "agents" | "chat";
+const plannedSections = ["Knowledge", "Evaluations"];
+type DashboardSection = "agents" | "chat" | "runs";
 
 export function Dashboard({
   accessToken,
@@ -53,9 +54,18 @@ export function Dashboard({
             <span aria-hidden="true">02</span>
             Chat
           </button>
+          <button
+            className={`nav-item ${section === "runs" ? "active" : ""}`}
+            type="button"
+            aria-current={section === "runs" ? "page" : undefined}
+            onClick={() => setSection("runs")}
+          >
+            <span aria-hidden="true">03</span>
+            Runs
+          </button>
           {plannedSections.map((section, index) => (
             <span className="nav-item planned" key={section}>
-              <span aria-hidden="true">0{index + 3}</span>
+              <span aria-hidden="true">0{index + 4}</span>
               {section}
               <small>Planned</small>
             </span>
@@ -92,8 +102,10 @@ export function Dashboard({
             accessToken={accessToken}
             canManage={user.role !== "MEMBER"}
           />
-        ) : (
+        ) : section === "chat" ? (
           <ChatWorkspace accessToken={accessToken} />
+        ) : (
+          <RunsWorkspace accessToken={accessToken} />
         )}
       </main>
     </div>

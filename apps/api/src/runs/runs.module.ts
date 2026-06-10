@@ -27,6 +27,6 @@ import { AGENT_RUN_QUEUE, AGENT_RUN_REPOSITORY } from "./runs.tokens";
     BullMqAgentRunQueue,
     RunsService
   ],
-  exports: [AGENT_RUN_REPOSITORY, AGENT_RUN_QUEUE]
+  exports: [AGENT_RUN_REPOSITORY, AGENT_RUN_QUEUE, RunsService]
 })
 export class RunsModule {}

@@ -11,6 +11,7 @@ import { QdrantVectorStore } from "@devhub/rag";
 import { processAgentRun } from "./agent-run-processor.js";
 import { loadWorkerConfig } from "./config.js";
 import { processDocument } from "./document-processor.js";
+import { RedisRealtimeEventPublisher } from "./realtime-event-publisher.js";
 
 const processDocumentQueueName = "process-document";
 const runAgentQueueName = "run-agent";
@@ -34,6 +35,7 @@ if (require.main === module) {
     url: config.qdrantUrl,
     collectionName: config.qdrantCollectionName
   });
+  const publisher = new RedisRealtimeEventPublisher(config.redisUrl);
   const documentWorker = new Worker(
     processDocumentQueueName,
     async (job) => {
@@ -63,6 +65,7 @@ if (require.main === module) {
         embeddingTimeoutMs: config.embeddingTimeoutMs,
         input: job.data,
         llmProvider,
+        publisher,
         rssTimeoutMs: config.rssTimeoutMs,
         vectorStore
       });
@@ -76,6 +79,7 @@ if (require.main === module) {
 
   const shutdown = async (): Promise<void> => {
     await Promise.all([documentWorker.close(), agentWorker.close()]);
+    publisher.disconnect();
     await database.$disconnect();
   };
   process.once("SIGINT", () => void shutdown().then(() => process.exit(0)));
