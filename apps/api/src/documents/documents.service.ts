@@ -24,6 +24,7 @@ import type { VectorSearchHit, VectorStorePort } from "@devhub/rag";
 import type { TenantContext } from "@devhub/domain";
 
 import type { RequestPrincipal } from "../auth/auth.types";
+import { AuditService } from "../audit/audit.service";
 import { maxDocumentUploadBytes } from "./documents.config";
 import {
   DOCUMENT_INGESTION_QUEUE,
@@ -40,6 +41,7 @@ const extensionByMimeType: Record<SupportedDocumentMimeType, string> = {
   "text/plain": ".txt",
   "application/pdf": ".pdf"
 };
+const textDecoder = new TextDecoder("utf-8", { fatal: true });
 
 export interface UploadedMultipartFile {
   originalname: string;
@@ -62,7 +64,8 @@ export class DocumentsService {
     @Inject(VECTOR_STORE)
     private readonly vectorStore: VectorStorePort,
     @Inject("DOCUMENTS_CONFIG")
-    private readonly config: DocumentsConfig
+    private readonly config: DocumentsConfig,
+    @Inject(AuditService) private readonly audit: AuditService
   ) {}
 
   public async upload(
@@ -88,6 +91,16 @@ export class DocumentsService {
     await this.queue.enqueue(
       this.toJob(principal, record.id, storageKey, valid.mimeType, checksum)
     );
+    await this.audit.record(principal, {
+      action: "document.uploaded",
+      resourceType: "document",
+      resourceId: record.id,
+      metadata: {
+        mimeType: valid.mimeType,
+        sizeBytes: valid.size,
+        checksum
+      }
+    });
     return this.documents.toDocumentResponse(record);
   }
 
@@ -157,7 +170,7 @@ export class DocumentsService {
     );
     const chunkById = new Map(chunks.map((chunk) => [chunk.id, chunk]));
 
-    return {
+    const response = {
       query: input.query,
       results: hits.flatMap((hit) => {
         const chunk = chunkById.get(hit.payload.chunkId);
@@ -178,6 +191,15 @@ export class DocumentsService {
         ];
       })
     };
+    await this.audit.record(principal, {
+      action: "document.search",
+      resourceType: "document",
+      metadata: {
+        requestedLimit: input.limit,
+        resultCount: response.results.length
+      }
+    });
+    return response;
   }
 
   private validateFile(file: UploadedMultipartFile | undefined): {
@@ -196,12 +218,17 @@ export class DocumentsService {
     if (!mimeType.success) {
       throw new BadRequestException("Document MIME type is not supported.");
     }
+    const cleanName = this.cleanFileName(file.originalname);
+    if (!cleanName) {
+      throw new BadRequestException("Document file name is not allowed.");
+    }
     const expectedExtension = extensionByMimeType[mimeType.data];
-    if (extname(file.originalname).toLowerCase() !== expectedExtension) {
+    if (extname(cleanName).toLowerCase() !== expectedExtension) {
       throw new BadRequestException("Document extension is not supported.");
     }
+    this.validateContent(mimeType.data, file.buffer);
     return {
-      originalName: file.originalname,
+      originalName: cleanName,
       mimeType: mimeType.data,
       size: file.size,
       buffer: file.buffer
@@ -209,7 +236,36 @@ export class DocumentsService {
   }
 
   private cleanFileName(fileName: string): string {
-    return fileName.replace(/[\\/]/g, "_").trim().slice(0, 255);
+    return fileName
+      .replace(/[\\/]/g, "_")
+      .split("")
+      .filter((character) => {
+        const code = character.charCodeAt(0);
+        return code > 31 && code !== 127;
+      })
+      .join("")
+      .trim()
+      .slice(0, 255);
+  }
+
+  private validateContent(
+    mimeType: SupportedDocumentMimeType,
+    buffer: Buffer
+  ): void {
+    if (mimeType === "application/pdf") {
+      if (!buffer.subarray(0, 5).equals(Buffer.from("%PDF-"))) {
+        throw new BadRequestException("PDF signature is invalid.");
+      }
+      return;
+    }
+    if (buffer.includes(0)) {
+      throw new BadRequestException("Text document contains binary content.");
+    }
+    try {
+      textDecoder.decode(buffer);
+    } catch {
+      throw new BadRequestException("Text document must be valid UTF-8.");
+    }
   }
 
   private toJob(

@@ -65,72 +65,72 @@ Acceptance: a persisted conversation streams a local-model response.
 
 ## PR 7: Document Upload and Ingestion
 
-- [ ] Add MD, TXT, and PDF upload validation and local volume storage.
-- [ ] Add idempotent `process-document` BullMQ job.
-- [ ] Parse, normalize, chunk, persist status, and surface failures.
-- [ ] Test retries, corrupt files, limits, and duplicate delivery.
+- [x] Add MD, TXT, and PDF upload validation and local volume storage.
+- [x] Add idempotent `process-document` BullMQ job.
+- [x] Parse, normalize, chunk, persist status, and surface failures.
+- [x] Test retries, corrupt files, limits, and duplicate delivery.
 
 Acceptance: supported files reach a deterministic chunked state.
 
 ## PR 8: Embeddings and Qdrant Retrieval
 
-- [ ] Add embedding and vector-store ports with Ollama and Qdrant adapters.
-- [ ] Upsert, search, reindex, and delete vectors idempotently.
-- [ ] Enforce tenant and active-document filters.
-- [ ] Return ranked sources and stable citations.
+- [x] Add embedding and vector-store ports with Ollama and Qdrant adapters.
+- [x] Upsert, search, reindex, and delete vectors idempotently.
+- [x] Enforce tenant and active-document filters.
+- [x] Return ranked sources and stable citations.
 
 Acceptance: knowledge search returns only authorized chunks and citations.
 
 ## PR 9: MCP Integration
 
-- [ ] Add knowledge and RSS MCP servers with official TypeScript SDK.
-- [ ] Add MCP client, discovery, registry, validation, and allowlists.
-- [ ] Log calls and treat outputs as untrusted.
-- [ ] Test unauthorized calls, timeouts, and output limits.
+- [x] Add knowledge and RSS MCP servers with official TypeScript SDK.
+- [x] Add MCP client, discovery, registry, validation, and allowlists.
+- [x] Log calls and treat outputs as untrusted.
+- [x] Test unauthorized calls, timeouts, and output limits.
 
 Acceptance: diagnostic and agent calls can use only explicitly enabled tools.
 
 ## PR 10: Agent Runtime
 
-- [ ] Add `AgentRun`, steps, `run-agent` queue, and explicit runner loop.
-- [ ] Combine retrieval, model generation, and MCP tool calls.
-- [ ] Add cancellation, limits, timeout, retries, and correlation IDs.
-- [ ] Resume retries without duplicating completed effects.
+- [x] Add `AgentRun`, steps, `run-agent` queue, and explicit runner loop.
+- [x] Combine retrieval, model generation, and MCP tool calls.
+- [x] Add cancellation, limits, timeout, retries, and correlation IDs.
+- [x] Resume retries without duplicating completed effects.
 
 Acceptance: one durable run can complete retrieval and one tool call.
 
 ## PR 11: Live Timeline
 
-- [ ] Add authenticated Socket.IO gateway and authorized run rooms.
-- [ ] Publish versioned run and step events via Redis Pub/Sub.
-- [ ] Add UI timeline, token streaming, reconnect, and REST recovery.
-- [ ] Test foreign subscriptions, gaps, duplicates, and reconnect.
+- [x] Add authenticated Socket.IO gateway and authorized run rooms.
+- [x] Publish versioned run and step events via Redis Pub/Sub.
+- [x] Add UI timeline, token streaming, reconnect, and REST recovery.
+- [x] Test foreign subscriptions, gaps, duplicates, and reconnect.
 
 Acceptance: the UI remains accurate after a connection interruption.
 
 ## PR 12: Usage and Budgets
 
-- [ ] Persist tokens, model, provider, latency, retries, and local zero cost.
-- [ ] Enforce run token, step, tool-call, and duration limits.
-- [ ] Add tenant, agent, and run usage views.
-- [ ] Test preflight and post-usage budget enforcement.
+- [x] Persist tokens, model, provider, latency, retries, and local zero cost.
+- [x] Enforce run token, step, tool-call, and duration limits.
+- [x] Add tenant, agent, and run usage views.
+- [x] Test preflight and post-usage budget enforcement.
 
 Acceptance: expensive or runaway runs terminate with an explainable state.
 
 ## PR 13: Golden Set Evaluation
 
-- [ ] Add golden case CRUD and `evaluate-golden-set` queue.
-- [ ] Add expected-fact, forbidden-claim, and expected-source evaluator.
-- [ ] Store reports with configuration versions and metrics.
-- [ ] Seed at least ten representative cases.
+- [x] Add golden case CRUD and `evaluate-golden-set` queue.
+- [x] Add expected-fact, forbidden-claim, and expected-source evaluator.
+- [x] Store reports with configuration versions and metrics.
+- [x] Seed at least ten representative cases.
 
 Acceptance: changes can be compared using repeatable evaluation reports.
 
 ## PR 14: Hardening and Portfolio Release
 
-- [ ] Add rate limits, upload hardening, structured logs, and audit views.
-- [ ] Complete E2E, accessibility, dependency, and security checks.
-- [ ] Add final diagrams, screenshots, demo script, and trade-off notes.
+- [x] Add rate limits, upload hardening, structured logs, and audit views.
+- [x] Complete E2E, accessibility, dependency, and security checks.
+- [x] Add final diagrams, screenshots, demo script, and trade-off notes.
 - [ ] Tag `v0.1.0` after owner review and merge.
 
 Acceptance: the documented demo is repeatable from a clean checkout.

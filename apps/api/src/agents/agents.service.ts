@@ -12,13 +12,15 @@ import type {
 import type { TenantContext } from "@devhub/domain";
 
 import type { RequestPrincipal } from "../auth/auth.types";
+import { AuditService } from "../audit/audit.service";
 import { AGENT_DEFINITION_REPOSITORY } from "./agents.tokens";
 
 @Injectable()
 export class AgentsService {
   public constructor(
     @Inject(AGENT_DEFINITION_REPOSITORY)
-    private readonly agents: PrismaAgentDefinitionRepository
+    private readonly agents: PrismaAgentDefinitionRepository,
+    @Inject(AuditService) private readonly audit: AuditService
   ) {}
 
   public async list(principal: RequestPrincipal): Promise<AgentDefinition[]> {
@@ -42,6 +44,12 @@ export class AgentsService {
     input: CreateAgentDefinition
   ): Promise<AgentDefinition> {
     const record = await this.agents.create(this.context(principal), input);
+    await this.audit.record(principal, {
+      action: "agent.created",
+      resourceType: "agent",
+      resourceId: record.id,
+      metadata: { provider: record.provider, model: record.model }
+    });
     return this.toResponse(record);
   }
 
@@ -58,6 +66,12 @@ export class AgentsService {
     if (!record) {
       throw new NotFoundException("Agent definition was not found.");
     }
+    await this.audit.record(principal, {
+      action: "agent.updated",
+      resourceType: "agent",
+      resourceId: record.id,
+      metadata: { fields: Object.keys(input).sort() }
+    });
     return this.toResponse(record);
   }
 
@@ -69,6 +83,11 @@ export class AgentsService {
     if (!deleted) {
       throw new NotFoundException("Agent definition was not found.");
     }
+    await this.audit.record(principal, {
+      action: "agent.deleted",
+      resourceType: "agent",
+      resourceId: agentId
+    });
   }
 
   private context(principal: RequestPrincipal): TenantContext {

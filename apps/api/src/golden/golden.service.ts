@@ -17,6 +17,7 @@ import type { TenantContext } from "@devhub/domain";
 
 import type { RequestPrincipal } from "../auth/auth.types";
 import { AGENT_DEFINITION_REPOSITORY } from "../agents/agents.tokens";
+import { AuditService } from "../audit/audit.service";
 import type { GoldenEvaluationQueue } from "./golden-queue.service";
 import {
   GOLDEN_EVALUATION_QUEUE,
@@ -31,7 +32,8 @@ export class GoldenService {
     @Inject(AGENT_DEFINITION_REPOSITORY)
     private readonly agents: PrismaAgentDefinitionRepository,
     @Inject(GOLDEN_EVALUATION_QUEUE)
-    private readonly queue: GoldenEvaluationQueue
+    private readonly queue: GoldenEvaluationQueue,
+    @Inject(AuditService) private readonly audit: AuditService
   ) {}
 
   public async listCases(principal: RequestPrincipal): Promise<GoldenCaseList> {
@@ -63,6 +65,12 @@ export class GoldenService {
     const context = this.context(principal);
     await this.requireAgent(context, input.agentId);
     const record = await this.evaluations.createCase(context, input);
+    await this.audit.record(principal, {
+      action: "golden_case.created",
+      resourceType: "golden_case",
+      resourceId: record.id,
+      metadata: { agentId: record.agentId }
+    });
     return this.evaluations.toCaseResponse(record);
   }
 
@@ -79,6 +87,12 @@ export class GoldenService {
     if (!record) {
       throw new NotFoundException("Golden case was not found.");
     }
+    await this.audit.record(principal, {
+      action: "golden_case.updated",
+      resourceType: "golden_case",
+      resourceId: record.id,
+      metadata: { fields: Object.keys(input).sort() }
+    });
     return this.evaluations.toCaseResponse(record);
   }
 
@@ -93,6 +107,11 @@ export class GoldenService {
     if (!deleted) {
       throw new NotFoundException("Golden case was not found.");
     }
+    await this.audit.record(principal, {
+      action: "golden_case.deleted",
+      resourceType: "golden_case",
+      resourceId: caseId
+    });
   }
 
   public async startEvaluation(
@@ -110,6 +129,12 @@ export class GoldenService {
       userId: principal.userId,
       correlationId: principal.sessionId,
       evaluationRunId: run.id
+    });
+    await this.audit.record(principal, {
+      action: "evaluation.started",
+      resourceType: "evaluation_run",
+      resourceId: run.id,
+      metadata: { configVersion: run.configVersion }
     });
     return this.evaluations.toEvaluationRunResponse(run);
   }
