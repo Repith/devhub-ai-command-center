@@ -11,10 +11,12 @@ import { QdrantVectorStore } from "@devhub/rag";
 import { processAgentRun } from "./agent-run-processor.js";
 import { loadWorkerConfig } from "./config.js";
 import { processDocument } from "./document-processor.js";
+import { processGoldenEvaluation } from "./golden-evaluation-processor.js";
 import { RedisRealtimeEventPublisher } from "./realtime-event-publisher.js";
 
 const processDocumentQueueName = "process-document";
 const runAgentQueueName = "run-agent";
+const evaluateGoldenSetQueueName = "evaluate-golden-set";
 
 export function getWorkerName(): string {
   return formatServiceName("Worker");
@@ -77,9 +79,29 @@ if (require.main === module) {
       lockDuration: config.llmTimeoutMs + 30_000
     }
   );
+  const goldenEvaluationWorker = new Worker(
+    evaluateGoldenSetQueueName,
+    async (job) => {
+      await processGoldenEvaluation({
+        database,
+        input: job.data,
+        llmProvider,
+        timeoutMs: config.llmTimeoutMs
+      });
+    },
+    {
+      connection: toRedisConnection(config.redisUrl),
+      concurrency: 1,
+      lockDuration: config.llmTimeoutMs + 30_000
+    }
+  );
 
   const shutdown = async (): Promise<void> => {
-    await Promise.all([documentWorker.close(), agentWorker.close()]);
+    await Promise.all([
+      documentWorker.close(),
+      agentWorker.close(),
+      goldenEvaluationWorker.close()
+    ]);
     publisher.disconnect();
     await database.$disconnect();
   };
