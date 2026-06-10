@@ -4,6 +4,7 @@ export * from "./auth.js";
 export * from "./conversations.js";
 export * from "./documents.js";
 export * from "./events.js";
+export * from "./golden.js";
 export * from "./mcp.js";
 export * from "./realtime.js";
 export * from "./runs.js";
