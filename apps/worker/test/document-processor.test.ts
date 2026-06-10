@@ -5,6 +5,8 @@ import { describe, expect, it } from "vitest";
 
 import type { DocumentIngestionJob } from "@devhub/contracts";
 import type { DatabaseClient } from "@devhub/database";
+import type { EmbeddingProviderPort } from "@devhub/ai";
+import type { VectorStorePort } from "@devhub/rag";
 
 import { processDocument } from "../src/document-processor";
 
@@ -22,6 +24,9 @@ describe("processDocument", () => {
     await expect(
       processDocument({
         database,
+        embeddingModel: "nomic-embed-text",
+        embeddingProvider: fakeEmbeddingProvider(),
+        embeddingTimeoutMs: 1000,
         storageDir,
         input: {
           version: 1,
@@ -32,7 +37,8 @@ describe("processDocument", () => {
           storageKey,
           mimeType: "text/plain",
           checksum: "not-the-real-checksum"
-        } satisfies DocumentIngestionJob
+        } satisfies DocumentIngestionJob,
+        vectorStore: fakeVectorStore()
       })
     ).rejects.toThrow(/checksum/i);
 
@@ -64,4 +70,25 @@ function fakeDatabase(updates: string[]): DatabaseClient {
       }
     }
   } as unknown as DatabaseClient;
+}
+
+function fakeEmbeddingProvider(): EmbeddingProviderPort {
+  return {
+    name: "fake",
+    embed: () =>
+      Promise.resolve({
+        model: "fake",
+        vectors: [],
+        usage: { inputTokens: 0 }
+      })
+  };
+}
+
+function fakeVectorStore(): VectorStorePort {
+  return {
+    name: "fake",
+    deleteDocument: () => Promise.resolve(),
+    search: () => Promise.resolve([]),
+    upsert: () => Promise.resolve()
+  };
 }

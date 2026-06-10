@@ -3,11 +3,13 @@ import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import type { TenantContext } from "@devhub/domain";
+import type { EmbeddingProviderPort } from "@devhub/ai";
 import {
   createDatabaseClient,
   PrismaDocumentRepository,
   type DatabaseClient
 } from "@devhub/database";
+import type { VectorPoint, VectorStorePort } from "@devhub/rag";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { processDocument } from "../src/document-processor";
@@ -73,13 +75,65 @@ describeWithDatabase("processDocument integration", () => {
       mimeType: "text/plain" as const,
       checksum
     };
-    await processDocument({ database, storageDir, input: job });
-    await processDocument({ database, storageDir, input: job });
+    const vectorStore = fakeVectorStore();
+    await processDocument({
+      database,
+      embeddingModel: "nomic-embed-text",
+      embeddingProvider: fakeEmbeddingProvider(),
+      embeddingTimeoutMs: 1000,
+      storageDir,
+      input: job,
+      vectorStore
+    });
+    await processDocument({
+      database,
+      embeddingModel: "nomic-embed-text",
+      embeddingProvider: fakeEmbeddingProvider(),
+      embeddingTimeoutMs: 1000,
+      storageDir,
+      input: job,
+      vectorStore
+    });
 
     const document = await repository.findById(context, documentId);
     const chunks = await repository.listChunks(context, documentId);
     expect(document?.status).toBe("INDEXED");
     expect(chunks?.length).toBe(3);
     expect(chunks?.map((chunk) => chunk.ordinal)).toEqual([0, 1, 2]);
+    expect(chunks?.every((chunk) => chunk.vectorId === chunk.id)).toBe(true);
   });
 });
+
+function fakeEmbeddingProvider(): EmbeddingProviderPort {
+  return {
+    name: "fake",
+    embed: (input) =>
+      Promise.resolve({
+        model: input.model,
+        vectors: input.texts.map((_, index) => [index, 1, 0]),
+        usage: { inputTokens: input.texts.length }
+      })
+  };
+}
+
+function fakeVectorStore(): VectorStorePort {
+  const points = new Map<string, VectorPoint>();
+  return {
+    name: "fake",
+    deleteDocument: (_tenantId, documentId) => {
+      for (const [id, point] of points) {
+        if (point.payload.documentId === documentId) {
+          points.delete(id);
+        }
+      }
+      return Promise.resolve();
+    },
+    search: () => Promise.resolve([]),
+    upsert: (input) => {
+      for (const point of input) {
+        points.set(point.id, point);
+      }
+      return Promise.resolve();
+    }
+  };
+}

@@ -42,6 +42,7 @@ export interface DocumentChunkRecord {
   pageNumber: number | null;
   vectorId: string | null;
   createdAt: Date;
+  document?: { fileName: string; status: DocumentStatus };
 }
 
 export interface CreateDocumentChunkInput {
@@ -132,11 +133,11 @@ export class PrismaDocumentRepository {
     return updated[0] ?? null;
   }
 
-  public async replaceChunksAndIndex(
+  public async replaceChunksForEmbedding(
     context: TenantContext,
     documentId: string,
     chunks: readonly CreateDocumentChunkInput[]
-  ): Promise<DocumentRecord | null> {
+  ): Promise<readonly DocumentChunkRecord[] | null> {
     return this.database.$transaction(async (transaction) => {
       const updated = await transaction.document.updateManyAndReturn({
         where: {
@@ -155,32 +156,73 @@ export class PrismaDocumentRepository {
       await transaction.documentChunk.deleteMany({
         where: { tenantId: context.tenantId, documentId }
       });
-      if (chunks.length > 0) {
-        await transaction.documentChunk.createMany({
-          data: chunks.map((chunk) => ({
-            tenantId: context.tenantId,
-            documentId,
-            ordinal: chunk.ordinal,
-            content: chunk.content,
-            tokenCount: chunk.tokenCount ?? null,
-            pageNumber: chunk.pageNumber ?? null
-          }))
-        });
+      if (chunks.length === 0) {
+        return [];
       }
-      return transaction.document.update({
-        where: {
-          tenantId_id: {
-            tenantId: context.tenantId,
-            id: documentId
-          }
-        },
-        data: {
-          status: "INDEXED",
-          failureCode: null,
-          failureDetail: null
-        },
-        include: { _count: { select: { chunks: true } } }
+
+      const created = await transaction.documentChunk.createManyAndReturn({
+        data: chunks.map((chunk) => ({
+          tenantId: context.tenantId,
+          documentId,
+          ordinal: chunk.ordinal,
+          content: chunk.content,
+          tokenCount: chunk.tokenCount ?? null,
+          pageNumber: chunk.pageNumber ?? null
+        }))
       });
+      return created.toSorted((left, right) => left.ordinal - right.ordinal);
+    });
+  }
+
+  public async setChunkVectorIds(
+    context: TenantContext,
+    documentId: string,
+    vectorIds: ReadonlyMap<string, string>
+  ): Promise<void> {
+    await this.database.$transaction(
+      [...vectorIds].map(([chunkId, vectorId]) =>
+        this.database.documentChunk.updateMany({
+          where: { id: chunkId, tenantId: context.tenantId, documentId },
+          data: { vectorId }
+        })
+      )
+    );
+  }
+
+  public async markIndexed(
+    context: TenantContext,
+    documentId: string
+  ): Promise<DocumentRecord | null> {
+    return this.database.document.update({
+      where: {
+        tenantId_id: {
+          tenantId: context.tenantId,
+          id: documentId
+        }
+      },
+      data: {
+        status: "INDEXED",
+        failureCode: null,
+        failureDetail: null
+      },
+      include: { _count: { select: { chunks: true } } }
+    });
+  }
+
+  public async findIndexedChunksByIds(
+    context: TenantContext,
+    chunkIds: readonly string[]
+  ): Promise<readonly DocumentChunkRecord[]> {
+    if (chunkIds.length === 0) {
+      return [];
+    }
+    return this.database.documentChunk.findMany({
+      where: {
+        id: { in: [...chunkIds] },
+        tenantId: context.tenantId,
+        document: { status: "INDEXED", deletedAt: null }
+      },
+      include: { document: { select: { fileName: true, status: true } } }
     });
   }
 
