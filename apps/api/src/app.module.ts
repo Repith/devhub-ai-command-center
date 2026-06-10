@@ -6,6 +6,7 @@ import { AuthModule } from "./auth/auth.module";
 import { ChatModule } from "./chat/chat.module";
 import { DocumentsModule } from "./documents/documents.module";
 import { RealtimeModule } from "./realtime/realtime.module";
+import { RunsModule } from "./runs/runs.module";
 
 @Module({
   imports: [
@@ -13,7 +14,8 @@ import { RealtimeModule } from "./realtime/realtime.module";
     AuthModule,
     ChatModule,
     DocumentsModule,
-    RealtimeModule
+    RealtimeModule,
+    RunsModule
   ],
   controllers: [AppController]
 })

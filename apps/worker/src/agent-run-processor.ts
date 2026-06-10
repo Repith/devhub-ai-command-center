@@ -1,0 +1,439 @@
+import type {
+  AgentRunConfigSnapshot,
+  AgentRunJob,
+  CreateAgentRun,
+  KnowledgeSearchResponse,
+  NewsFetchRssOutput
+} from "@devhub/contracts";
+import {
+  agentRunConfigSnapshotSchema,
+  createAgentRunSchema
+} from "@devhub/contracts";
+import type {
+  EmbeddingProviderPort,
+  LlmMessage,
+  LlmProviderPort,
+  LlmStreamEvent
+} from "@devhub/ai";
+import {
+  PrismaAgentRunRepository,
+  PrismaDocumentRepository,
+  type DatabaseClient
+} from "@devhub/database";
+import type { TenantContext } from "@devhub/domain";
+import {
+  createKnowledgeSearchTool,
+  createNewsFetchRssTool,
+  preview,
+  StaticToolRegistry,
+  ToolRegistryError,
+  type ToolRegistryPort
+} from "@devhub/mcp";
+import type { VectorStorePort } from "@devhub/rag";
+
+export interface AgentRunProcessorOptions {
+  database: DatabaseClient;
+  embeddingModel: string;
+  embeddingProvider: EmbeddingProviderPort;
+  embeddingTimeoutMs: number;
+  llmProvider: LlmProviderPort;
+  vectorStore: VectorStorePort;
+  rssTimeoutMs: number;
+}
+
+export async function processAgentRun(
+  options: AgentRunProcessorOptions & { input: AgentRunJob }
+): Promise<void> {
+  const documents = new PrismaDocumentRepository(options.database);
+  const runs = new PrismaAgentRunRepository(options.database);
+  const tools = new StaticToolRegistry([
+    createKnowledgeSearchTool({
+      documents,
+      embeddingModel: options.embeddingModel,
+      embeddingProvider: options.embeddingProvider,
+      embeddingTimeoutMs: options.embeddingTimeoutMs,
+      vectorStore: options.vectorStore
+    }),
+    createNewsFetchRssTool({ timeoutMs: options.rssTimeoutMs })
+  ]);
+  const processor = new AgentRunProcessor({
+    llmProvider: options.llmProvider,
+    runs,
+    tools
+  });
+  await processor.process(options.input);
+}
+
+export interface AgentRunProcessorDependencies {
+  llmProvider: LlmProviderPort;
+  runs: Pick<
+    PrismaAgentRunRepository,
+    | "completeStep"
+    | "failStep"
+    | "findById"
+    | "isCancellationRequested"
+    | "markCancelled"
+    | "markCompleted"
+    | "markFailed"
+    | "markRunning"
+    | "markTimedOut"
+    | "skipStep"
+    | "startStep"
+  >;
+  tools: ToolRegistryPort;
+}
+
+interface StepExecutionResult {
+  outputPreview: string;
+  skipped?: boolean;
+  usage?: {
+    provider: string;
+    model: string;
+    inputTokens: number;
+    outputTokens: number;
+  };
+}
+
+interface ExecutionState {
+  toolCalls: number;
+}
+
+export class AgentRunProcessor {
+  public constructor(private readonly deps: AgentRunProcessorDependencies) {}
+
+  public async process(job: AgentRunJob): Promise<void> {
+    const context = toContext(job);
+    const run = await this.deps.runs.markRunning(context, job.runId);
+    if (!run) {
+      return;
+    }
+
+    const input = createAgentRunSchema.parse(run.input);
+    const config = agentRunConfigSnapshotSchema.parse(run.configSnapshot);
+    const startedAt = performance.now();
+    const signal = AbortSignal.timeout(config.timeoutMs);
+
+    try {
+      const outputs: string[] = [];
+      const state: ExecutionState = { toolCalls: 0 };
+      outputs.push(
+        await this.runRetrievalStep(context, job.runId, input, config, state)
+      );
+      outputs.push(
+        await this.runNewsStep(context, job.runId, input, config, state)
+      );
+      await this.runLlmStep(context, job.runId, input, config, outputs, signal);
+      await this.deps.runs.markCompleted(context, job.runId);
+    } catch (error) {
+      await this.handleError(context, job.runId, error, startedAt);
+      throw error;
+    }
+  }
+
+  private async runRetrievalStep(
+    context: TenantContext,
+    runId: string,
+    input: CreateAgentRun,
+    config: AgentRunConfigSnapshot,
+    state: ExecutionState
+  ): Promise<string> {
+    if (!config.enabledToolIds.includes("knowledge.search")) {
+      return this.runStep(
+        context,
+        runId,
+        1,
+        "rag.retrieve",
+        input.message,
+        config,
+        () =>
+          Promise.resolve({
+            outputPreview: "knowledge.search is not enabled for this agent.",
+            skipped: true
+          })
+      );
+    }
+    return this.runStep(
+      context,
+      runId,
+      1,
+      "rag.retrieve",
+      input.message,
+      config,
+      () =>
+        this.runTool<KnowledgeSearchResponse>(
+          context,
+          config,
+          state,
+          "knowledge.search",
+          {
+            query: input.message,
+            limit: input.retrievalLimit,
+            ...(input.documentIds ? { documentIds: input.documentIds } : {})
+          }
+        )
+    );
+  }
+
+  private async runNewsStep(
+    context: TenantContext,
+    runId: string,
+    input: CreateAgentRun,
+    config: AgentRunConfigSnapshot,
+    state: ExecutionState
+  ): Promise<string> {
+    if (!input.rssUrl) {
+      return this.runStep(
+        context,
+        runId,
+        2,
+        "mcp.news",
+        "no rssUrl",
+        config,
+        () =>
+          Promise.resolve({
+            outputPreview: "No RSS URL requested.",
+            skipped: true
+          })
+      );
+    }
+
+    return this.runStep(
+      context,
+      runId,
+      2,
+      "mcp.news",
+      input.rssUrl,
+      config,
+      () =>
+        this.runTool<NewsFetchRssOutput>(
+          context,
+          config,
+          state,
+          "news.fetch_rss",
+          {
+            url: input.rssUrl,
+            limit: 5
+          }
+        )
+    );
+  }
+
+  private async runLlmStep(
+    context: TenantContext,
+    runId: string,
+    input: CreateAgentRun,
+    config: AgentRunConfigSnapshot,
+    contextOutputs: readonly string[],
+    signal: AbortSignal
+  ): Promise<string> {
+    return this.runStep(
+      context,
+      runId,
+      3,
+      "llm.generate",
+      input.message,
+      config,
+      () => this.generateAnswer(input, config, contextOutputs, signal)
+    );
+  }
+
+  private async runTool<TOutput>(
+    context: TenantContext,
+    config: AgentRunConfigSnapshot,
+    state: ExecutionState,
+    toolId: "knowledge.search" | "news.fetch_rss",
+    input: unknown
+  ): Promise<StepExecutionResult> {
+    if (state.toolCalls >= config.maxToolCalls) {
+      throw new Error("Agent run exceeded its maximum tool call budget.");
+    }
+    state.toolCalls += 1;
+    const result = await this.deps.tools.call<TOutput>({
+      agent: { id: config.agentId, enabledToolIds: config.enabledToolIds },
+      context,
+      toolId,
+      input
+    });
+    return { outputPreview: result.outputPreview };
+  }
+
+  private async generateAnswer(
+    input: CreateAgentRun,
+    config: AgentRunConfigSnapshot,
+    contextOutputs: readonly string[],
+    signal: AbortSignal
+  ): Promise<StepExecutionResult> {
+    const messages: readonly LlmMessage[] = [
+      { role: "system", content: config.systemPrompt },
+      {
+        role: "user",
+        content: [
+          input.message,
+          "",
+          "Untrusted tool and retrieval context:",
+          ...contextOutputs.filter(Boolean)
+        ].join("\n")
+      }
+    ];
+    let content = "";
+    let completed: Extract<LlmStreamEvent, { type: "completed" }> | undefined;
+
+    for await (const event of this.deps.llmProvider.streamChat({
+      model: config.model,
+      messages,
+      timeoutMs: config.timeoutMs,
+      signal,
+      ...(config.maxTokens ? { maxTokens: config.maxTokens } : {})
+    })) {
+      if (event.type === "delta") {
+        content += event.text;
+      } else {
+        completed = event;
+      }
+    }
+    if (!completed) {
+      throw new Error("The model stream ended without completion metadata.");
+    }
+
+    return {
+      outputPreview: preview({ content }),
+      usage: {
+        provider: this.deps.llmProvider.name,
+        model: config.model,
+        inputTokens: completed.usage.inputTokens,
+        outputTokens: completed.usage.outputTokens
+      }
+    };
+  }
+
+  private async runStep(
+    context: TenantContext,
+    runId: string,
+    sequence: number,
+    kind: string,
+    inputPreview: string,
+    config: AgentRunConfigSnapshot,
+    execute: () => Promise<StepExecutionResult>
+  ): Promise<string> {
+    if (sequence > config.maxSteps) {
+      throw new Error("Agent run exceeded its maximum step budget.");
+    }
+    await this.throwIfCancelled(context, runId);
+    const step = await this.deps.runs.startStep(
+      context,
+      runId,
+      sequence,
+      kind,
+      inputPreview
+    );
+    if (step.status === "COMPLETED" || step.status === "SKIPPED") {
+      return step.outputPreview ?? "";
+    }
+
+    const startedAt = performance.now();
+    try {
+      const result = await execute();
+      const durationMs = Math.round(performance.now() - startedAt);
+      if (result.skipped) {
+        await this.deps.runs.skipStep(
+          context,
+          step.id,
+          result.outputPreview,
+          durationMs
+        );
+      } else {
+        await this.deps.runs.completeStep(context, step.id, {
+          outputPreview: result.outputPreview,
+          durationMs,
+          ...(result.usage ?? {})
+        });
+      }
+      return result.outputPreview;
+    } catch (error) {
+      const durationMs = Math.round(performance.now() - startedAt);
+      await this.deps.runs.failStep(
+        context,
+        step.id,
+        errorCode(error),
+        errorMessage(error),
+        durationMs
+      );
+      throw error;
+    }
+  }
+
+  private async throwIfCancelled(
+    context: TenantContext,
+    runId: string
+  ): Promise<void> {
+    if (await this.deps.runs.isCancellationRequested(context, runId)) {
+      throw new RunCancelledError();
+    }
+  }
+
+  private async handleError(
+    context: TenantContext,
+    runId: string,
+    error: unknown,
+    startedAt: number
+  ): Promise<void> {
+    if (error instanceof RunCancelledError) {
+      await this.deps.runs.markCancelled(context, runId);
+      return;
+    }
+    if (isTimeout(error)) {
+      await this.deps.runs.markTimedOut(
+        context,
+        runId,
+        `Agent run exceeded its timeout after ${Math.round(
+          performance.now() - startedAt
+        )}ms.`
+      );
+      return;
+    }
+    await this.deps.runs.markFailed(
+      context,
+      runId,
+      errorCode(error),
+      errorMessage(error)
+    );
+  }
+}
+
+class RunCancelledError extends Error {
+  public constructor() {
+    super("Agent run was cancelled.");
+    this.name = "RunCancelledError";
+  }
+}
+
+function toContext(job: AgentRunJob): TenantContext {
+  return {
+    tenantId: job.tenantId,
+    userId: job.userId,
+    correlationId: job.correlationId
+  };
+}
+
+function errorCode(error: unknown): string {
+  if (error instanceof ToolRegistryError) {
+    return error.code;
+  }
+  if (isTimeout(error)) {
+    return "RUN_TIMED_OUT";
+  }
+  return "AGENT_RUN_FAILED";
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error
+    ? error.message
+    : "Unknown agent runtime error.";
+}
+
+function isTimeout(error: unknown): boolean {
+  return (
+    (error instanceof DOMException && error.name === "TimeoutError") ||
+    (error instanceof Error && error.name === "TimeoutError")
+  );
+}

@@ -1,0 +1,2 @@
+export const AGENT_RUN_REPOSITORY = Symbol("AGENT_RUN_REPOSITORY");
+export const AGENT_RUN_QUEUE = Symbol("AGENT_RUN_QUEUE");

@@ -6,4 +6,5 @@ export * from "./documents.js";
 export * from "./events.js";
 export * from "./mcp.js";
 export * from "./realtime.js";
+export * from "./runs.js";
 export * from "./statuses.js";

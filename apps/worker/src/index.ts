@@ -1,14 +1,19 @@
 import { Worker } from "bullmq";
 
-import { OllamaOpenAiEmbeddingProvider } from "@devhub/ai";
+import {
+  OllamaOpenAiEmbeddingProvider,
+  OllamaOpenAiProvider
+} from "@devhub/ai";
 import { createDatabaseClient } from "@devhub/database";
 import { formatServiceName } from "@devhub/domain";
 import { QdrantVectorStore } from "@devhub/rag";
 
+import { processAgentRun } from "./agent-run-processor.js";
 import { loadWorkerConfig } from "./config.js";
 import { processDocument } from "./document-processor.js";
 
 const processDocumentQueueName = "process-document";
+const runAgentQueueName = "run-agent";
 
 export function getWorkerName(): string {
   return formatServiceName("Worker");
@@ -21,11 +26,15 @@ if (require.main === module) {
     baseUrl: config.ollamaBaseUrl,
     apiKey: config.ollamaApiKey
   });
+  const llmProvider = new OllamaOpenAiProvider({
+    baseUrl: config.ollamaBaseUrl,
+    apiKey: config.ollamaApiKey
+  });
   const vectorStore = new QdrantVectorStore({
     url: config.qdrantUrl,
     collectionName: config.qdrantCollectionName
   });
-  const worker = new Worker(
+  const documentWorker = new Worker(
     processDocumentQueueName,
     async (job) => {
       await processDocument({
@@ -44,9 +53,29 @@ if (require.main === module) {
       lockDuration: 120_000
     }
   );
+  const agentWorker = new Worker(
+    runAgentQueueName,
+    async (job) => {
+      await processAgentRun({
+        database,
+        embeddingModel: config.embeddingModel,
+        embeddingProvider,
+        embeddingTimeoutMs: config.embeddingTimeoutMs,
+        input: job.data,
+        llmProvider,
+        rssTimeoutMs: config.rssTimeoutMs,
+        vectorStore
+      });
+    },
+    {
+      connection: toRedisConnection(config.redisUrl),
+      concurrency: 1,
+      lockDuration: config.llmTimeoutMs + 30_000
+    }
+  );
 
   const shutdown = async (): Promise<void> => {
-    await worker.close();
+    await Promise.all([documentWorker.close(), agentWorker.close()]);
     await database.$disconnect();
   };
   process.once("SIGINT", () => void shutdown().then(() => process.exit(0)));
