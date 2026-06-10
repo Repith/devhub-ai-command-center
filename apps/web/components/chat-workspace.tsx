@@ -12,6 +12,7 @@ import {
   type RealtimeConnectionStatus,
   type RealtimeClient
 } from "../lib/realtime-client";
+import { ChatMarkdown } from "./chat-markdown";
 
 interface ChatWorkspaceProps {
   accessToken: string;
@@ -253,13 +254,13 @@ export function ChatWorkspace({
               key={message.id}
             >
               <span>{message.role === "USER" ? "You" : "Assistant"}</span>
-              <p>{message.content}</p>
+              <ChatMarkdown content={message.content} />
             </article>
           ))}
           {assistantDraft ? (
             <article className="chat-message assistant streaming">
               <span>Assistant · streaming</span>
-              <p>{assistantDraft}</p>
+              <ChatMarkdown content={assistantDraft} />
             </article>
           ) : null}
         </div>
