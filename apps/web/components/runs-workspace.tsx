@@ -12,12 +12,14 @@ import type {
   AgentRun,
   AgentRunSnapshot,
   AgentRunStep,
-  RealtimeEvent
+  RealtimeEvent,
+  UsageSummary
 } from "@devhub/contracts";
 
 import { listAgents } from "@/lib/agents-api";
 import { createRealtimeClient } from "@/lib/realtime-client";
 import { cancelRun, getRunSnapshot, listRuns, startRun } from "@/lib/runs-api";
+import { getUsageSummary } from "@/lib/usage-api";
 
 interface RunsWorkspaceProps {
   accessToken: string;
@@ -42,6 +44,10 @@ export function RunsWorkspace({
   const runsQuery = useQuery({
     queryKey: ["runs"],
     queryFn: () => listRuns(accessToken)
+  });
+  const usageQuery = useQuery({
+    queryKey: ["usage"],
+    queryFn: () => getUsageSummary(accessToken)
   });
   const selectedRun =
     runsQuery.data?.find((run) => run.id === selectedRunId) ??
@@ -71,6 +77,12 @@ export function RunsWorkspace({
             `${current[event.payload.stepId] ?? ""}${event.payload.text}`
         }));
       }
+      if (
+        event.type === "agent_run.status_changed" &&
+        isTerminalRunStatus(event.payload.status)
+      ) {
+        void queryClient.invalidateQueries({ queryKey: ["usage"] });
+      }
     },
     [activeRunId, queryClient]
   );
@@ -87,6 +99,7 @@ export function RunsWorkspace({
     onSuccess: async (run) => {
       setSelectedRunId(run.id);
       await queryClient.invalidateQueries({ queryKey: ["runs"] });
+      await queryClient.invalidateQueries({ queryKey: ["usage"] });
     }
   });
 
@@ -213,6 +226,10 @@ export function RunsWorkspace({
             liveText={liveText}
             isLoading={snapshotQuery.isPending}
           />
+          <UsagePanel
+            usage={usageQuery.data ?? null}
+            isLoading={usageQuery.isPending}
+          />
         </div>
       </div>
     </section>
@@ -305,6 +322,122 @@ function Timeline({
       ))}
     </ol>
   );
+}
+
+function UsagePanel({
+  usage,
+  isLoading
+}: {
+  usage: UsageSummary | null;
+  isLoading: boolean;
+}): React.JSX.Element {
+  if (isLoading) {
+    return (
+      <section className="usage-panel" aria-busy="true">
+        <p className="section-kicker">Usage</p>
+        <span>Loading token and latency totals...</span>
+      </section>
+    );
+  }
+
+  if (!usage) {
+    return (
+      <section className="usage-panel">
+        <p className="section-kicker">Usage</p>
+        <span>No usage data yet.</span>
+      </section>
+    );
+  }
+
+  return (
+    <section className="usage-panel" aria-labelledby="usage-title">
+      <div className="panel-heading compact">
+        <div>
+          <p className="section-kicker">Usage</p>
+          <h2 id="usage-title">Tenant budget view</h2>
+        </div>
+        <span>{formatMicros(usage.tenant.costMicros)}</span>
+      </div>
+      <div className="usage-stats">
+        <UsageStat label="Tokens" value={usage.tenant.totalTokens} />
+        <UsageStat label="Input" value={usage.tenant.inputTokens} />
+        <UsageStat label="Output" value={usage.tenant.outputTokens} />
+        <UsageStat label="Latency" value={`${usage.tenant.latencyMs} ms`} />
+      </div>
+      <UsageList
+        title="By agent"
+        rows={usage.agents.slice(0, 5)}
+        getId={(row) => row.agentId}
+      />
+      <UsageList
+        title="By run"
+        rows={usage.runs.slice(0, 5)}
+        getId={(row) => row.runId}
+      />
+    </section>
+  );
+}
+
+function UsageStat({
+  label,
+  value
+}: {
+  label: string;
+  value: number | string;
+}): React.JSX.Element {
+  return (
+    <div>
+      <span>{label}</span>
+      <strong>
+        {typeof value === "number" ? value.toLocaleString() : value}
+      </strong>
+    </div>
+  );
+}
+
+function UsageList<T extends { totalTokens: number; latencyMs: number }>({
+  title,
+  rows,
+  getId
+}: {
+  title: string;
+  rows: readonly T[];
+  getId(row: T): string;
+}): React.JSX.Element {
+  return (
+    <div className="usage-list">
+      <h3>{title}</h3>
+      {rows.length === 0 ? (
+        <span>No recorded usage.</span>
+      ) : (
+        <ol>
+          {rows.map((row) => {
+            const id = getId(row);
+            return (
+              <li key={id}>
+                <code>{shortId(id)}</code>
+                <span>
+                  {row.totalTokens.toLocaleString()} tokens / {row.latencyMs} ms
+                </span>
+              </li>
+            );
+          })}
+        </ol>
+      )}
+    </div>
+  );
+}
+
+function shortId(id: string): string {
+  return id.slice(0, 8);
+}
+
+function formatMicros(costMicros: number): string {
+  return `$${(costMicros / 1_000_000).toFixed(4)}`;
+}
+
+function isTerminalRunStatus(status: AgentRun["status"]): boolean {
+  return ["COMPLETED", "FAILED", "CANCELLED", "TIMED_OUT"].includes(status);
 }
 
 function useRunSubscription(

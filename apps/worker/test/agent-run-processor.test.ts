@@ -66,7 +66,8 @@ describe("AgentRunProcessor", () => {
         provider: "fake",
         model: config.model,
         inputTokens: 11,
-        outputTokens: 7
+        outputTokens: 7,
+        retryCount: 0
       })
     ]);
     expect(publisher.events.map((event) => event.type)).toEqual([
@@ -102,12 +103,60 @@ describe("AgentRunProcessor", () => {
     expect(tools.calls).toHaveLength(0);
     expect(llmProvider.requests).toHaveLength(0);
   });
+
+  it("fails the run with an explainable state when token usage exceeds budget", async () => {
+    const input: CreateAgentRun = {
+      message: "Keep this short.",
+      retrievalLimit: 5
+    };
+    const config = configSnapshot({
+      enabledToolIds: [],
+      maxTokens: 5
+    });
+    const runs = new FakeRunRepository(input, config);
+    const llmProvider = new FakeLlmProvider({
+      chunks: ["This answer is too expensive."],
+      usage: { inputTokens: 4, outputTokens: 4 }
+    });
+    const publisher = new FakeRealtimePublisher();
+
+    await expect(
+      new AgentRunProcessor({
+        llmProvider,
+        publisher,
+        retryCount: 2,
+        runs,
+        tools: new FakeToolRegistry()
+      }).process(job())
+    ).rejects.toThrow("exceeding the 5 token budget");
+
+    expect(runs.completed).toBe(false);
+    expect(runs.failed).toEqual({
+      code: "TOKEN_BUDGET_EXCEEDED",
+      message: "Agent run used 8 tokens, exceeding the 5 token budget."
+    });
+    expect(runs.usages).toEqual([
+      expect.objectContaining({
+        inputTokens: 4,
+        outputTokens: 4,
+        retryCount: 2
+      })
+    ]);
+    expect(publisher.events.at(-1)).toMatchObject({
+      type: "agent_run.status_changed",
+      payload: {
+        status: "FAILED",
+        errorCode: "TOKEN_BUDGET_EXCEEDED"
+      }
+    });
+  });
 });
 
 class FakeRunRepository {
   public readonly steps: AgentRunStepRecord[] = [];
   public readonly usages: CompleteStepInput[] = [];
   public completed = false;
+  public failed: { code: string; message: string } | null = null;
 
   public constructor(
     private readonly input: CreateAgentRun,
@@ -135,7 +184,13 @@ class FakeRunRepository {
     return Promise.resolve(runRecord(this.input, this.config, "TIMED_OUT"));
   }
 
-  public markFailed(): Promise<AgentRunRecord> {
+  public markFailed(
+    _context: TenantContext,
+    _runId: string,
+    code: string,
+    message: string
+  ): Promise<AgentRunRecord> {
+    this.failed = { code, message };
     return Promise.resolve(runRecord(this.input, this.config, "FAILED"));
   }
 
@@ -251,6 +306,7 @@ function job(): AgentRunJob {
 
 function configSnapshot(input: {
   enabledToolIds: readonly string[];
+  maxTokens?: number | null;
 }): AgentRunConfigSnapshot {
   return {
     agentId: "00000000-0000-4000-8000-000000000004",
@@ -259,7 +315,7 @@ function configSnapshot(input: {
     systemPrompt: "Answer carefully.",
     maxSteps: 8,
     maxToolCalls: 4,
-    maxTokens: null,
+    maxTokens: input.maxTokens ?? null,
     timeoutMs: 120_000,
     enabledToolIds: [...input.enabledToolIds],
     knowledgeBaseIds: []

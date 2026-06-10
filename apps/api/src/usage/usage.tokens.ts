@@ -1,0 +1,1 @@
+export const USAGE_REPOSITORY = Symbol("USAGE_REPOSITORY");

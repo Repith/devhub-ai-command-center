@@ -66,6 +66,7 @@ if (require.main === module) {
         input: job.data,
         llmProvider,
         publisher,
+        retryCount: job.attemptsMade,
         rssTimeoutMs: config.rssTimeoutMs,
         vectorStore
       });

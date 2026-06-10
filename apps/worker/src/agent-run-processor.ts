@@ -45,6 +45,7 @@ export interface AgentRunProcessorOptions {
   embeddingTimeoutMs: number;
   llmProvider: LlmProviderPort;
   publisher?: RealtimeEventPublisher;
+  retryCount?: number;
   vectorStore: VectorStorePort;
   rssTimeoutMs: number;
 }
@@ -67,6 +68,7 @@ export async function processAgentRun(
   const processor = new AgentRunProcessor({
     llmProvider: options.llmProvider,
     ...(options.publisher ? { publisher: options.publisher } : {}),
+    retryCount: options.retryCount ?? 0,
     runs,
     tools
   });
@@ -76,6 +78,7 @@ export async function processAgentRun(
 export interface AgentRunProcessorDependencies {
   llmProvider: LlmProviderPort;
   publisher?: RealtimeEventPublisher;
+  retryCount?: number;
   runs: Pick<
     PrismaAgentRunRepository,
     | "completeStep"
@@ -94,6 +97,7 @@ export interface AgentRunProcessorDependencies {
 }
 
 interface StepExecutionResult {
+  budgetExceeded?: { code: string; message: string };
   outputPreview: string;
   skipped?: boolean;
   usage?: {
@@ -105,6 +109,7 @@ interface StepExecutionResult {
 }
 
 interface ExecutionState {
+  tokens: number;
   toolCalls: number;
 }
 
@@ -125,7 +130,7 @@ export class AgentRunProcessor {
 
     try {
       const outputs: string[] = [];
-      const state: ExecutionState = { toolCalls: 0 };
+      const state: ExecutionState = { tokens: 0, toolCalls: 0 };
       await this.publish(context, {
         ...runEventBase(context),
         type: "agent_run.started",
@@ -137,7 +142,15 @@ export class AgentRunProcessor {
       outputs.push(
         await this.runNewsStep(context, job.runId, input, config, state)
       );
-      await this.runLlmStep(context, job.runId, input, config, outputs, signal);
+      await this.runLlmStep(
+        context,
+        job.runId,
+        input,
+        config,
+        outputs,
+        signal,
+        state
+      );
       await this.deps.runs.markCompleted(context, job.runId);
       await this.publishStatus(context, job.runId, "COMPLETED");
     } catch (error) {
@@ -240,7 +253,8 @@ export class AgentRunProcessor {
     input: CreateAgentRun,
     config: AgentRunConfigSnapshot,
     contextOutputs: readonly string[],
-    signal: AbortSignal
+    signal: AbortSignal,
+    state: ExecutionState
   ): Promise<string> {
     return this.runStep(
       context,
@@ -257,7 +271,8 @@ export class AgentRunProcessor {
           input,
           config,
           contextOutputs,
-          signal
+          signal,
+          state
         )
     );
   }
@@ -289,8 +304,10 @@ export class AgentRunProcessor {
     input: CreateAgentRun,
     config: AgentRunConfigSnapshot,
     contextOutputs: readonly string[],
-    signal: AbortSignal
+    signal: AbortSignal,
+    state: ExecutionState
   ): Promise<StepExecutionResult> {
+    this.assertTokenBudget(config, state.tokens);
     const messages: readonly LlmMessage[] = [
       { role: "system", content: config.systemPrompt },
       {
@@ -331,8 +348,19 @@ export class AgentRunProcessor {
     if (!completed) {
       throw new Error("The model stream ended without completion metadata.");
     }
+    const usedTokens =
+      completed.usage.inputTokens + completed.usage.outputTokens;
+    state.tokens += usedTokens;
 
     return {
+      ...(config.maxTokens !== null && state.tokens > config.maxTokens
+        ? {
+            budgetExceeded: {
+              code: "TOKEN_BUDGET_EXCEEDED",
+              message: `Agent run used ${state.tokens} tokens, exceeding the ${config.maxTokens} token budget.`
+            }
+          }
+        : {}),
       outputPreview: preview({ content }),
       usage: {
         provider: this.deps.llmProvider.name,
@@ -388,6 +416,7 @@ export class AgentRunProcessor {
         updatedStep = await this.deps.runs.completeStep(context, step.id, {
           outputPreview: result.outputPreview,
           durationMs,
+          retryCount: this.deps.retryCount ?? 0,
           ...(result.usage ?? {})
         });
       }
@@ -396,6 +425,12 @@ export class AgentRunProcessor {
         type: "agent_run.step_changed",
         payload: toStepEventPayload(updatedStep)
       });
+      if (result.budgetExceeded) {
+        throw new BudgetExceededError(
+          result.budgetExceeded.code,
+          result.budgetExceeded.message
+        );
+      }
       return result.outputPreview;
     } catch (error) {
       const durationMs = Math.round(performance.now() - startedAt);
@@ -424,6 +459,18 @@ export class AgentRunProcessor {
     }
   }
 
+  private assertTokenBudget(
+    config: AgentRunConfigSnapshot,
+    tokens: number
+  ): void {
+    if (config.maxTokens !== null && tokens > config.maxTokens) {
+      throw new BudgetExceededError(
+        "TOKEN_BUDGET_EXCEEDED",
+        `Agent run used ${tokens} tokens, exceeding the ${config.maxTokens} token budget.`
+      );
+    }
+  }
+
   private async handleError(
     context: TenantContext,
     runId: string,
@@ -433,6 +480,22 @@ export class AgentRunProcessor {
     if (error instanceof RunCancelledError) {
       await this.deps.runs.markCancelled(context, runId);
       await this.publishStatus(context, runId, "CANCELLED", "RUN_CANCELLED");
+      return;
+    }
+    if (error instanceof BudgetExceededError) {
+      await this.deps.runs.markFailed(
+        context,
+        runId,
+        error.code,
+        error.message
+      );
+      await this.publishStatus(
+        context,
+        runId,
+        "FAILED",
+        error.code,
+        error.message
+      );
       return;
     }
     if (isTimeout(error)) {
@@ -494,6 +557,16 @@ class RunCancelledError extends Error {
   public constructor() {
     super("Agent run was cancelled.");
     this.name = "RunCancelledError";
+  }
+}
+
+class BudgetExceededError extends Error {
+  public constructor(
+    public readonly code: string,
+    message: string
+  ) {
+    super(message);
+    this.name = "BudgetExceededError";
   }
 }
 
