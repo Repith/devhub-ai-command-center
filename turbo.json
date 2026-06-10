@@ -13,6 +13,7 @@
         "API_ORIGIN",
         "API_PORT",
         "DATABASE_URL",
+        "DOCUMENT_STORAGE_DIR",
         "JWT_AUDIENCE",
         "JWT_ISSUER",
         "JWT_SECRET",
@@ -21,6 +22,7 @@
         "OLLAMA_CHAT_MODEL",
         "NEXT_PUBLIC_API_ORIGIN",
         "REFRESH_COOKIE_SECURE",
+        "REDIS_URL",
         "REFRESH_TOKEN_TTL_SECONDS",
         "WEB_ORIGIN"
       ],
@@ -42,6 +44,7 @@
       "env": [
         "ACCESS_TOKEN_TTL_SECONDS",
         "DATABASE_URL",
+        "DOCUMENT_STORAGE_DIR",
         "JWT_AUDIENCE",
         "JWT_ISSUER",
         "JWT_SECRET",
@@ -49,6 +52,7 @@
         "OLLAMA_BASE_URL",
         "OLLAMA_CHAT_MODEL",
         "REFRESH_COOKIE_SECURE",
+        "REDIS_URL",
         "REFRESH_TOKEN_TTL_SECONDS"
       ],
       "outputs": ["coverage/**"]
