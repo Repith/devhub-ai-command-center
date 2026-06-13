@@ -53,6 +53,14 @@ previews, or audit metadata. Gmail message bodies are treated like uploaded
 documents and RSS content: untrusted, bounded, and incapable of changing system
 policy or tool permissions.
 
+The local Gmail OAuth flow requires `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`,
+`GMAIL_REDIRECT_URI`, and `GMAIL_TOKEN_ENCRYPTION_KEY`. The first implementation
+requests `https://www.googleapis.com/auth/gmail.readonly` and
+`https://www.googleapis.com/auth/gmail.compose`. These are Google restricted
+scopes, so a public production deployment must complete Google's verification
+and security assessment process before broad use. Local development should use
+test users and never commit OAuth credentials.
+
 The model may prepare Gmail drafts but may not send mail through MCP in the
 first Gmail workflow. Sending requires an authenticated API request against a
 local review record whose recipients, subject, and body are visible and

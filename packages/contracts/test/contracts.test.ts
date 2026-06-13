@@ -8,6 +8,9 @@ import {
   createChatMessageSchema,
   createAgentDefinitionSchema,
   documentStatusSchema,
+  gmailDraftReviewSchema,
+  gmailSearchThreadsInputSchema,
+  mcpToolIdSchema,
   registerSchema,
   realtimeEventSchema
 } from "../src";
@@ -114,5 +117,35 @@ describe("contracts", () => {
     });
 
     expect(result.success).toBe(false);
+  });
+
+  it("includes Gmail draft tools but no model-callable send tool", () => {
+    expect(mcpToolIdSchema.safeParse("gmail.create_draft").success).toBe(true);
+    expect(mcpToolIdSchema.safeParse("gmail.update_draft").success).toBe(true);
+    expect(mcpToolIdSchema.safeParse("gmail.send").success).toBe(false);
+  });
+
+  it("validates Gmail thread search and draft review responses", () => {
+    expect(
+      gmailSearchThreadsInputSchema.safeParse({
+        query: "from:client@example.com newer_than:7d"
+      }).success
+    ).toBe(true);
+    expect(
+      gmailDraftReviewSchema.safeParse({
+        id: "64fe81ba-7faf-4b37-a2b8-347cd19b5550",
+        agentRunId: null,
+        threadId: "thread-1",
+        gmailDraftId: "draft-1",
+        to: ["client@example.com"],
+        cc: [],
+        subject: "Re: Update",
+        body: "Thanks for the note.",
+        status: "NEEDS_REVIEW",
+        createdAt: "2026-06-09T12:00:00.000Z",
+        updatedAt: "2026-06-09T12:00:00.000Z",
+        sentAt: null
+      }).success
+    ).toBe(true);
   });
 });
