@@ -190,16 +190,16 @@ replaces persistence, authorization, MCP validation, or realtime delivery.
 
 ## PR 17: LangGraph Runtime Migration
 
-- [ ] Add a LangGraph `StateGraph` inside `apps/worker` with nodes for loading
+- [x] Add a LangGraph `StateGraph` inside `apps/worker` with nodes for loading
   a run, tenant-filtered retrieval, optional RSS, LLM generation, completion,
   and terminal failure handling.
-- [ ] Preserve the existing `processAgentRun` public entrypoint, REST
+- [x] Preserve the existing `processAgentRun` public entrypoint, REST
   contracts, Socket.IO events, usage rows, step persistence, cancellation,
   timeouts, retry behavior, and tool allowlist enforcement.
-- [ ] Keep `LlmProviderPort` and `ToolRegistryPort` as the model and tool
+- [x] Keep `LlmProviderPort` and `ToolRegistryPort` as the model and tool
   boundaries; do not introduce LangSmith, LangGraph Server, or checkpointer
   persistence in this stage.
-- [ ] Extend worker regression tests for graph routing and current runtime
+- [x] Extend worker regression tests for graph routing and current runtime
   behavior.
 - [ ] Owner review and merge.
 

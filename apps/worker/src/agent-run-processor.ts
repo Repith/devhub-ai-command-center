@@ -31,6 +31,7 @@ import {
   type ToolRegistryPort
 } from "@devhub/mcp";
 import type { VectorStorePort } from "@devhub/rag";
+import { Annotation, END, START, StateGraph } from "@langchain/langgraph";
 import {
   NoopRealtimeEventPublisher,
   runEventBase,
@@ -113,50 +114,154 @@ interface ExecutionState {
   toolCalls: number;
 }
 
+const AgentRunGraphState = Annotation.Root({
+  config: Annotation<AgentRunConfigSnapshot | undefined>(),
+  context: Annotation<TenantContext>(),
+  input: Annotation<CreateAgentRun | undefined>(),
+  outputs: Annotation<string[]>(),
+  runId: Annotation<string>(),
+  shouldStop: Annotation<boolean>(),
+  signal: Annotation<AbortSignal | undefined>(),
+  tokens: Annotation<number>(),
+  toolCalls: Annotation<number>()
+});
+
+type AgentRunGraphStateValue = typeof AgentRunGraphState.State;
+
 export class AgentRunProcessor {
   public constructor(private readonly deps: AgentRunProcessorDependencies) {}
 
   public async process(job: AgentRunJob): Promise<void> {
     const context = toContext(job);
-    const run = await this.deps.runs.markRunning(context, job.runId);
-    if (!run) {
-      return;
-    }
-
-    const input = createAgentRunSchema.parse(run.input);
-    const config = agentRunConfigSnapshotSchema.parse(run.configSnapshot);
     const startedAt = performance.now();
-    const signal = AbortSignal.timeout(config.timeoutMs);
 
     try {
-      const outputs: string[] = [];
-      const state: ExecutionState = { tokens: 0, toolCalls: 0 };
-      await this.publish(context, {
-        ...runEventBase(context),
-        type: "agent_run.started",
-        payload: { runId: job.runId, status: "RUNNING" }
-      });
-      outputs.push(
-        await this.runRetrievalStep(context, job.runId, input, config, state)
-      );
-      outputs.push(
-        await this.runNewsStep(context, job.runId, input, config, state)
-      );
-      await this.runLlmStep(
+      await this.runGraph({
         context,
-        job.runId,
-        input,
-        config,
-        outputs,
-        signal,
-        state
-      );
-      await this.deps.runs.markCompleted(context, job.runId);
-      await this.publishStatus(context, job.runId, "COMPLETED");
+        runId: job.runId
+      });
     } catch (error) {
       await this.handleError(context, job.runId, error, startedAt);
       throw error;
     }
+  }
+
+  private async runGraph(input: {
+    context: TenantContext;
+    runId: string;
+  }): Promise<void> {
+    const graph = new StateGraph(AgentRunGraphState)
+      .addNode("loadRun", (state) => this.loadRunNode(state))
+      .addNode("retrieveKnowledge", (state) =>
+        this.retrieveKnowledgeNode(state)
+      )
+      .addNode("fetchNews", (state) => this.fetchNewsNode(state))
+      .addNode("generateAnswer", (state) => this.generateAnswerNode(state))
+      .addNode("completeRun", (state) => this.completeRunNode(state))
+      .addEdge(START, "loadRun")
+      .addConditionalEdges("loadRun", shouldContinueAfterLoad, [
+        "retrieveKnowledge",
+        END
+      ])
+      .addEdge("retrieveKnowledge", "fetchNews")
+      .addEdge("fetchNews", "generateAnswer")
+      .addEdge("generateAnswer", "completeRun")
+      .addEdge("completeRun", END)
+      .compile();
+
+    await graph.invoke({
+      config: undefined,
+      context: input.context,
+      input: undefined,
+      outputs: [],
+      runId: input.runId,
+      shouldStop: false,
+      signal: undefined,
+      tokens: 0,
+      toolCalls: 0
+    });
+  }
+
+  private async loadRunNode(
+    state: AgentRunGraphStateValue
+  ): Promise<Partial<AgentRunGraphStateValue>> {
+    const run = await this.deps.runs.markRunning(state.context, state.runId);
+    if (!run) {
+      return { shouldStop: true };
+    }
+
+    const input = createAgentRunSchema.parse(run.input);
+    const config = agentRunConfigSnapshotSchema.parse(run.configSnapshot);
+    await this.publish(state.context, {
+      ...runEventBase(state.context),
+      type: "agent_run.started",
+      payload: { runId: state.runId, status: "RUNNING" }
+    });
+
+    return {
+      config,
+      input,
+      shouldStop: false,
+      signal: AbortSignal.timeout(config.timeoutMs)
+    };
+  }
+
+  private async retrieveKnowledgeNode(
+    state: AgentRunGraphStateValue
+  ): Promise<Partial<AgentRunGraphStateValue>> {
+    const loaded = loadedGraphState(state);
+    const execution = executionStateFromGraph(state);
+    const output = await this.runRetrievalStep(
+      loaded.context,
+      loaded.runId,
+      loaded.input,
+      loaded.config,
+      execution
+    );
+    return graphStepUpdate(state, output, execution);
+  }
+
+  private async fetchNewsNode(
+    state: AgentRunGraphStateValue
+  ): Promise<Partial<AgentRunGraphStateValue>> {
+    const loaded = loadedGraphState(state);
+    const execution = executionStateFromGraph(state);
+    const output = await this.runNewsStep(
+      loaded.context,
+      loaded.runId,
+      loaded.input,
+      loaded.config,
+      execution
+    );
+    return graphStepUpdate(state, output, execution);
+  }
+
+  private async generateAnswerNode(
+    state: AgentRunGraphStateValue
+  ): Promise<Partial<AgentRunGraphStateValue>> {
+    const loaded = loadedGraphState(state);
+    const execution = executionStateFromGraph(state);
+    await this.runLlmStep(
+      loaded.context,
+      loaded.runId,
+      loaded.input,
+      loaded.config,
+      state.outputs,
+      loaded.signal,
+      execution
+    );
+    return {
+      tokens: execution.tokens,
+      toolCalls: execution.toolCalls
+    };
+  }
+
+  private async completeRunNode(
+    state: AgentRunGraphStateValue
+  ): Promise<Partial<AgentRunGraphStateValue>> {
+    await this.deps.runs.markCompleted(state.context, state.runId);
+    await this.publishStatus(state.context, state.runId, "COMPLETED");
+    return {};
   }
 
   private async runRetrievalStep(
@@ -575,6 +680,52 @@ function toContext(job: AgentRunJob): TenantContext {
     tenantId: job.tenantId,
     userId: job.userId,
     correlationId: job.correlationId
+  };
+}
+
+function shouldContinueAfterLoad(
+  state: AgentRunGraphStateValue
+): "retrieveKnowledge" | typeof END {
+  return state.shouldStop ? END : "retrieveKnowledge";
+}
+
+function loadedGraphState(state: AgentRunGraphStateValue): {
+  config: AgentRunConfigSnapshot;
+  context: TenantContext;
+  input: CreateAgentRun;
+  runId: string;
+  signal: AbortSignal;
+} {
+  if (!state.input || !state.config || !state.signal) {
+    throw new Error("Agent run graph continued before loadRun completed.");
+  }
+  return {
+    config: state.config,
+    context: state.context,
+    input: state.input,
+    runId: state.runId,
+    signal: state.signal
+  };
+}
+
+function executionStateFromGraph(
+  state: AgentRunGraphStateValue
+): ExecutionState {
+  return {
+    tokens: state.tokens,
+    toolCalls: state.toolCalls
+  };
+}
+
+function graphStepUpdate(
+  state: AgentRunGraphStateValue,
+  output: string,
+  execution: ExecutionState
+): Partial<AgentRunGraphStateValue> {
+  return {
+    outputs: [...state.outputs, output],
+    tokens: execution.tokens,
+    toolCalls: execution.toolCalls
   };
 }
 
