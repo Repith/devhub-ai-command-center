@@ -1,4 +1,5 @@
 export * from "./agents.js";
+export * from "./agent-templates.js";
 export * from "./api.js";
 export * from "./audit.js";
 export * from "./auth.js";

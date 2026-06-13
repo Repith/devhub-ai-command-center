@@ -1,4 +1,5 @@
 import type {
+  AgentTemplate,
   CreateAgentDefinition,
   UpdateAgentDefinition
 } from "@devhub/contracts";
@@ -14,6 +15,7 @@ export interface AgentDefinitionRecord {
   provider: string;
   model: string;
   systemPrompt: string;
+  templateKey: string | null;
   maxSteps: number;
   maxToolCalls: number;
   maxTokens: number | null;
@@ -61,6 +63,7 @@ export class PrismaAgentDefinitionRepository implements TenantMutableRepository<
         provider: input.provider,
         model: input.model,
         systemPrompt: input.systemPrompt,
+        templateKey: null,
         maxSteps: input.maxSteps,
         maxToolCalls: input.maxToolCalls,
         maxTokens: input.maxTokens ?? null,
@@ -117,5 +120,106 @@ export class PrismaAgentDefinitionRepository implements TenantMutableRepository<
     });
 
     return result.count === 1;
+  }
+
+  public async installTemplates(
+    context: TenantContext,
+    templates: readonly AgentTemplate[]
+  ): Promise<readonly AgentDefinitionRecord[]> {
+    const records: AgentDefinitionRecord[] = [];
+    for (const template of templates) {
+      records.push(await this.installTemplate(context, template));
+    }
+    return records;
+  }
+
+  public async resetTemplates(
+    context: TenantContext,
+    templates: readonly AgentTemplate[]
+  ): Promise<readonly AgentDefinitionRecord[]> {
+    const records: AgentDefinitionRecord[] = [];
+    for (const template of templates) {
+      records.push(await this.resetTemplate(context, template));
+    }
+    return records;
+  }
+
+  private async installTemplate(
+    context: TenantContext,
+    template: AgentTemplate
+  ): Promise<AgentDefinitionRecord> {
+    const existing = await this.database.agentDefinition.findFirst({
+      where: { tenantId: context.tenantId, templateKey: template.key }
+    });
+    if (existing && existing.deletedAt === null) {
+      return existing;
+    }
+    if (existing) {
+      return this.database.agentDefinition.update({
+        where: { id: existing.id },
+        data: {
+          ...this.templateData(template),
+          deletedAt: null
+        }
+      });
+    }
+    return this.database.agentDefinition.create({
+      data: {
+        tenantId: context.tenantId,
+        templateKey: template.key,
+        ...this.templateData(template)
+      }
+    });
+  }
+
+  private resetTemplate(
+    context: TenantContext,
+    template: AgentTemplate
+  ): Promise<AgentDefinitionRecord> {
+    return this.database.agentDefinition.upsert({
+      where: {
+        tenantId_templateKey: {
+          tenantId: context.tenantId,
+          templateKey: template.key
+        }
+      },
+      update: {
+        ...this.templateData(template),
+        deletedAt: null
+      },
+      create: {
+        tenantId: context.tenantId,
+        templateKey: template.key,
+        ...this.templateData(template)
+      }
+    });
+  }
+
+  private templateData(template: AgentTemplate): {
+    name: string;
+    description: string | null;
+    provider: string;
+    model: string;
+    systemPrompt: string;
+    maxSteps: number;
+    maxToolCalls: number;
+    maxTokens: number | null;
+    timeoutMs: number;
+    enabledToolIds: string[];
+    knowledgeBaseIds: string[];
+  } {
+    return {
+      name: template.definition.name,
+      description: template.definition.description ?? null,
+      provider: template.definition.provider,
+      model: template.definition.model,
+      systemPrompt: template.definition.systemPrompt,
+      maxSteps: template.definition.maxSteps,
+      maxToolCalls: template.definition.maxToolCalls,
+      maxTokens: template.definition.maxTokens ?? null,
+      timeoutMs: template.definition.timeoutMs,
+      enabledToolIds: [...template.definition.enabledToolIds],
+      knowledgeBaseIds: [...template.definition.knowledgeBaseIds]
+    };
   }
 }

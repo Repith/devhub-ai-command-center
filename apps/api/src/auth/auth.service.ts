@@ -13,6 +13,7 @@ import type {
   MembershipRole,
   RegisterInput
 } from "@devhub/contracts";
+import { DEFAULT_AGENT_TEMPLATES } from "@devhub/contracts";
 import type { DatabaseClient } from "@devhub/database";
 
 import { DATABASE_CLIENT } from "../database/database.module";
@@ -68,6 +69,23 @@ export class AuthService {
         });
         const membership = await database.membership.create({
           data: { userId: user.id, tenantId: tenant.id, role: "OWNER" }
+        });
+        await database.agentDefinition.createMany({
+          data: DEFAULT_AGENT_TEMPLATES.map((template) => ({
+            tenantId: tenant.id,
+            templateKey: template.key,
+            name: template.definition.name,
+            description: template.definition.description ?? null,
+            provider: template.definition.provider,
+            model: this.defaultChatModel(),
+            systemPrompt: template.definition.systemPrompt,
+            maxSteps: template.definition.maxSteps,
+            maxToolCalls: template.definition.maxToolCalls,
+            maxTokens: template.definition.maxTokens ?? null,
+            timeoutMs: template.definition.timeoutMs,
+            enabledToolIds: [...template.definition.enabledToolIds],
+            knowledgeBaseIds: [...template.definition.knowledgeBaseIds]
+          }))
         });
         await database.refreshSession.create({
           data: this.sessionData(refresh, user.id, tenant.id)
@@ -259,6 +277,10 @@ export class AuthService {
       .slice(0, 60);
     const prefix = base.length >= 3 ? base : "workspace";
     return `${prefix}-${randomUUID().slice(0, 8)}`;
+  }
+
+  private defaultChatModel(): string {
+    return process.env.OLLAMA_CHAT_MODEL ?? "qwen3:8b";
   }
 
   private async revokeFamily(familyId: string): Promise<void> {

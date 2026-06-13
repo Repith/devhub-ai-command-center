@@ -43,6 +43,9 @@ membership selected by the verified access token and session.
 ## Agents and Conversations
 
 - `GET|POST /agents`
+- `GET /agents/templates`
+- `POST /agents/templates/install`
+- `POST /agents/templates/reset`
 - `GET|PATCH|DELETE /agents/:agentId`
 - `POST /agents/:agentId/runs`
 - `GET /conversations`
@@ -55,6 +58,13 @@ limits, enabled tool identifiers, and selected knowledge base identifiers.
 List and detail responses intentionally omit `tenantId`; ownership remains
 server-side authorization context. Owners and admins may create, update, and
 soft-delete definitions. Members have read-only access inside their tenant.
+Template-owned definitions include a nullable `templateKey` and a
+`templateSetup` list so the UI can show whether supporting integrations are
+ready, planned, or need setup. Browser input cannot set `templateKey`.
+
+Template install creates missing default definitions and revives deleted
+template-owned definitions without overwriting active user edits. Template reset
+intentionally restores only template-owned definitions from code defaults.
 
 Chat accepts a message and an optional existing conversation identifier. The
 response is `application/x-ndjson` with versioned `chat.started`, `chat.delta`,

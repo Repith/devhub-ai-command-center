@@ -20,7 +20,9 @@ import {
 import type {
   AgentDefinition,
   AgentDefinitionList,
+  AgentTemplateList,
   CreateAgentDefinition,
+  InstallAgentTemplatesResponse,
   UpdateAgentDefinition
 } from "@devhub/contracts";
 
@@ -49,6 +51,28 @@ export class AgentsController {
       data,
       page: { cursor: null, nextCursor: null, limit: 100 }
     };
+  }
+
+  @Get("templates")
+  @Roles("OWNER", "ADMIN", "MEMBER")
+  public listTemplates(): AgentTemplateList {
+    return this.agents.listTemplates();
+  }
+
+  @Post("templates/install")
+  @Roles("OWNER", "ADMIN")
+  public installTemplates(
+    @CurrentUser() principal: RequestPrincipal
+  ): Promise<InstallAgentTemplatesResponse> {
+    return this.agents.installTemplates(principal);
+  }
+
+  @Post("templates/reset")
+  @Roles("OWNER", "ADMIN")
+  public resetTemplates(
+    @CurrentUser() principal: RequestPrincipal
+  ): Promise<InstallAgentTemplatesResponse> {
+    return this.agents.resetTemplates(principal);
   }
 
   @Get(":agentId")

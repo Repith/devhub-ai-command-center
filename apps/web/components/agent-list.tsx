@@ -88,6 +88,16 @@ export function AgentList({
                   <small>
                     {agent.provider} / {agent.model}
                   </small>
+                  {agent.templateKey ? (
+                    <span className="template-state">
+                      Template
+                      {agent.templateSetup.some(
+                        (item) => item.status !== "READY"
+                      )
+                        ? " - setup needed"
+                        : " - ready"}
+                    </span>
+                  ) : null}
                 </span>
               </button>
             </li>
