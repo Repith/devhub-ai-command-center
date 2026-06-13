@@ -223,16 +223,16 @@ can reinstall templates without overwriting unrelated custom agents.
 
 ## PR 19: Gmail MCP and Review Workflow
 
-- [ ] Add `apps/mcp-gmail` with Gmail tools for search/list threads, get
+- [x] Add `apps/mcp-gmail` with Gmail tools for search/list threads, get
   thread, create draft, and update draft.
-- [ ] Add Gmail OAuth connection flow with encrypted refresh tokens, tenant/user
+- [x] Add Gmail OAuth connection flow with encrypted refresh tokens, tenant/user
   ownership, audit logs, and no secret or mail-body leakage to prompts, logs,
   WebSocket payloads, or commits.
-- [ ] Add draft review records with `NEEDS_REVIEW`, `UPDATED`, `SENT`, and
+- [x] Add draft review records with `NEEDS_REVIEW`, `UPDATED`, `SENT`, and
   `REJECTED` states.
-- [ ] Add UI for reviewing, editing, sending, and rejecting proposed replies.
+- [x] Add UI for reviewing, editing, sending, and rejecting proposed replies.
   Sending is an authenticated API action, not a model-callable MCP tool.
-- [ ] Document restricted Gmail scope implications and keep
+- [x] Document restricted Gmail scope implications and keep
   `AUTO_SEND_ALLOWED=false` by default.
 - [ ] Owner review and merge.
 

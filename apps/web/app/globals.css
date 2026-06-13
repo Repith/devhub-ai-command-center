@@ -771,6 +771,70 @@ button.nav-item {
   color: #858da0;
 }
 
+.gmail-grid {
+  display: grid;
+  grid-template-columns: minmax(17rem, 0.34fr) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.gmail-review-list {
+  display: grid;
+  gap: 0.55rem;
+  padding: 0.75rem;
+  margin: 0;
+  list-style: none;
+}
+
+.gmail-review-list button {
+  display: grid;
+  width: 100%;
+  gap: 0.45rem;
+  border: 1px solid transparent;
+  border-radius: 0.75rem;
+  padding: 0.8rem;
+  background: transparent;
+  color: #dfe3ec;
+  text-align: left;
+}
+
+.gmail-review-list button:hover,
+.gmail-review-list button.selected {
+  border-color: #343947;
+  background: #1a1d26;
+}
+
+.gmail-review-list button.selected {
+  box-shadow: inset 3px 0 #7c6df7;
+}
+
+.gmail-review-list strong,
+.gmail-review-list small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gmail-review-list small {
+  color: #858da0;
+}
+
+.status-pill.needs_review,
+.status-pill.updated {
+  border-color: #5b4f2a;
+  color: #f2c66d;
+}
+
+.status-pill.sent {
+  border-color: #31543f;
+  color: #8fe3b0;
+}
+
+.status-pill.rejected {
+  border-color: #62343b;
+  color: #ffb1b8;
+}
+
 .agent-form fieldset {
   display: grid;
   gap: 1rem;
@@ -861,6 +925,11 @@ button.nav-item {
 
 .connection-card .text-button {
   margin-left: auto;
+}
+
+.connection-card.compact {
+  min-height: 3.6rem;
+  border-radius: 0.75rem;
 }
 
 .connection-indicator {
@@ -1562,6 +1631,10 @@ button.nav-item {
   }
 
   .workspace-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .gmail-grid {
     grid-template-columns: 1fr;
   }
 

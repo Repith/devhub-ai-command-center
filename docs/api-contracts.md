@@ -93,6 +93,23 @@ is idempotent and returns the latest state.
 Uploads accept MD, TXT, and PDF up to the configured limit. Retrieval returns
 ranked chunks with document, page when available, score, and citation label.
 
+## Gmail
+
+- `GET /gmail/status`
+- `POST /gmail/connect`
+- `POST /gmail/oauth/callback`
+- `GET|POST /gmail/draft-reviews`
+- `PATCH /gmail/draft-reviews/:reviewId`
+- `POST /gmail/draft-reviews/:reviewId/send`
+- `POST /gmail/draft-reviews/:reviewId/reject`
+
+Gmail OAuth responses expose connection state, account email, required scopes,
+and timestamps, but never access or refresh tokens. Draft review responses omit
+`tenantId` and include recipients, subject, body, and the closed status union
+`NEEDS_REVIEW | UPDATED | SENT | REJECTED` because those fields are explicitly
+shown to the authenticated user before sending. Sending mail is only available
+through the authenticated API review endpoint; it is not an MCP tool.
+
 ## MCP, Usage, and Evaluation
 
 - `GET /mcp/connections`

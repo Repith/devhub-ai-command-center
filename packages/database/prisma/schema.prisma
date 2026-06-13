@@ -52,6 +52,23 @@ enum MessageRole {
   ASSISTANT
 }
 
+enum ExternalConnectionProvider {
+  GMAIL
+}
+
+enum ExternalConnectionStatus {
+  CONNECTED
+  DISCONNECTED
+  EXPIRED
+}
+
+enum GmailDraftReviewStatus {
+  NEEDS_REVIEW
+  UPDATED
+  SENT
+  REJECTED
+}
+
 model User {
   id           String       @id @default(uuid()) @db.Uuid
   email        String       @unique
@@ -59,6 +76,8 @@ model User {
   displayName  String?
   memberships  Membership[]
   refreshSessions RefreshSession[]
+  externalConnections ExternalConnection[]
+  gmailDraftReviews GmailDraftReview[]
   createdAt    DateTime     @default(now()) @db.Timestamptz(3)
   updatedAt    DateTime     @updatedAt @db.Timestamptz(3)
 }
@@ -76,6 +95,8 @@ model Tenant {
   evaluationRuns EvaluationRun[]
   auditLogs      AuditLog[]
   refreshSessions RefreshSession[]
+  externalConnections ExternalConnection[]
+  gmailDraftReviews GmailDraftReview[]
   createdAt      DateTime          @default(now()) @db.Timestamptz(3)
   updatedAt      DateTime          @updatedAt @db.Timestamptz(3)
 }
@@ -251,6 +272,7 @@ model AgentRun {
   conversation   Conversation?   @relation(fields: [tenantId, conversationId], references: [tenantId, id], onDelete: Restrict)
   steps          AgentRunStep[]
   tokenUsage     TokenUsage[]
+  gmailDraftReviews GmailDraftReview[]
   createdAt      DateTime        @default(now()) @db.Timestamptz(3)
   updatedAt      DateTime        @updatedAt @db.Timestamptz(3)
 
@@ -302,6 +324,52 @@ model TokenUsage {
 
   @@index([tenantId, createdAt])
   @@index([tenantId, agentRunId])
+}
+
+model ExternalConnection {
+  id                    String                     @id @default(uuid()) @db.Uuid
+  tenantId              String                     @db.Uuid
+  userId                String                     @db.Uuid
+  provider              ExternalConnectionProvider
+  accountEmail          String?
+  scopes                String[]                   @default([])
+  encryptedAccessToken  String?
+  encryptedRefreshToken String?
+  expiresAt             DateTime?                  @db.Timestamptz(3)
+  status                ExternalConnectionStatus   @default(CONNECTED)
+  tenant                Tenant                     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user                  User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt             DateTime                   @default(now()) @db.Timestamptz(3)
+  updatedAt             DateTime                   @updatedAt @db.Timestamptz(3)
+
+  @@unique([tenantId, userId, provider])
+  @@index([tenantId, provider, status])
+  @@index([userId, provider])
+}
+
+model GmailDraftReview {
+  id           String                 @id @default(uuid()) @db.Uuid
+  tenantId     String                 @db.Uuid
+  userId       String                 @db.Uuid
+  agentRunId   String?                @db.Uuid
+  threadId     String?
+  gmailDraftId String?
+  to           String[]               @default([])
+  cc           String[]               @default([])
+  subject      String
+  body         String                 @db.Text
+  status       GmailDraftReviewStatus @default(NEEDS_REVIEW)
+  tenant       Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user         User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  agentRun     AgentRun?              @relation(fields: [agentRunId], references: [id], onDelete: SetNull)
+  createdAt    DateTime               @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime               @updatedAt @db.Timestamptz(3)
+  sentAt       DateTime?              @db.Timestamptz(3)
+
+  @@unique([tenantId, id])
+  @@index([tenantId, userId, status, createdAt(sort: Desc)])
+  @@index([tenantId, agentRunId])
+  @@index([tenantId, threadId])
 }
 
 model GoldenCase {

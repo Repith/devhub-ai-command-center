@@ -4,5 +4,7 @@ export * from "./audit-log-repository.js";
 export * from "./client.js";
 export * from "./conversation-repository.js";
 export * from "./document-repository.js";
+export * from "./external-connection-repository.js";
+export * from "./gmail-draft-review-repository.js";
 export * from "./golden-evaluation-repository.js";
 export * from "./usage-repository.js";

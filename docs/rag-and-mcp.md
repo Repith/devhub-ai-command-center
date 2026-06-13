@@ -84,10 +84,12 @@ graph edge cannot widen the agent allowlist, skip schema validation, reuse tool
 output as instructions, or expose adapter secrets to the model. Tool outputs
 remain untrusted data even when they are produced inside a graph node.
 
-The Gmail integration will use a local MCP server for search, thread retrieval,
-draft creation, and draft updates. Sending mail is deliberately outside the MCP
-tool surface in the first version; it is an authenticated API action tied to a
-review record that the user can inspect and edit.
+The Gmail integration uses a local `apps/mcp-gmail` server for
+`gmail.search_threads`, `gmail.get_thread`, `gmail.create_draft`, and
+`gmail.update_draft`. The server reads credentials from server-side runtime
+configuration only. Sending mail is deliberately outside the MCP tool surface in
+the first version; it is an authenticated API action tied to a review record
+that the user can inspect and edit.
 
 RSS remains the first news provider. Tenant feed configuration owns the set of
 URLs the briefing agent may read, and feed entries are bounded before they enter
