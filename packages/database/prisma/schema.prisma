@@ -69,6 +69,12 @@ enum GmailDraftReviewStatus {
   REJECTED
 }
 
+enum NewsFeedFetchStatus {
+  NEVER
+  COMPLETED
+  FAILED
+}
+
 model User {
   id           String       @id @default(uuid()) @db.Uuid
   email        String       @unique
@@ -78,6 +84,7 @@ model User {
   refreshSessions RefreshSession[]
   externalConnections ExternalConnection[]
   gmailDraftReviews GmailDraftReview[]
+  newsFeeds     TenantNewsFeed[]
   createdAt    DateTime     @default(now()) @db.Timestamptz(3)
   updatedAt    DateTime     @updatedAt @db.Timestamptz(3)
 }
@@ -97,6 +104,7 @@ model Tenant {
   refreshSessions RefreshSession[]
   externalConnections ExternalConnection[]
   gmailDraftReviews GmailDraftReview[]
+  newsFeeds      TenantNewsFeed[]
   createdAt      DateTime          @default(now()) @db.Timestamptz(3)
   updatedAt      DateTime          @updatedAt @db.Timestamptz(3)
 }
@@ -370,6 +378,30 @@ model GmailDraftReview {
   @@index([tenantId, userId, status, createdAt(sort: Desc)])
   @@index([tenantId, agentRunId])
   @@index([tenantId, threadId])
+}
+
+model TenantNewsFeed {
+  id                 String              @id @default(uuid()) @db.Uuid
+  tenantId           String              @db.Uuid
+  createdByUserId    String              @db.Uuid
+  name               String
+  url                String
+  topic              String?
+  enabled            Boolean             @default(true)
+  lastFetchedAt      DateTime?           @db.Timestamptz(3)
+  lastFetchStatus    NewsFeedFetchStatus @default(NEVER)
+  lastFetchItemCount Int?
+  lastFetchErrorCode String?
+  tenant             Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdBy          User                @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
+  createdAt          DateTime            @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime            @updatedAt @db.Timestamptz(3)
+  deletedAt          DateTime?           @db.Timestamptz(3)
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, url])
+  @@index([tenantId, enabled, deletedAt])
+  @@index([tenantId, topic])
 }
 
 model GoldenCase {

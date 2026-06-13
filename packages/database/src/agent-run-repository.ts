@@ -5,6 +5,7 @@ import type {
   CreateAgentRun,
   RunStepStatus
 } from "@devhub/contracts";
+import { agentTemplateKeySchema } from "@devhub/contracts";
 import type { TenantContext } from "@devhub/domain";
 
 import type { AgentDefinitionRecord } from "./agent-definition-repository.js";
@@ -360,6 +361,7 @@ function snapshotAgent(agent: AgentDefinitionRecord): AgentRunConfigSnapshot {
     provider: agent.provider,
     model: agent.model,
     systemPrompt: agent.systemPrompt,
+    templateKey: templateKey(agent.templateKey),
     maxSteps: agent.maxSteps,
     maxToolCalls: agent.maxToolCalls,
     maxTokens: agent.maxTokens,
@@ -367,4 +369,11 @@ function snapshotAgent(agent: AgentDefinitionRecord): AgentRunConfigSnapshot {
     enabledToolIds: [...agent.enabledToolIds],
     knowledgeBaseIds: [...agent.knowledgeBaseIds]
   };
+}
+
+function templateKey(
+  value: string | null
+): AgentRunConfigSnapshot["templateKey"] {
+  const result = agentTemplateKeySchema.safeParse(value);
+  return result.success ? result.data : null;
 }

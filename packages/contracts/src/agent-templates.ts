@@ -75,7 +75,11 @@ export const DEFAULT_AGENT_TEMPLATES = [
     },
     requiredSetup: [
       { id: "news.fetch_rss", label: "RSS MCP tool", status: "READY" },
-      { id: "tenant-news-feeds", label: "Tenant RSS feeds", status: "PLANNED" }
+      {
+        id: "tenant-news-feeds",
+        label: "Tenant RSS feeds",
+        status: "NEEDS_SETUP"
+      }
     ]
   },
   {
