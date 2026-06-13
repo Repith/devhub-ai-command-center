@@ -248,6 +248,58 @@ export class PrismaDocumentRepository {
     return updated[0] ?? null;
   }
 
+  public async markQueuedForIngestion(
+    context: TenantContext,
+    documentId: string
+  ): Promise<DocumentRecord | null> {
+    const updated = await this.database.document.updateManyAndReturn({
+      where: {
+        id: documentId,
+        tenantId: context.tenantId,
+        deletedAt: null,
+        status: { not: "DELETING" }
+      },
+      data: {
+        status: "UPLOADED",
+        failureCode: null,
+        failureDetail: null
+      }
+    });
+    if (!updated[0]) {
+      return null;
+    }
+    return this.findById(context, documentId);
+  }
+
+  public async deleteDocument(
+    context: TenantContext,
+    documentId: string
+  ): Promise<DocumentRecord | null> {
+    return this.database.$transaction(async (transaction) => {
+      const updated = await transaction.document.updateManyAndReturn({
+        where: {
+          id: documentId,
+          tenantId: context.tenantId,
+          deletedAt: null
+        },
+        data: {
+          status: "DELETING",
+          deletedAt: new Date()
+        }
+      });
+      const document = updated[0];
+      if (!document) {
+        return null;
+      }
+
+      await transaction.documentChunk.deleteMany({
+        where: { tenantId: context.tenantId, documentId }
+      });
+
+      return { ...document, _count: { chunks: 0 } };
+    });
+  }
+
   public toDocumentResponse(record: DocumentRecord): Document {
     return {
       id: record.id,

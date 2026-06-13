@@ -10,8 +10,8 @@ export interface ChunkTextOptions {
   overlapTokens?: number;
 }
 
-const defaultTargetTokens = 700;
-const defaultOverlapTokens = 120;
+const defaultTargetTokens = 25;
+const defaultOverlapTokens = 5;
 
 export function normalizeText(input: string): string {
   return input

@@ -43,7 +43,11 @@ async function searchKnowledge(
   });
   const [queryVector] = embeddings.vectors;
   if (!queryVector) {
-    return { query: input.query, results: [] };
+    return {
+      query: input.query,
+      results: [],
+      answer: "Unable to generate embedding for the query."
+    };
   }
 
   const hits = await options.vectorStore.search({
@@ -58,26 +62,34 @@ async function searchKnowledge(
   );
   const chunkById = new Map(chunks.map((chunk) => [chunk.id, chunk]));
 
+  const results = hits.flatMap((hit) => {
+    const chunk = chunkById.get(hit.payload.chunkId);
+    if (!chunk || !chunk.document) {
+      return [];
+    }
+    return [
+      {
+        citationLabel: citationLabel(hit),
+        score: hit.score,
+        documentId: chunk.documentId,
+        chunkId: chunk.id,
+        fileName: chunk.document.fileName,
+        ordinal: chunk.ordinal,
+        pageNumber: chunk.pageNumber,
+        content: chunk.content
+      }
+    ];
+  });
+
   return {
     query: input.query,
-    results: hits.flatMap((hit) => {
-      const chunk = chunkById.get(hit.payload.chunkId);
-      if (!chunk || !chunk.document) {
-        return [];
-      }
-      return [
-        {
-          citationLabel: citationLabel(hit),
-          score: hit.score,
-          documentId: chunk.documentId,
-          chunkId: chunk.id,
-          fileName: chunk.document.fileName,
-          ordinal: chunk.ordinal,
-          pageNumber: chunk.pageNumber,
-          content: chunk.content
-        }
-      ];
-    })
+    answer:
+      results.length === 0
+        ? "No indexed knowledge chunks matched this query."
+        : `Retrieved ${results.length} indexed knowledge chunk${
+            results.length === 1 ? "" : "s"
+          }. Use the returned citations and content as source material.`,
+    results
   };
 }
 

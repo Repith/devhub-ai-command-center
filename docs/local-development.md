@@ -45,6 +45,8 @@ npm run dev
 
 `npm run dev` refuses to start when `.env` is missing or the JWT secret is too
 short. It loads the root environment before Turborepo starts each application.
+Relative `DOCUMENT_STORAGE_DIR` values are resolved from the repository root so
+the API and worker share the same uploaded source files.
 
 Install Ollama separately and pull the configured chat model before using the
 chat endpoint:
@@ -128,6 +130,15 @@ npm run db:setup
 Prisma reads the same root `.env` as the applications. Custom database
 credentials or ports therefore apply consistently to Compose, migrations,
 seeding, and the API.
+
+### Document Ingestion Cannot Find Uploaded File
+
+If the worker logs `ENOENT` for a path under `apps/worker/data/uploads`, restart
+development with `npm run dev` so the shared upload directory is resolved from
+the repository root. Documents uploaded before this fix may have been stored
+under an application workspace directory; delete and upload those documents
+again, or move the source file into the root `data/uploads` path shown in the
+document storage key.
 
 ### Resetting Local Data
 

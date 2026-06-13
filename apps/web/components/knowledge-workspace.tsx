@@ -1,21 +1,27 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import type {
   Document,
   DocumentChunk,
+  KnowledgeSearchResult,
   KnowledgeSearchResponse
 } from "@devhub/contracts";
 
 import {
+  deleteDocument,
   listDocumentChunks,
   listDocuments,
-  searchKnowledge,
+  reindexDocument,
+  streamKnowledgeSearch,
   uploadDocument
 } from "@/lib/documents-api";
 import { ApiClientError } from "@/lib/api-client";
+
+const chunkPreviewPageSize = 5;
+const retrievalSourceLimit = 3;
 
 interface KnowledgeWorkspaceProps {
   accessToken: string;
@@ -32,8 +38,12 @@ export function KnowledgeWorkspace({
   );
   const [query, setQuery] = useState("What does this knowledge base contain?");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
   const [searchResult, setSearchResult] =
     useState<KnowledgeSearchResponse | null>(null);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [isSearching, setIsSearching] = useState(false);
+  const searchAbortController = useRef<AbortController | null>(null);
 
   const documentsQuery = useQuery({
     queryKey: ["documents"],
@@ -53,8 +63,18 @@ export function KnowledgeWorkspace({
   const activeDocumentId = selectedDocument?.id ?? null;
 
   useEffect(() => {
-    if (!selectedDocumentId && documents[0]) {
+    if (
+      selectedDocumentId &&
+      documents.some((item) => item.id === selectedDocumentId)
+    ) {
+      return;
+    }
+    if (documents[0]) {
       setSelectedDocumentId(documents[0].id);
+      return;
+    }
+    if (selectedDocumentId) {
+      setSelectedDocumentId(null);
     }
   }, [documents, selectedDocumentId]);
 
@@ -74,19 +94,112 @@ export function KnowledgeWorkspace({
     onSuccess: async (document) => {
       setSelectedFile(null);
       setSelectedDocumentId(document.id);
+      setSearchResult(null);
+      setIsUploadDialogOpen(true);
+    },
+    onSettled: async () => {
       await queryClient.invalidateQueries({ queryKey: ["documents"] });
     }
   });
 
-  const searchMutation = useMutation({
-    mutationFn: () =>
-      searchKnowledge(accessToken, {
-        query,
-        limit: 5,
-        ...(activeDocumentId ? { documentIds: [activeDocumentId] } : {})
-      }),
-    onSuccess: setSearchResult
+  const reindexMutation = useMutation({
+    mutationFn: (documentId: string) =>
+      reindexDocument(accessToken, documentId),
+    onSuccess: async (document) => {
+      setSelectedDocumentId(document.id);
+      setSearchResult(null);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["documents"] }),
+        queryClient.invalidateQueries({
+          queryKey: ["document-chunks", document.id]
+        })
+      ]);
+    }
   });
+
+  const deleteMutation = useMutation({
+    mutationFn: (documentId: string) => deleteDocument(accessToken, documentId),
+    onSuccess: async (_result, documentId) => {
+      setSearchResult(null);
+      setSelectedDocumentId((current) =>
+        current === documentId ? null : current
+      );
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["documents"] }),
+        queryClient.removeQueries({ queryKey: ["document-chunks", documentId] })
+      ]);
+    }
+  });
+
+  useEffect(
+    () => () => {
+      searchAbortController.current?.abort();
+    },
+    []
+  );
+
+  const runSearch = async (): Promise<void> => {
+    const trimmedQuery = query.trim();
+    if (!trimmedQuery || !activeDocumentId || isSearching) {
+      return;
+    }
+
+    searchAbortController.current?.abort();
+    const controller = new AbortController();
+    searchAbortController.current = controller;
+    setSearchError(null);
+    setIsSearching(true);
+    setSearchResult({
+      query: trimmedQuery,
+      answer: "",
+      results: []
+    });
+    try {
+      await streamKnowledgeSearch(
+        accessToken,
+        {
+          query: trimmedQuery,
+          limit: retrievalSourceLimit,
+          documentIds: [activeDocumentId]
+        },
+        (event) => {
+          if (event.type === "knowledge.search.started") {
+            setSearchResult({
+              query: event.query,
+              answer: "",
+              results: event.results
+            });
+          } else if (event.type === "knowledge.search.delta") {
+            setSearchResult((current) => ({
+              query: current?.query ?? trimmedQuery,
+              answer: `${current?.answer ?? ""}${event.text}`,
+              results: current?.results ?? []
+            }));
+          } else if (event.type === "knowledge.search.completed") {
+            setSearchResult((current) => ({
+              query: current?.query ?? trimmedQuery,
+              answer: event.answer,
+              results: current?.results ?? []
+            }));
+          } else {
+            setSearchError(`${event.code}: ${event.message}`);
+          }
+        },
+        controller.signal
+      );
+    } catch (caught) {
+      if (!controller.signal.aborted) {
+        setSearchError(
+          caught instanceof Error ? formatError(caught) : "Search failed."
+        );
+      }
+    } finally {
+      if (searchAbortController.current === controller) {
+        searchAbortController.current = null;
+      }
+      setIsSearching(false);
+    }
+  };
 
   const chunks = useMemo(
     () =>
@@ -124,6 +237,20 @@ export function KnowledgeWorkspace({
               <p className="section-kicker">Documents</p>
               <h2>Indexed sources</h2>
             </div>
+            <button
+              className="icon-button"
+              type="button"
+              title="Add document"
+              aria-label="Add document"
+              disabled={!canManage || uploadMutation.isPending}
+              onClick={() => {
+                uploadMutation.reset();
+                setSelectedFile(null);
+                setIsUploadDialogOpen(true);
+              }}
+            >
+              +
+            </button>
           </div>
           <DocumentList
             documents={documents}
@@ -150,37 +277,34 @@ export function KnowledgeWorkspace({
             ) : null}
           </div>
 
-          <UploadPanel
+          <DocumentActions
             canManage={canManage}
-            selectedFile={selectedFile}
-            isUploading={uploadMutation.isPending}
-            error={
-              uploadMutation.error instanceof Error
-                ? formatError(uploadMutation.error)
+            document={selectedDocument}
+            isRetrying={reindexMutation.isPending}
+            isDeleting={deleteMutation.isPending}
+            retryError={
+              reindexMutation.error instanceof Error
+                ? formatError(reindexMutation.error)
                 : null
             }
-            uploadedDocument={uploadMutation.data ?? null}
-            onFileChange={setSelectedFile}
-            onUpload={() => {
-              if (selectedFile) {
-                void uploadMutation.mutate(selectedFile);
-              }
-            }}
+            deleteError={
+              deleteMutation.error instanceof Error
+                ? formatError(deleteMutation.error)
+                : null
+            }
+            onRetry={(documentId) => void reindexMutation.mutate(documentId)}
+            onDelete={(documentId) => void deleteMutation.mutate(documentId)}
           />
 
           <SearchPanel
             query={query}
             result={searchResult}
-            isSearching={searchMutation.isPending}
-            error={
-              searchMutation.error instanceof Error
-                ? formatError(searchMutation.error)
-                : null
-            }
+            isSearching={isSearching}
+            error={searchError}
             disabled={selectedDocument?.status !== "INDEXED"}
             disabledReason={searchDisabledReason(selectedDocument)}
             onQueryChange={setQuery}
-            onSearch={() => void searchMutation.mutate()}
+            onSearch={() => void runSearch()}
           />
 
           <ChunkPreview
@@ -190,6 +314,31 @@ export function KnowledgeWorkspace({
           />
         </div>
       </div>
+
+      {isUploadDialogOpen ? (
+        <UploadDialog
+          canManage={canManage}
+          selectedFile={selectedFile}
+          isUploading={uploadMutation.isPending}
+          error={
+            uploadMutation.error instanceof Error
+              ? formatError(uploadMutation.error)
+              : null
+          }
+          uploadedDocument={uploadMutation.data ?? null}
+          onFileChange={setSelectedFile}
+          onUpload={() => {
+            if (selectedFile) {
+              void uploadMutation.mutate(selectedFile);
+            }
+          }}
+          onClose={() => {
+            if (!uploadMutation.isPending) {
+              setIsUploadDialogOpen(false);
+            }
+          }}
+        />
+      ) : null}
     </section>
   );
 }
@@ -262,14 +411,15 @@ function DocumentList({
   );
 }
 
-function UploadPanel({
+function UploadDialog({
   canManage,
   selectedFile,
   isUploading,
   error,
   uploadedDocument,
   onFileChange,
-  onUpload
+  onUpload,
+  onClose
 }: {
   canManage: boolean;
   selectedFile: File | null;
@@ -278,53 +428,191 @@ function UploadPanel({
   uploadedDocument: Document | null;
   onFileChange(file: File | null): void;
   onUpload(): void;
+  onClose(): void;
 }): React.JSX.Element {
+  const uploadState = uploadStatus(selectedFile, isUploading, uploadedDocument);
   return (
-    <section className="knowledge-section" aria-labelledby="upload-title">
-      <div>
-        <p className="section-kicker">Upload</p>
-        <h3 id="upload-title">Add source material</h3>
-      </div>
-      <div className="upload-row">
-        <label className="field">
-          Document file
-          <input
-            type="file"
-            accept=".md,.txt,.pdf,text/markdown,text/plain,application/pdf"
-            disabled={!canManage || isUploading}
-            onChange={(event) => {
-              onFileChange(event.currentTarget.files?.[0] ?? null);
+    <div className="modal-backdrop" role="presentation">
+      <section
+        className="upload-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="upload-title"
+      >
+        <div className="modal-heading">
+          <div>
+            <p className="section-kicker">New document</p>
+            <h3 id="upload-title">Add source material</h3>
+          </div>
+          <button
+            className="icon-button"
+            type="button"
+            aria-label="Close upload dialog"
+            disabled={isUploading}
+            onClick={onClose}
+          >
+            x
+          </button>
+        </div>
+
+        <div className={`upload-status ${uploadState.kind}`}>
+          {uploadState.kind === "uploading" ? (
+            <span className="loader" aria-hidden="true" />
+          ) : null}
+          <div>
+            <strong>{uploadState.title}</strong>
+            <p>{uploadState.detail}</p>
+          </div>
+        </div>
+
+        <div className="upload-row">
+          <label className="field">
+            Document file
+            <input
+              type="file"
+              accept=".md,.txt,.pdf,.jpg,.jpeg,.png,.webp,text/markdown,text/plain,application/pdf,image/jpeg,image/png,image/webp"
+              disabled={!canManage || isUploading}
+              onChange={(event) => {
+                onFileChange(event.currentTarget.files?.[0] ?? null);
+              }}
+            />
+            <small>
+              Supported: Markdown, TXT, PDF, JPEG, PNG, WebP. Uploads are
+              tenant-scoped.
+            </small>
+          </label>
+          <button
+            className="primary-button"
+            type="button"
+            disabled={!canManage || !selectedFile || isUploading}
+            onClick={onUpload}
+          >
+            {isUploading ? "Uploading..." : "Upload"}
+          </button>
+        </div>
+        {!canManage ? (
+          <p className="permission-note">
+            Only owners and admins can upload documents.
+          </p>
+        ) : null}
+        {error ? <p role="alert">{error}</p> : null}
+      </section>
+    </div>
+  );
+}
+
+function uploadStatus(
+  selectedFile: File | null,
+  isUploading: boolean,
+  uploadedDocument: Document | null
+): {
+  kind: "idle" | "selected" | "uploading" | "queued";
+  title: string;
+  detail: string;
+} {
+  if (isUploading) {
+    return {
+      kind: "uploading",
+      title: "Uploading and queueing ingestion",
+      detail: selectedFile
+        ? `${selectedFile.name} is being stored and sent to the worker queue.`
+        : "The document is being stored and sent to the worker queue."
+    };
+  }
+  if (uploadedDocument) {
+    return {
+      kind: "queued",
+      title: "Document queued",
+      detail: `${uploadedDocument.fileName} is ready for worker ingestion. Keep the worker running until status becomes indexed.`
+    };
+  }
+  if (selectedFile) {
+    return {
+      kind: "selected",
+      title: "File selected",
+      detail: `${selectedFile.name} is ready to upload.`
+    };
+  }
+  return {
+    kind: "idle",
+    title: "Choose a file",
+    detail:
+      "Pick a Markdown, TXT, PDF, JPEG, PNG, or WebP document to add it to Knowledge."
+  };
+}
+
+function DocumentActions({
+  canManage,
+  document,
+  isRetrying,
+  isDeleting,
+  retryError,
+  deleteError,
+  onRetry,
+  onDelete
+}: {
+  canManage: boolean;
+  document: Document | null;
+  isRetrying: boolean;
+  isDeleting: boolean;
+  retryError: string | null;
+  deleteError: string | null;
+  onRetry(documentId: string): void;
+  onDelete(documentId: string): void;
+}): React.JSX.Element {
+  const busy = isRetrying || isDeleting;
+  return (
+    <section
+      className="knowledge-section"
+      aria-labelledby="document-actions-title"
+    >
+      <div className="action-heading">
+        <div>
+          <p className="section-kicker">Document actions</p>
+          <h3 id="document-actions-title">Repair or remove source</h3>
+        </div>
+        <div className="action-row">
+          <button
+            className="secondary-button"
+            type="button"
+            disabled={!canManage || !document || busy}
+            onClick={() => {
+              if (document) {
+                onRetry(document.id);
+              }
             }}
-          />
-          <small>
-            Supported: Markdown, TXT, PDF. Uploads are tenant-scoped.
-            {selectedFile ? ` Selected: ${selectedFile.name}.` : ""}
-          </small>
-        </label>
-        <button
-          className="primary-button"
-          type="button"
-          disabled={!canManage || !selectedFile || isUploading}
-          onClick={onUpload}
-        >
-          {isUploading ? "Uploading..." : "Upload"}
-        </button>
+          >
+            {isRetrying ? "Queueing..." : "Retry ingestion"}
+          </button>
+          <button
+            className="danger-button"
+            type="button"
+            disabled={!canManage || !document || busy}
+            onClick={() => {
+              if (document && window.confirm(`Delete ${document.fileName}?`)) {
+                onDelete(document.id);
+              }
+            }}
+          >
+            {isDeleting ? "Deleting..." : "Delete"}
+          </button>
+        </div>
       </div>
-      {isUploading ? (
-        <p className="muted">Uploading file and queueing ingestion...</p>
-      ) : null}
-      {uploadedDocument ? (
+      {!document ? (
+        <p className="muted">Select a document before running actions.</p>
+      ) : (
         <p className="muted">
-          {uploadedDocument.fileName} is queued for ingestion. Keep the worker
-          running until status becomes indexed.
+          Retry queues parsing, chunking, embeddings, and vector replacement for
+          the selected document.
         </p>
-      ) : null}
+      )}
       {!canManage ? (
         <p className="permission-note">
-          Only owners and admins can upload documents.
+          Only owners and admins can retry or delete documents.
         </p>
       ) : null}
-      {error ? <p role="alert">{error}</p> : null}
+      {retryError ? <p role="alert">{retryError}</p> : null}
+      {deleteError ? <p role="alert">{deleteError}</p> : null}
     </section>
   );
 }
@@ -375,7 +663,7 @@ function SearchPanel({
           type="submit"
           disabled={disabled || !query.trim() || isSearching}
         >
-          Search
+          {isSearching ? "Answering..." : "Search"}
         </button>
       </form>
       {disabled ? <p className="muted">{disabledReason}</p> : null}
@@ -390,27 +678,243 @@ function SearchResults({
 }: {
   result: KnowledgeSearchResponse;
 }): React.JSX.Element {
-  if (result.results.length === 0) {
-    return <p className="muted">No matching chunks were found.</p>;
-  }
   return (
-    <ol className="knowledge-results">
-      {result.results.map((item) => (
-        <li key={item.chunkId}>
-          <div>
-            <strong>{item.citationLabel}</strong>
-            <span>{Math.round(item.score * 100)} score</span>
-          </div>
-          <p>{item.content}</p>
-          <small>
-            {item.fileName}
-            {item.pageNumber ? ` / page ${item.pageNumber}` : ""} / chunk{" "}
-            {item.ordinal}
-          </small>
-        </li>
-      ))}
-    </ol>
+    <div className="knowledge-answer">
+      <div>
+        <p className="section-kicker">Answer</p>
+        {result.answer ? (
+          <MarkdownAnswer content={result.answer} />
+        ) : (
+          <p className="muted">Waiting for the model...</p>
+        )}
+      </div>
+      {result.results.length === 0 ? (
+        <p className="muted">No matching chunks were found.</p>
+      ) : (
+        <CitationSources results={result.results} />
+      )}
+    </div>
   );
+}
+
+function CitationSources({
+  results
+}: {
+  results: readonly KnowledgeSearchResult[];
+}): React.JSX.Element {
+  return (
+    <div className="citation-sources" aria-label="Retrieved sources">
+      {results.map((item, index) => (
+        <div className="citation-source" key={item.chunkId}>
+          <button
+            className="citation-bubble"
+            type="button"
+            aria-label={`${item.citationLabel}, ${item.fileName}`}
+          >
+            {index + 1}
+          </button>
+          <div className="citation-popover" role="tooltip">
+            <div>
+              <strong>{item.citationLabel}</strong>
+              <span>{Math.round(item.score * 100)} score</span>
+            </div>
+            <p>{item.content}</p>
+            <small>
+              {item.fileName}
+              {item.pageNumber ? ` / page ${item.pageNumber}` : ""} / chunk{" "}
+              {item.ordinal}
+            </small>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function MarkdownAnswer({ content }: { content: string }): React.JSX.Element {
+  const blocks = toMarkdownBlocks(content);
+  return (
+    <div className="markdown-answer">
+      {blocks.map((block, index) => {
+        if (block.kind === "heading") {
+          const HeadingTag = `h${block.level}` as const;
+          return (
+            <HeadingTag key={index}>
+              {renderInlineMarkdown(block.content)}
+            </HeadingTag>
+          );
+        }
+        if (block.kind === "code") {
+          return (
+            <pre key={index}>
+              <code>{block.content}</code>
+            </pre>
+          );
+        }
+        if (block.kind === "list") {
+          const ListTag = block.ordered ? "ol" : "ul";
+          return (
+            <ListTag key={index}>
+              {block.items.map((item, itemIndex) => (
+                <li key={itemIndex}>{renderInlineMarkdown(item)}</li>
+              ))}
+            </ListTag>
+          );
+        }
+        if (block.kind === "quote") {
+          return (
+            <blockquote key={index}>
+              {renderInlineMarkdown(block.content)}
+            </blockquote>
+          );
+        }
+        return <p key={index}>{renderInlineMarkdown(block.content)}</p>;
+      })}
+    </div>
+  );
+}
+
+function renderInlineMarkdown(content: string): React.ReactNode[] {
+  const nodes: React.ReactNode[] = [];
+  const pattern = /(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`|\[[^\]]+\]\([^)]+\))/g;
+  let cursor = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = pattern.exec(content)) !== null) {
+    if (match.index > cursor) {
+      nodes.push(content.slice(cursor, match.index));
+    }
+    const token = match[0];
+    const key = `${match.index}-${token}`;
+    if (token.startsWith("**") && token.endsWith("**")) {
+      nodes.push(<strong key={key}>{token.slice(2, -2)}</strong>);
+    } else if (token.startsWith("*") && token.endsWith("*")) {
+      nodes.push(<em key={key}>{token.slice(1, -1)}</em>);
+    } else if (token.startsWith("`") && token.endsWith("`")) {
+      nodes.push(<code key={key}>{token.slice(1, -1)}</code>);
+    } else {
+      const link = token.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
+      if (link) {
+        nodes.push(
+          <a key={key} href={link[2] ?? "#"} rel="noreferrer" target="_blank">
+            {link[1] ?? ""}
+          </a>
+        );
+      } else {
+        nodes.push(token);
+      }
+    }
+    cursor = match.index + token.length;
+  }
+
+  if (cursor < content.length) {
+    nodes.push(content.slice(cursor));
+  }
+  return nodes;
+}
+
+type MarkdownBlock =
+  | { kind: "heading"; level: 2 | 3 | 4; content: string }
+  | { kind: "paragraph"; content: string }
+  | { kind: "list"; ordered: boolean; items: string[] }
+  | { kind: "quote"; content: string }
+  | { kind: "code"; content: string };
+
+function toMarkdownBlocks(content: string): MarkdownBlock[] {
+  const blocks: MarkdownBlock[] = [];
+  const lines = content.split(/\r?\n/);
+  let paragraph: string[] = [];
+  let list: { ordered: boolean; items: string[] } | null = null;
+  let quote: string[] = [];
+  let code: string[] | null = null;
+
+  const flushParagraph = (): void => {
+    if (paragraph.length > 0) {
+      blocks.push({ kind: "paragraph", content: paragraph.join(" ") });
+      paragraph = [];
+    }
+  };
+  const flushList = (): void => {
+    if (list) {
+      blocks.push({ kind: "list", ordered: list.ordered, items: list.items });
+      list = null;
+    }
+  };
+  const flushQuote = (): void => {
+    if (quote.length > 0) {
+      blocks.push({ kind: "quote", content: quote.join(" ") });
+      quote = [];
+    }
+  };
+  const flushTextBlocks = (): void => {
+    flushParagraph();
+    flushList();
+    flushQuote();
+  };
+
+  for (const line of lines) {
+    if (line.trim().startsWith("```")) {
+      if (code) {
+        blocks.push({ kind: "code", content: code.join("\n") });
+        code = null;
+      } else {
+        flushTextBlocks();
+        code = [];
+      }
+      continue;
+    }
+    if (code) {
+      code.push(line);
+      continue;
+    }
+
+    const heading = line.match(/^(#{1,4})\s+(.+)$/);
+    if (heading) {
+      flushTextBlocks();
+      blocks.push({
+        kind: "heading",
+        level: Math.min(Math.max(heading[1]?.length ?? 2, 2), 4) as 2 | 3 | 4,
+        content: heading[2] ?? ""
+      });
+      continue;
+    }
+
+    const quoteMatch = line.match(/^\s*>\s+(.+)$/);
+    if (quoteMatch) {
+      flushParagraph();
+      flushList();
+      quote.push(quoteMatch[1] ?? "");
+      continue;
+    }
+
+    const unorderedListMatch = line.match(/^\s*[-*]\s+(.+)$/);
+    const orderedListMatch = line.match(/^\s*\d+\.\s+(.+)$/);
+    if (unorderedListMatch || orderedListMatch) {
+      flushParagraph();
+      flushQuote();
+      const ordered = Boolean(orderedListMatch);
+      if (!list || list.ordered !== ordered) {
+        flushList();
+        list = { ordered, items: [] };
+      }
+      list.items.push(orderedListMatch?.[1] ?? unorderedListMatch?.[1] ?? "");
+      continue;
+    }
+
+    if (!line.trim()) {
+      flushTextBlocks();
+      continue;
+    }
+    flushList();
+    flushQuote();
+    paragraph.push(line.trim());
+  }
+
+  if (code) {
+    blocks.push({ kind: "code", content: code.join("\n") });
+  }
+  flushTextBlocks();
+  return blocks;
 }
 
 function ChunkPreview({
@@ -422,11 +926,38 @@ function ChunkPreview({
   isLoading: boolean;
   document: Document | null;
 }): React.JSX.Element {
+  const [pageIndex, setPageIndex] = useState(0);
+  const pageCount = Math.max(
+    1,
+    Math.ceil(chunks.length / chunkPreviewPageSize)
+  );
+  const safePageIndex = Math.min(pageIndex, pageCount - 1);
+  const visibleChunks = chunks.slice(
+    safePageIndex * chunkPreviewPageSize,
+    safePageIndex * chunkPreviewPageSize + chunkPreviewPageSize
+  );
+
+  useEffect(() => {
+    setPageIndex(0);
+  }, [document?.id, chunks.length]);
+
   return (
     <section className="knowledge-section" aria-labelledby="chunks-title">
-      <div>
-        <p className="section-kicker">Chunks</p>
-        <h3 id="chunks-title">Stored retrieval units</h3>
+      <div className="chunk-heading">
+        <div>
+          <p className="section-kicker">Chunks</p>
+          <h3 id="chunks-title">Stored retrieval units</h3>
+        </div>
+        {chunks.length > 0 ? (
+          <span>
+            {safePageIndex * chunkPreviewPageSize + 1}-
+            {Math.min(
+              safePageIndex * chunkPreviewPageSize + visibleChunks.length,
+              chunks.length
+            )}{" "}
+            of {chunks.length}
+          </span>
+        ) : null}
       </div>
       {isLoading ? (
         <div className="panel-state compact-state">
@@ -444,14 +975,41 @@ function ChunkPreview({
           No chunks yet. Current status: {document.status.toLowerCase()}.
         </p>
       ) : (
-        <ol className="chunk-list">
-          {chunks.slice(0, 12).map((chunk) => (
-            <li key={chunk.id}>
-              <span>#{chunk.ordinal}</span>
-              <p>{chunk.content}</p>
-            </li>
-          ))}
-        </ol>
+        <>
+          <ol className="chunk-list">
+            {visibleChunks.map((chunk) => (
+              <li key={chunk.id}>
+                <span>#{chunk.ordinal}</span>
+                <p>{chunk.content}</p>
+              </li>
+            ))}
+          </ol>
+          <div className="chunk-pagination" aria-label="Chunk pagination">
+            <button
+              className="secondary-button"
+              type="button"
+              disabled={safePageIndex === 0}
+              onClick={() =>
+                setPageIndex((current) => Math.max(0, current - 1))
+              }
+            >
+              Previous
+            </button>
+            <span>
+              Page {safePageIndex + 1} of {pageCount}
+            </span>
+            <button
+              className="secondary-button"
+              type="button"
+              disabled={safePageIndex >= pageCount - 1}
+              onClick={() =>
+                setPageIndex((current) => Math.min(pageCount - 1, current + 1))
+              }
+            >
+              Next
+            </button>
+          </div>
+        </>
       )}
     </section>
   );

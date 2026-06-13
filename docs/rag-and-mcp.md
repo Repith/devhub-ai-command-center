@@ -9,13 +9,16 @@
 4. The API enqueues `process-document:<tenantId>:<documentId>:<version>` in
    Redis through BullMQ.
 5. `apps/worker` marks the document `PROCESSING`.
-6. MD and TXT files are normalized directly; PDFs are parsed with `pdf-parse`.
-7. `packages/rag` chunks the extracted text into retrieval units.
-8. Chunks are stored in PostgreSQL as `DocumentChunk` rows.
-9. Ollama generates embeddings with `OLLAMA_EMBEDDING_MODEL`.
-10. Qdrant stores vectors in `QDRANT_COLLECTION_NAME` with tenant and document
+6. MD and TXT files are normalized directly.
+7. PDF files are parsed with `pdf-parse`; if native text extraction is too
+   sparse, the worker renders pages to PNG and runs OCR.
+8. Image uploads are routed directly to OCR.
+9. `packages/rag` chunks the extracted text into retrieval units.
+10. Chunks are stored in PostgreSQL as `DocumentChunk` rows.
+11. Ollama generates embeddings with `OLLAMA_EMBEDDING_MODEL`.
+12. Qdrant stores vectors in `QDRANT_COLLECTION_NAME` with tenant and document
     payload filters.
-11. The worker marks the document `INDEXED` only after PostgreSQL chunks and
+13. The worker marks the document `INDEXED` only after PostgreSQL chunks and
     Qdrant vectors both succeed.
 
 Reindexing creates a new document version and swaps active vectors
@@ -25,8 +28,32 @@ If a document remains `UPLOADED`, the API accepted the file but the worker has
 not processed the job yet. Confirm that `npm run dev` is running the worker and
 that Redis is available. If the status becomes `FAILED`, inspect the document
 failure code/detail in the UI and the worker log line for the same document ID.
-Common local failures are a missing Ollama embedding model, Qdrant being
-unavailable, Redis being unavailable, or a PDF with no extractable text.
+Common local failures are a missing Ollama embedding or OCR model, Qdrant being
+unavailable, Redis being unavailable, or an image/PDF whose text cannot be read
+by the configured OCR model.
+
+## OCR Routing
+
+The worker decides which extraction tool to use before indexing:
+
+- text and Markdown: direct UTF-8 normalization
+- text-rich PDF: native `pdf-parse` text extraction
+- scanned or text-poor PDF: PDF page screenshot rendering plus OCR
+- JPEG, PNG, WebP: OCR
+
+Local OCR defaults:
+
+- `OLLAMA_OCR_MODEL=qwen2.5vl:7b`
+- `OCR_TIMEOUT_MS=120000`
+- `OCR_PDF_MAX_PAGES=8`
+- `OCR_TEXT_MIN_CHARACTERS=120`
+- `OCR_TEXT_MIN_WORDS=20`
+
+Install the default OCR model with:
+
+```bash
+ollama pull qwen2.5vl:7b
+```
 
 ## Retrieval
 

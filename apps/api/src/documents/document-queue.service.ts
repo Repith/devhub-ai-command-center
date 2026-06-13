@@ -3,29 +3,48 @@ import { Queue } from "bullmq";
 
 import type { DocumentIngestionJob } from "@devhub/contracts";
 
+import { toRedisConnection } from "../common/redis-connection";
 import type { DocumentsConfig } from "./documents.config";
 
 export const processDocumentQueueName = "process-document";
 
+export interface DocumentIngestionQueueOptions {
+  dedupeKey?: string;
+}
+
 export interface DocumentIngestionQueue {
-  enqueue(input: DocumentIngestionJob): Promise<void>;
+  enqueue(
+    input: DocumentIngestionJob,
+    options?: DocumentIngestionQueueOptions
+  ): Promise<void>;
 }
 
 @Injectable()
 export class BullMqDocumentIngestionQueue
   implements DocumentIngestionQueue, OnApplicationShutdown
 {
-  private readonly queue: Queue<DocumentIngestionJob>;
+  private readonly queue: Queue<DocumentIngestionJob, void, "process">;
 
   public constructor(@Inject("DOCUMENTS_CONFIG") config: DocumentsConfig) {
-    this.queue = new Queue<DocumentIngestionJob>(processDocumentQueueName, {
-      connection: toRedisConnection(config.redisUrl)
-    });
+    this.queue = new Queue<DocumentIngestionJob, void, "process">(
+      processDocumentQueueName,
+      {
+        connection: toRedisConnection(config.redisUrl)
+      }
+    );
   }
 
-  public async enqueue(input: DocumentIngestionJob): Promise<void> {
+  public async enqueue(
+    input: DocumentIngestionJob,
+    options: DocumentIngestionQueueOptions = {}
+  ): Promise<void> {
     await this.queue.add("process", input, {
-      jobId: `process-document:${input.tenantId}:${input.documentId}:1`,
+      jobId: jobId(
+        "process-document",
+        input.tenantId,
+        input.documentId,
+        options.dedupeKey ?? "1"
+      ),
       attempts: 3,
       backoff: { type: "exponential", delay: 1000 },
       removeOnComplete: { count: 1000 },
@@ -38,15 +57,6 @@ export class BullMqDocumentIngestionQueue
   }
 }
 
-function toRedisConnection(redisUrl: string): {
-  host: string;
-  port: number;
-  maxRetriesPerRequest: null;
-} {
-  const url = new URL(redisUrl);
-  return {
-    host: url.hostname,
-    port: Number(url.port || 6379),
-    maxRetriesPerRequest: null
-  };
+function jobId(...parts: readonly string[]): string {
+  return parts.map((part) => part.replaceAll(":", "-")).join("-");
 }

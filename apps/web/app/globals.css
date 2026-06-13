@@ -945,6 +945,87 @@ button.nav-item {
   gap: 0.75rem;
 }
 
+.modal-backdrop {
+  position: fixed;
+  z-index: 60;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 1.25rem;
+  background: rgb(3 5 10 / 72%);
+  backdrop-filter: blur(10px);
+}
+
+.upload-modal {
+  display: grid;
+  width: min(38rem, 100%);
+  gap: 1rem;
+  border: 1px solid #303543;
+  border-radius: 1rem;
+  padding: 1.25rem;
+  background: #11141b;
+  box-shadow: 0 2rem 5rem rgb(0 0 0 / 45%);
+}
+
+.modal-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.modal-heading h3 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.upload-status {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.85rem;
+  border: 1px solid #303543;
+  border-radius: 0.85rem;
+  padding: 0.9rem;
+  background: #171a22;
+}
+
+.upload-status:not(.uploading) {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.upload-status strong {
+  display: block;
+  margin-bottom: 0.15rem;
+}
+
+.upload-status p {
+  margin: 0;
+  color: #9da5b7;
+}
+
+.upload-status.queued {
+  border-color: #31543f;
+}
+
+.upload-status.selected {
+  border-color: #4a427d;
+}
+
+.action-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.action-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
+
 .status-pill {
   border: 1px solid #303543;
   border-radius: 999px;
@@ -973,7 +1054,6 @@ button.nav-item {
   color: #f2c66d;
 }
 
-.knowledge-results,
 .chunk-list {
   display: grid;
   gap: 0.75rem;
@@ -982,7 +1062,200 @@ button.nav-item {
   list-style: none;
 }
 
-.knowledge-results li,
+.chunk-heading,
+.chunk-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.chunk-heading > span,
+.chunk-pagination span {
+  color: #858da0;
+  font-family: ui-monospace, monospace;
+  font-size: 0.76rem;
+}
+
+.chunk-pagination {
+  border-top: 1px solid #252936;
+  padding-top: 0.85rem;
+}
+
+.chunk-pagination .secondary-button {
+  min-width: 6.8rem;
+}
+
+.knowledge-answer {
+  display: grid;
+  gap: 1rem;
+}
+
+.knowledge-answer > div:first-child {
+  border: 1px solid #343947;
+  border-radius: 0.85rem;
+  padding: 1rem;
+  background: #151820;
+}
+
+.knowledge-answer > div:first-child p:last-child {
+  margin-bottom: 0;
+  color: #e7eaf1;
+  white-space: pre-wrap;
+}
+
+.markdown-answer {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.markdown-answer p,
+.markdown-answer ul,
+.markdown-answer ol,
+.markdown-answer blockquote,
+.markdown-answer h2,
+.markdown-answer h3,
+.markdown-answer h4,
+.markdown-answer pre {
+  margin: 0;
+  color: #e7eaf1;
+}
+
+.markdown-answer h2,
+.markdown-answer h3,
+.markdown-answer h4 {
+  line-height: 1.25;
+}
+
+.markdown-answer h2 {
+  font-size: 1.08rem;
+}
+
+.markdown-answer h3,
+.markdown-answer h4 {
+  font-size: 0.98rem;
+}
+
+.markdown-answer ul,
+.markdown-answer ol {
+  display: grid;
+  gap: 0.35rem;
+  padding-left: 1.2rem;
+}
+
+.markdown-answer li {
+  line-height: 1.6;
+}
+
+.markdown-answer pre {
+  overflow-x: auto;
+  border: 1px solid #2d3240;
+  border-radius: 0.7rem;
+  padding: 0.85rem;
+  background: #0d1016;
+}
+
+.markdown-answer code {
+  font-family: ui-monospace, monospace;
+  font-size: 0.82rem;
+}
+
+.markdown-answer p code,
+.markdown-answer li code {
+  border: 1px solid #303543;
+  border-radius: 0.35rem;
+  padding: 0.08rem 0.25rem;
+  background: #0d1016;
+}
+
+.markdown-answer a {
+  color: #a99fff;
+}
+
+.markdown-answer blockquote {
+  border-left: 3px solid #5f4ff2;
+  padding-left: 0.8rem;
+  color: #cbd1df;
+}
+
+.citation-sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.citation-source {
+  position: relative;
+}
+
+.citation-bubble {
+  display: grid;
+  width: 2.15rem;
+  height: 2.15rem;
+  place-items: center;
+  border: 1px solid #4a427d;
+  border-radius: 999px;
+  background: #201d34;
+  color: #d9d4ff;
+  font-family: ui-monospace, monospace;
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
+.citation-bubble:hover,
+.citation-bubble:focus-visible {
+  border-color: #8b7cff;
+  background: #2b2550;
+}
+
+.citation-popover {
+  position: absolute;
+  z-index: 20;
+  bottom: calc(100% + 0.65rem);
+  left: 0;
+  display: none;
+  width: min(24rem, calc(100vw - 3rem));
+  border: 1px solid #343947;
+  border-radius: 0.85rem;
+  padding: 0.85rem;
+  background: #11141b;
+  box-shadow: 0 1.2rem 3rem rgb(0 0 0 / 45%);
+}
+
+.citation-source:hover .citation-popover,
+.citation-source:focus-within .citation-popover {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.citation-popover div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.citation-popover strong {
+  color: #c8c0ff;
+  font-family: ui-monospace, monospace;
+  font-size: 0.78rem;
+}
+
+.citation-popover span,
+.citation-popover small {
+  color: #858da0;
+  font-size: 0.76rem;
+}
+
+.citation-popover p {
+  display: -webkit-box;
+  overflow: hidden;
+  margin: 0;
+  color: #e7eaf1;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 6;
+}
+
 .chunk-list li {
   border: 1px solid #2d3240;
   border-radius: 0.85rem;
@@ -990,27 +1263,12 @@ button.nav-item {
   background: #11141b;
 }
 
-.knowledge-results li > div {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-}
-
-.knowledge-results strong,
 .chunk-list span {
   color: #c8c0ff;
   font-family: ui-monospace, monospace;
   font-size: 0.78rem;
 }
 
-.knowledge-results span,
-.knowledge-results small {
-  color: #858da0;
-  font-size: 0.76rem;
-}
-
-.knowledge-results p,
 .chunk-list p {
   display: -webkit-box;
   overflow: hidden;
@@ -1277,7 +1535,31 @@ button.nav-item {
   }
 
   .upload-row,
-  .knowledge-search {
+  .knowledge-search,
+  .action-heading {
     grid-template-columns: 1fr;
+  }
+
+  .action-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .action-row {
+    justify-content: stretch;
+  }
+
+  .action-row button {
+    flex: 1 1 10rem;
+  }
+
+  .chunk-heading,
+  .chunk-pagination {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .chunk-pagination .secondary-button {
+    width: 100%;
   }
 }

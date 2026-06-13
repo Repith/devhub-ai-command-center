@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, unlink, writeFile } from "node:fs/promises";
 import { dirname, join, normalize } from "node:path";
 
 import { Injectable } from "@nestjs/common";
@@ -19,4 +19,23 @@ export class LocalDocumentStorage {
     await mkdir(dirname(path), { recursive: true });
     await writeFile(path, buffer, { flag: "wx" });
   }
+
+  public async delete(storageKey: string): Promise<void> {
+    try {
+      await unlink(this.getPath(storageKey));
+    } catch (error) {
+      if (!isNotFoundError(error)) {
+        throw error;
+      }
+    }
+  }
+}
+
+function isNotFoundError(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    error.code === "ENOENT"
+  );
 }

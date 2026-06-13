@@ -134,3 +134,41 @@ Acceptance: changes can be compared using repeatable evaluation reports.
 - [ ] Tag `v0.1.0` after owner review and merge.
 
 Acceptance: the documented demo is repeatable from a clean checkout.
+
+## PR 15: Knowledge RAG Diagnostics and Ingestion UX
+
+- [x] Add consistent Redis connection parsing for API and worker BullMQ queues,
+  including `REDIS_URL`, IPv4 localhost mapping, DB selection, credentials, and
+  TLS preservation.
+- [x] Improve document upload UX with an add-document modal, selected-file
+  state, upload progress, queueing feedback, and polling while documents are
+  `UPLOADED` or `PROCESSING`.
+- [x] Add document deletion for owners/admins, including PostgreSQL chunk
+  removal, Qdrant vector deletion by tenant/document, source-file cleanup, and
+  audit logging.
+- [x] Add manual retry/reindex so failed or stale documents can rerun parsing,
+  chunking, embeddings, and vector replacement.
+- [x] Surface typed queue/provider/vector errors with stable error codes and
+  correlation IDs instead of generic 500 responses.
+- [x] Make retrieval testing model-backed: retrieve authorized chunks, generate
+  a cited answer with the configured Ollama chat model, and stream answer
+  deltas to the UI.
+- [x] Limit answer grounding to the top three retrieved chunks and show those
+  sources as compact citation controls with hover/focus previews.
+- [x] Paginate chunk inspection at five chunks per page so small chunk sizes do
+  not overwhelm the UI.
+- [x] Reduce default RAG chunking to 25 words with 5-word overlap for local
+  experimentation and fine-grained CV/document retrieval.
+- [x] Add OCR routing before indexing: direct text extraction for text-rich
+  documents, OCR for images, and OCR fallback for text-poor scanned PDFs.
+- [x] Support JPEG, PNG, and WebP uploads with file signature validation and
+  route them through the OCR provider.
+- [x] Document local OCR setup, default `qwen2.5vl:7b` model, routing
+  thresholds, and troubleshooting guidance.
+- [x] Extend focused API, worker, web, contracts, RAG, and MCP tests for the new
+  search, retry, delete, OCR routing, and streaming behavior.
+
+Acceptance: a user can upload text, PDF, scanned PDF, or image knowledge
+sources; observe ingestion state; retry failed processing; delete sources
+cleanly; inspect paginated chunks; and ask a Retrieval Test question that
+streams a cited model answer grounded only in the top three authorized chunks.
