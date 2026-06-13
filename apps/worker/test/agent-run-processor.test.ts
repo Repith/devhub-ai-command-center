@@ -104,6 +104,32 @@ describe("AgentRunProcessor", () => {
     expect(llmProvider.requests).toHaveLength(0);
   });
 
+  it("ends the graph without side effects when a run cannot be claimed", async () => {
+    const input: CreateAgentRun = {
+      message: "This run disappeared.",
+      retrievalLimit: 5
+    };
+    const config = configSnapshot({ enabledToolIds: ["knowledge.search"] });
+    const runs = new FakeRunRepository(input, config);
+    runs.runExists = false;
+    const tools = new FakeToolRegistry();
+    const publisher = new FakeRealtimePublisher();
+    const llmProvider = new FakeLlmProvider({ chunks: ["Should not run"] });
+
+    await new AgentRunProcessor({
+      llmProvider,
+      publisher,
+      runs,
+      tools
+    }).process(job());
+
+    expect(runs.steps).toHaveLength(0);
+    expect(runs.completed).toBe(false);
+    expect(tools.calls).toHaveLength(0);
+    expect(llmProvider.requests).toHaveLength(0);
+    expect(publisher.events).toHaveLength(0);
+  });
+
   it("fails the run with an explainable state when token usage exceeds budget", async () => {
     const input: CreateAgentRun = {
       message: "Keep this short.",
@@ -157,13 +183,17 @@ class FakeRunRepository {
   public readonly usages: CompleteStepInput[] = [];
   public completed = false;
   public failed: { code: string; message: string } | null = null;
+  public runExists = true;
 
   public constructor(
     private readonly input: CreateAgentRun,
     private readonly config: AgentRunConfigSnapshot
   ) {}
 
-  public markRunning(): Promise<AgentRunRecord> {
+  public markRunning(): Promise<AgentRunRecord | null> {
+    if (!this.runExists) {
+      return Promise.resolve(null);
+    }
     return Promise.resolve(runRecord(this.input, this.config));
   }
 
