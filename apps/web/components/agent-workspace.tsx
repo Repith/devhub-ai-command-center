@@ -10,7 +10,10 @@ import { AgentList } from "./agent-list";
 import {
   createAgent,
   deleteAgent,
+  installAgentTemplates,
   listAgents,
+  listAgentTemplates,
+  resetAgentTemplates,
   updateAgent
 } from "@/lib/agents-api";
 
@@ -29,6 +32,10 @@ export function AgentWorkspace({
   const agentsQuery = useQuery({
     queryKey: ["agents"],
     queryFn: () => listAgents(accessToken)
+  });
+  const templatesQuery = useQuery({
+    queryKey: ["agent-templates"],
+    queryFn: () => listAgentTemplates(accessToken)
   });
   const agents = agentsQuery.data ?? [];
   const selectedAgent =
@@ -63,6 +70,20 @@ export function AgentWorkspace({
     }
   });
 
+  const installTemplatesMutation = useMutation({
+    mutationFn: () => installAgentTemplates(accessToken),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["agents"] });
+    }
+  });
+
+  const resetTemplatesMutation = useMutation({
+    mutationFn: () => resetAgentTemplates(accessToken),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["agents"] });
+    }
+  });
+
   return (
     <section
       className="workspace"
@@ -78,11 +99,57 @@ export function AgentWorkspace({
             explicit and reviewable.
           </p>
         </div>
-        <div className="environment-badge">
-          <span className="status-dot" aria-hidden="true" />
-          Local environment
+        <div className="workspace-actions">
+          <div className="environment-badge">
+            <span className="status-dot" aria-hidden="true" />
+            Local environment
+          </div>
+          {canManage ? (
+            <div className="template-actions">
+              <button
+                className="secondary-button"
+                type="button"
+                disabled={
+                  installTemplatesMutation.isPending ||
+                  resetTemplatesMutation.isPending
+                }
+                onClick={() => void installTemplatesMutation.mutateAsync()}
+              >
+                Install templates
+              </button>
+              <button
+                className="text-button"
+                type="button"
+                disabled={
+                  installTemplatesMutation.isPending ||
+                  resetTemplatesMutation.isPending
+                }
+                onClick={() => void resetTemplatesMutation.mutateAsync()}
+              >
+                Reset templates
+              </button>
+            </div>
+          ) : null}
         </div>
       </div>
+
+      {templatesQuery.data ? (
+        <div className="template-summary" aria-label="Default agent templates">
+          {templatesQuery.data.data.map((template) => (
+            <span key={template.key}>{template.name}</span>
+          ))}
+        </div>
+      ) : null}
+
+      {installTemplatesMutation.error || resetTemplatesMutation.error ? (
+        <p className="workspace-alert" role="alert">
+          {installTemplatesMutation.error instanceof Error
+            ? installTemplatesMutation.error.message
+            : resetTemplatesMutation.error instanceof Error
+              ? resetTemplatesMutation.error.message
+              : "Template action failed."}
+        </p>
+      ) : null}
 
       <div className="workspace-grid">
         <AgentList

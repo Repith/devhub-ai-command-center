@@ -1,8 +1,12 @@
 import {
   agentDefinitionListSchema,
   agentDefinitionSchema,
+  agentTemplateListSchema,
+  installAgentTemplatesResponseSchema,
   type AgentDefinition,
+  type AgentTemplateList,
   type CreateAgentDefinition,
+  type InstallAgentTemplatesResponse,
   type UpdateAgentDefinition
 } from "@devhub/contracts";
 
@@ -26,6 +30,40 @@ export function createAgent(
     accessToken,
     body: input
   });
+}
+
+export function listAgentTemplates(
+  accessToken: string
+): Promise<AgentTemplateList> {
+  return apiRequest("/agents/templates", agentTemplateListSchema, {
+    accessToken
+  });
+}
+
+export function installAgentTemplates(
+  accessToken: string
+): Promise<InstallAgentTemplatesResponse> {
+  return apiRequest(
+    "/agents/templates/install",
+    installAgentTemplatesResponseSchema,
+    {
+      method: "POST",
+      accessToken
+    }
+  );
+}
+
+export function resetAgentTemplates(
+  accessToken: string
+): Promise<InstallAgentTemplatesResponse> {
+  return apiRequest(
+    "/agents/templates/reset",
+    installAgentTemplatesResponseSchema,
+    {
+      method: "POST",
+      accessToken
+    }
+  );
 }
 
 export function updateAgent(

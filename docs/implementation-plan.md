@@ -208,13 +208,13 @@ generation with the same tenant isolation and observable timeline as before.
 
 ## PR 18: Default Agent Templates
 
-- [ ] Add code-owned templates for Knowledge Researcher, Daily News Briefing,
+- [x] Add code-owned templates for Knowledge Researcher, Daily News Briefing,
   Gmail Triage, Gmail Reply Assistant, and Usage Analyst.
-- [ ] Install templates idempotently for new tenants and expose an owner/admin
+- [x] Install templates idempotently for new tenants and expose an owner/admin
   reset or install endpoint.
-- [ ] Store template metadata in shared contracts, including prompt, model,
+- [x] Store template metadata in shared contracts, including prompt, model,
   limits, enabled tools, and required connection state.
-- [ ] Show missing integration setup as explicit UI state instead of late
+- [x] Show missing integration setup as explicit UI state instead of late
   runtime failure.
 - [ ] Owner review and merge.
 

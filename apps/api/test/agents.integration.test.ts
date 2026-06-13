@@ -7,6 +7,7 @@ import type {
   AccessTokenResponse,
   AgentDefinition,
   AgentDefinitionList,
+  AgentTemplateList,
   AuditLogList,
   AuthenticatedUser
 } from "@devhub/contracts";
@@ -141,6 +142,55 @@ describe("agent configuration and tenant isolation", () => {
       expect.arrayContaining(["agent.created", "agent.updated"])
     );
     expect(JSON.stringify(auditLog)).not.toContain(member.tenantId);
+  });
+
+  it("lists, installs, and resets default agent templates idempotently", async () => {
+    const templatesResponse = await request(app!.getHttpServer())
+      .get("/api/v1/agents/templates")
+      .set("Authorization", `Bearer ${ownerToken}`)
+      .expect(200);
+    const templates = templatesResponse.body as AgentTemplateList;
+    expect(templates.data.map((template) => template.key)).toEqual([
+      "knowledge-researcher",
+      "daily-news-briefing",
+      "gmail-triage",
+      "gmail-reply-assistant",
+      "usage-analyst"
+    ]);
+
+    const beforeInstall = await request(app!.getHttpServer())
+      .get("/api/v1/agents")
+      .set("Authorization", `Bearer ${ownerToken}`)
+      .expect(200);
+    const beforeCount = (beforeInstall.body as AgentDefinitionList).data.length;
+
+    const installResponse = await request(app!.getHttpServer())
+      .post("/api/v1/agents/templates/install")
+      .set("Authorization", `Bearer ${ownerToken}`)
+      .expect(201);
+    expect(installResponse.body.installedAgentIds).toHaveLength(5);
+
+    const afterInstall = await request(app!.getHttpServer())
+      .get("/api/v1/agents")
+      .set("Authorization", `Bearer ${ownerToken}`)
+      .expect(200);
+    const afterInstallList = afterInstall.body as AgentDefinitionList;
+    expect(afterInstallList.data).toHaveLength(beforeCount);
+    expect(
+      afterInstallList.data.find(
+        (item) => item.templateKey === "gmail-reply-assistant"
+      )?.templateSetup
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ status: "NEEDS_SETUP" })
+      ])
+    );
+
+    const resetResponse = await request(app!.getHttpServer())
+      .post("/api/v1/agents/templates/reset")
+      .set("Authorization", `Bearer ${ownerToken}`)
+      .expect(201);
+    expect(resetResponse.body.installedAgentIds).toHaveLength(5);
   });
 
   it("rejects client-provided tenant context", async () => {

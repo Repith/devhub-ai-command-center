@@ -1,3 +1,5 @@
+import { DEFAULT_AGENT_TEMPLATES } from "@devhub/contracts";
+
 import { createDatabaseClient } from "../src/client.js";
 
 const SEED_PASSWORD_PLACEHOLDER = "development-placeholder-not-a-password-hash";
@@ -171,6 +173,7 @@ async function seed(): Promise<void> {
         }
       });
 
+      const knowledgeTemplate = DEFAULT_AGENT_TEMPLATES[0];
       await database.agentDefinition.upsert({
         where: {
           tenantId_id: {
@@ -179,21 +182,77 @@ async function seed(): Promise<void> {
           }
         },
         update: {
-          name: "Knowledge Assistant",
-          provider: "ollama",
+          name: knowledgeTemplate.definition.name,
+          description: knowledgeTemplate.definition.description ?? null,
+          templateKey: knowledgeTemplate.key,
+          provider: knowledgeTemplate.definition.provider,
           model: chatModel,
-          systemPrompt: "Answer using authorized workspace knowledge.",
+          systemPrompt: knowledgeTemplate.definition.systemPrompt,
+          maxSteps: knowledgeTemplate.definition.maxSteps,
+          maxToolCalls: knowledgeTemplate.definition.maxToolCalls,
+          maxTokens: knowledgeTemplate.definition.maxTokens ?? null,
+          timeoutMs: knowledgeTemplate.definition.timeoutMs,
+          enabledToolIds: [...knowledgeTemplate.definition.enabledToolIds],
+          knowledgeBaseIds: [...knowledgeTemplate.definition.knowledgeBaseIds],
           deletedAt: null
         },
         create: {
           id: entry.agentId,
           tenantId: entry.tenantId,
-          name: "Knowledge Assistant",
-          provider: "ollama",
+          name: knowledgeTemplate.definition.name,
+          description: knowledgeTemplate.definition.description ?? null,
+          templateKey: knowledgeTemplate.key,
+          provider: knowledgeTemplate.definition.provider,
           model: chatModel,
-          systemPrompt: "Answer using authorized workspace knowledge."
+          systemPrompt: knowledgeTemplate.definition.systemPrompt,
+          maxSteps: knowledgeTemplate.definition.maxSteps,
+          maxToolCalls: knowledgeTemplate.definition.maxToolCalls,
+          maxTokens: knowledgeTemplate.definition.maxTokens ?? null,
+          timeoutMs: knowledgeTemplate.definition.timeoutMs,
+          enabledToolIds: [...knowledgeTemplate.definition.enabledToolIds],
+          knowledgeBaseIds: [...knowledgeTemplate.definition.knowledgeBaseIds]
         }
       });
+
+      for (const template of DEFAULT_AGENT_TEMPLATES.slice(1)) {
+        await database.agentDefinition.upsert({
+          where: {
+            tenantId_templateKey: {
+              tenantId: entry.tenantId,
+              templateKey: template.key
+            }
+          },
+          update: {
+            name: template.definition.name,
+            description: template.definition.description ?? null,
+            provider: template.definition.provider,
+            model: chatModel,
+            systemPrompt: template.definition.systemPrompt,
+            maxSteps: template.definition.maxSteps,
+            maxToolCalls: template.definition.maxToolCalls,
+            maxTokens: template.definition.maxTokens ?? null,
+            timeoutMs: template.definition.timeoutMs,
+            enabledToolIds: [...template.definition.enabledToolIds],
+            knowledgeBaseIds: [...template.definition.knowledgeBaseIds],
+            deletedAt: null
+          },
+          create: {
+            tenantId: entry.tenantId,
+            templateKey: template.key,
+            name: template.definition.name,
+            description: template.definition.description ?? null,
+            provider: template.definition.provider,
+            model: chatModel,
+            systemPrompt: template.definition.systemPrompt,
+            maxSteps: template.definition.maxSteps,
+            maxToolCalls: template.definition.maxToolCalls,
+            maxTokens: template.definition.maxTokens ?? null,
+            timeoutMs: template.definition.timeoutMs,
+            enabledToolIds: [...template.definition.enabledToolIds],
+            knowledgeBaseIds: [...template.definition.knowledgeBaseIds]
+          }
+        });
+      }
     }
 
     for (const goldenCase of goldenCases) {

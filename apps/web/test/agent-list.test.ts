@@ -13,6 +13,8 @@ const agent: AgentDefinition = {
   id: "64fe81ba-7faf-4b37-a2b8-347cd19b5550",
   name: "Knowledge Assistant",
   description: null,
+  templateKey: null,
+  templateSetup: [],
   provider: "ollama",
   model: "qwen3:8b",
   systemPrompt: "Use authorized knowledge.",
@@ -73,6 +75,26 @@ describe("AgentList", () => {
       screen.getByRole("button", { name: /Knowledge Assistant/i })
     );
     expect(onSelect).toHaveBeenCalledWith(agent.id);
+  });
+
+  it("shows setup state for template agents", () => {
+    renderList({
+      agents: [
+        {
+          ...agent,
+          templateKey: "gmail-reply-assistant",
+          templateSetup: [
+            {
+              id: "gmail.oauth",
+              label: "Gmail connection",
+              status: "NEEDS_SETUP"
+            }
+          ]
+        }
+      ]
+    });
+
+    expect(screen.getByText("Template - setup needed")).toBeVisible();
   });
 });
 

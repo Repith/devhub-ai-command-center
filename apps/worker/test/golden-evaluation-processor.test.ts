@@ -122,6 +122,7 @@ function goldenCase(id: string): GoldenCaseWithAgentRecord {
       tenantId: job().tenantId,
       name: "Golden Agent",
       description: null,
+      templateKey: null,
       provider: "ollama",
       model: "qwen3:8b",
       systemPrompt: "Answer carefully.",

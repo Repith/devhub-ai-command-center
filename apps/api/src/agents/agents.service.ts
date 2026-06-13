@@ -2,9 +2,13 @@ import { Inject, Injectable, NotFoundException } from "@nestjs/common";
 
 import type {
   AgentDefinition,
+  AgentTemplate,
+  AgentTemplateRequirement,
   CreateAgentDefinition,
+  InstallAgentTemplatesResponse,
   UpdateAgentDefinition
 } from "@devhub/contracts";
+import { DEFAULT_AGENT_TEMPLATES } from "@devhub/contracts";
 import type {
   AgentDefinitionRecord,
   PrismaAgentDefinitionRepository
@@ -90,6 +94,40 @@ export class AgentsService {
     });
   }
 
+  public listTemplates(): { data: AgentTemplate[] } {
+    return { data: this.templates() };
+  }
+
+  public async installTemplates(
+    principal: RequestPrincipal
+  ): Promise<InstallAgentTemplatesResponse> {
+    const records = await this.agents.installTemplates(
+      this.context(principal),
+      this.templates()
+    );
+    await this.audit.record(principal, {
+      action: "agent.templates_installed",
+      resourceType: "agent_template",
+      metadata: { count: records.length }
+    });
+    return this.templateResponse(records);
+  }
+
+  public async resetTemplates(
+    principal: RequestPrincipal
+  ): Promise<InstallAgentTemplatesResponse> {
+    const records = await this.agents.resetTemplates(
+      this.context(principal),
+      this.templates()
+    );
+    await this.audit.record(principal, {
+      action: "agent.templates_reset",
+      resourceType: "agent_template",
+      metadata: { count: records.length }
+    });
+    return this.templateResponse(records);
+  }
+
   private context(principal: RequestPrincipal): TenantContext {
     return {
       tenantId: principal.tenantId,
@@ -103,6 +141,8 @@ export class AgentsService {
       id: record.id,
       name: record.name,
       description: record.description,
+      templateKey: this.templateKey(record),
+      templateSetup: this.templateSetup(record),
       provider: record.provider,
       model: record.model,
       systemPrompt: record.systemPrompt,
@@ -115,5 +155,47 @@ export class AgentsService {
       createdAt: record.createdAt.toISOString(),
       updatedAt: record.updatedAt.toISOString()
     };
+  }
+
+  private templateResponse(
+    records: readonly AgentDefinitionRecord[]
+  ): InstallAgentTemplatesResponse {
+    return {
+      data: this.templates(),
+      installedAgentIds: records.map((record) => record.id)
+    };
+  }
+
+  private templateKey(
+    record: AgentDefinitionRecord
+  ): AgentDefinition["templateKey"] {
+    const template = this.templateForRecord(record);
+    return template?.key ?? null;
+  }
+
+  private templateSetup(
+    record: AgentDefinitionRecord
+  ): AgentTemplateRequirement[] {
+    return this.templateForRecord(record)?.requiredSetup ?? [];
+  }
+
+  private templateForRecord(
+    record: AgentDefinitionRecord
+  ): AgentTemplate | undefined {
+    return DEFAULT_AGENT_TEMPLATES.find(
+      (template) => template.key === record.templateKey
+    );
+  }
+
+  private templates(): AgentTemplate[] {
+    const model = process.env.OLLAMA_CHAT_MODEL ?? "qwen3:8b";
+    return DEFAULT_AGENT_TEMPLATES.map((template) => ({
+      ...template,
+      definition: {
+        ...template.definition,
+        model
+      },
+      requiredSetup: [...template.requiredSetup]
+    }));
   }
 }

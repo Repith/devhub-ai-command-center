@@ -66,6 +66,10 @@ describe("contracts", () => {
       id: "64fe81ba-7faf-4b37-a2b8-347cd19b5550",
       name: "Knowledge Assistant",
       description: null,
+      templateKey: "knowledge-researcher",
+      templateSetup: [
+        { id: "knowledge.search", label: "Knowledge search", status: "READY" }
+      ],
       provider: "ollama",
       model: "qwen3:8b",
       systemPrompt: "Use authorized knowledge.",

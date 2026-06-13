@@ -138,6 +138,7 @@ model AgentDefinition {
   provider         String
   model            String
   systemPrompt     String
+  templateKey      String?
   maxSteps         Int          @default(8)
   maxToolCalls     Int          @default(4)
   maxTokens        Int?
@@ -153,6 +154,7 @@ model AgentDefinition {
   deletedAt        DateTime?    @db.Timestamptz(3)
 
   @@unique([tenantId, id])
+  @@unique([tenantId, templateKey])
   @@index([tenantId, deletedAt])
 }
 

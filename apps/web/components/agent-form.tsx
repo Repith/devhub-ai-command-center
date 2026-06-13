@@ -108,6 +108,22 @@ export function AgentForm({
         ) : null}
       </div>
 
+      {!isNew && agent?.templateKey ? (
+        <div className="template-detail">
+          <strong>Default template</strong>
+          <div>
+            {agent.templateSetup.map((item) => (
+              <span
+                className={`setup-chip ${item.status.toLowerCase().replace("_", "-")}`}
+                key={item.id}
+              >
+                {item.label}: {item.status.toLowerCase().replace("_", " ")}
+              </span>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
       <form
         className="agent-form"
         onSubmit={handleSubmit(async (input) => {
