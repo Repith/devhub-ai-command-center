@@ -172,3 +172,108 @@ Acceptance: a user can upload text, PDF, scanned PDF, or image knowledge
 sources; observe ingestion state; retry failed processing; delete sources
 cleanly; inspect paginated chunks; and ask a Retrieval Test question that
 streams a cited model answer grounded only in the top three authorized chunks.
+
+## PR 16: LangChain and LangGraph Documentation
+
+- [x] Add a LangChain/LangGraph guide that explains worker graph orchestration,
+  default agents, Gmail review workflow, RSS news, usage analysis, and the
+  dashboard home direction.
+- [x] Add an ADR for using `@langchain/langgraph` Graph API in the worker while
+  keeping PostgreSQL runs, BullMQ jobs, MCP allowlists, provider ports, budgets,
+  and realtime contracts authoritative.
+- [x] Update architecture, RAG/MCP, security, and testing docs so later code PRs
+  have clear implementation boundaries.
+- [ ] Owner review and merge.
+
+Acceptance: an implementer can start PR 17 without deciding whether LangGraph
+replaces persistence, authorization, MCP validation, or realtime delivery.
+
+## PR 17: LangGraph Runtime Migration
+
+- [ ] Add a LangGraph `StateGraph` inside `apps/worker` with nodes for loading
+  a run, tenant-filtered retrieval, optional RSS, LLM generation, completion,
+  and terminal failure handling.
+- [ ] Preserve the existing `processAgentRun` public entrypoint, REST
+  contracts, Socket.IO events, usage rows, step persistence, cancellation,
+  timeouts, retry behavior, and tool allowlist enforcement.
+- [ ] Keep `LlmProviderPort` and `ToolRegistryPort` as the model and tool
+  boundaries; do not introduce LangSmith, LangGraph Server, or checkpointer
+  persistence in this stage.
+- [ ] Extend worker regression tests for graph routing and current runtime
+  behavior.
+- [ ] Owner review and merge.
+
+Acceptance: one durable run still completes retrieval, optional RSS, and LLM
+generation with the same tenant isolation and observable timeline as before.
+
+## PR 18: Default Agent Templates
+
+- [ ] Add code-owned templates for Knowledge Researcher, Daily News Briefing,
+  Gmail Triage, Gmail Reply Assistant, and Usage Analyst.
+- [ ] Install templates idempotently for new tenants and expose an owner/admin
+  reset or install endpoint.
+- [ ] Store template metadata in shared contracts, including prompt, model,
+  limits, enabled tools, and required connection state.
+- [ ] Show missing integration setup as explicit UI state instead of late
+  runtime failure.
+- [ ] Owner review and merge.
+
+Acceptance: a new tenant starts with usable educational agent definitions and
+can reinstall templates without overwriting unrelated custom agents.
+
+## PR 19: Gmail MCP and Review Workflow
+
+- [ ] Add `apps/mcp-gmail` with Gmail tools for search/list threads, get
+  thread, create draft, and update draft.
+- [ ] Add Gmail OAuth connection flow with encrypted refresh tokens, tenant/user
+  ownership, audit logs, and no secret or mail-body leakage to prompts, logs,
+  WebSocket payloads, or commits.
+- [ ] Add draft review records with `NEEDS_REVIEW`, `UPDATED`, `SENT`, and
+  `REJECTED` states.
+- [ ] Add UI for reviewing, editing, sending, and rejecting proposed replies.
+  Sending is an authenticated API action, not a model-callable MCP tool.
+- [ ] Document restricted Gmail scope implications and keep
+  `AUTO_SEND_ALLOWED=false` by default.
+- [ ] Owner review and merge.
+
+Acceptance: an agent can prepare a Gmail draft, but a user must approve the
+final recipients, subject, and body in the application before the API sends it.
+
+## PR 20: RSS News Agent
+
+- [ ] Add tenant-owned RSS feed configuration with name, URL, topic, enabled
+  flag, and last fetch metadata.
+- [ ] Extend the Daily News Briefing graph path to fetch selected feeds,
+  summarize entries, include source links, and record usage.
+- [ ] Treat feed entries as untrusted content and keep external news API
+  providers out of scope.
+- [ ] Owner review and merge.
+
+Acceptance: a tenant can configure RSS feeds and run a briefing agent that
+summarizes only those feeds with links and token usage.
+
+## PR 21: Usage and Token Summary
+
+- [ ] Expand usage contracts and API responses with dashboard-ready totals by
+  period, agent, run, provider, and model.
+- [ ] Add an agent-friendly usage summary capability that reads persisted usage
+  only and never estimates authoritative totals from prompt text.
+- [ ] Surface budget warnings and recent expensive runs in API responses and UI.
+- [ ] Owner review and merge.
+
+Acceptance: users can inspect token spend and latency from persisted usage data
+without relying on model-generated accounting.
+
+## PR 22: Main Dashboard Home
+
+- [ ] Make the first authenticated screen a command center with chat, selected
+  agent, knowledge state, Gmail review queue, news briefing, token usage, and
+  recent run timeline.
+- [ ] Keep Agents, Knowledge, Runs, and Settings as secondary workspaces.
+- [ ] Add accessible loading, empty, error, and unauthorized states for each
+  dashboard widget.
+- [ ] Verify the layout across desktop and mobile before merge.
+- [ ] Owner review and merge.
+
+Acceptance: after login, the user lands on a readable daily command center
+instead of a configuration-first agent list.

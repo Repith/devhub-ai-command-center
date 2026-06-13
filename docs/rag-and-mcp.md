@@ -79,6 +79,20 @@ Every call validates schema, tenant scope, timeout, output size, and call count.
 Inputs and bounded output previews are stored as run steps. Secrets are resolved
 inside adapters and never included in model-visible tool arguments.
 
+LangGraph graph nodes may call MCP tools only through `ToolRegistryPort`. A
+graph edge cannot widen the agent allowlist, skip schema validation, reuse tool
+output as instructions, or expose adapter secrets to the model. Tool outputs
+remain untrusted data even when they are produced inside a graph node.
+
+The Gmail integration will use a local MCP server for search, thread retrieval,
+draft creation, and draft updates. Sending mail is deliberately outside the MCP
+tool surface in the first version; it is an authenticated API action tied to a
+review record that the user can inspect and edit.
+
+RSS remains the first news provider. Tenant feed configuration owns the set of
+URLs the briefing agent may read, and feed entries are bounded before they enter
+prompts or previews.
+
 ## Untrusted Content
 
 Uploaded documents, RSS entries, retrieved chunks, and MCP output may contain

@@ -6,7 +6,8 @@ The browser communicates with a NestJS API over versioned REST and Socket.IO.
 The API persists intent in PostgreSQL and schedules long-running work in
 BullMQ. Workers call Ollama, Qdrant, and MCP servers, persist every run step,
 and publish progress through Redis so the API gateway can update subscribed
-browsers.
+browsers. Agent execution is moving to a LangGraph graph inside the worker; the
+graph expresses control flow, while PostgreSQL remains the durable state record.
 
 ```mermaid
 flowchart LR
@@ -17,6 +18,8 @@ flowchart LR
   API --> Redis[(Redis)]
   Redis --> Worker[BullMQ Worker]
   Worker --> PG
+  Worker --> LG[LangGraph StateGraph]
+  LG --> Worker
   Worker --> Ollama[Ollama]
   Worker --> Qdrant[(Qdrant)]
   Worker --> MCPK[MCP Knowledge]
@@ -64,7 +67,8 @@ contracts and reusable logic, not framework-specific shortcuts.
 2. It creates an `AgentRun` transactionally and enqueues `run-agent`.
 3. The worker claims the job using an idempotent job identifier.
 4. The runner loads the agent definition and authorized resources.
-5. It performs optional tenant-filtered retrieval and invokes Ollama.
+5. A worker-local LangGraph graph routes deterministic nodes for retrieval,
+   optional RSS, model generation, completion, and terminal failure handling.
 6. Validated MCP calls run through an allowlisted tool registry.
 7. Every operation creates or completes an `AgentRunStep`.
 8. Usage and errors are persisted before an event is published.
@@ -85,3 +89,9 @@ The PR 6 chat foundation streams directly from the API to establish provider,
 conversation, cancellation, and usage contracts without introducing the agent
 queue early. PR 10 replaces this direct orchestration path with durable worker
 runs while preserving the provider port and persisted conversation model.
+
+LangGraph is introduced after the explicit runner has proven the runtime
+contract. It must preserve the same REST, Socket.IO, repository, tool registry,
+budget, and usage boundaries. LangGraph checkpointers and hosted LangGraph
+deployment are deferred; local PostgreSQL records remain authoritative for
+retries and recovery.
