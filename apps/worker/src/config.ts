@@ -8,6 +8,11 @@ export interface WorkerConfig {
   llmTimeoutMs: number;
   ollamaApiKey: string;
   ollamaBaseUrl: string;
+  ocrMaxPdfPages: number;
+  ocrModel: string;
+  ocrTextMinCharacters: number;
+  ocrTextMinWords: number;
+  ocrTimeoutMs: number;
   qdrantCollectionName: string;
   qdrantUrl: string;
   redisUrl: string;
@@ -28,6 +33,11 @@ export function loadWorkerConfig(): WorkerConfig {
     llmTimeoutMs: Number(process.env.OLLAMA_CHAT_TIMEOUT_MS ?? 120000),
     ollamaApiKey: process.env.OLLAMA_API_KEY ?? "ollama",
     ollamaBaseUrl: process.env.OLLAMA_BASE_URL ?? "http://localhost:11434/v1",
+    ocrMaxPdfPages: Number(process.env.OCR_PDF_MAX_PAGES ?? 8),
+    ocrModel: process.env.OLLAMA_OCR_MODEL ?? "qwen2.5vl:7b",
+    ocrTextMinCharacters: Number(process.env.OCR_TEXT_MIN_CHARACTERS ?? 120),
+    ocrTextMinWords: Number(process.env.OCR_TEXT_MIN_WORDS ?? 20),
+    ocrTimeoutMs: Number(process.env.OCR_TIMEOUT_MS ?? 120000),
     qdrantCollectionName:
       process.env.QDRANT_COLLECTION_NAME ?? "devhub_document_chunks",
     qdrantUrl: process.env.QDRANT_URL ?? "http://localhost:6333",

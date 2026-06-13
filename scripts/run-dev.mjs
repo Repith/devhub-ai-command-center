@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { resolve } from "node:path";
+import { isAbsolute, resolve } from "node:path";
 
 const root = resolve(import.meta.dirname, "..");
 const environmentPath = resolve(root, ".env");
@@ -34,6 +34,10 @@ if (process.env.JWT_SECRET.length < 32) {
   process.exit(1);
 }
 
+process.env.DOCUMENT_STORAGE_DIR = resolveFromRoot(
+  process.env.DOCUMENT_STORAGE_DIR ?? "data/uploads"
+);
+
 const turbo = spawn(process.execPath, [turboPath, "run", "dev"], {
   cwd: root,
   env: process.env,
@@ -52,3 +56,7 @@ turbo.on("exit", (code, signal) => {
   }
   process.exit(code ?? 1);
 });
+
+function resolveFromRoot(path) {
+  return isAbsolute(path) ? path : resolve(root, path);
+}

@@ -13,16 +13,24 @@ import type {
   DocumentList,
   KnowledgeSearchResponse
 } from "@devhub/contracts";
-import type { EmbeddingProviderPort } from "@devhub/ai";
+import type { EmbeddingProviderPort, LlmProviderPort } from "@devhub/ai";
 import type { DatabaseClient } from "@devhub/database";
-import type { VectorSearchHit, VectorStorePort } from "@devhub/rag";
+import {
+  VectorStoreError,
+  type VectorSearchHit,
+  type VectorStorePort
+} from "@devhub/rag";
 
 import { configureApp } from "../src/app-config";
 import { AppModule } from "../src/app.module";
 import { DATABASE_CLIENT } from "../src/database/database.module";
-import { BullMqDocumentIngestionQueue } from "../src/documents/document-queue.service";
+import {
+  BullMqDocumentIngestionQueue,
+  type DocumentIngestionQueueOptions
+} from "../src/documents/document-queue.service";
 import {
   EMBEDDING_PROVIDER,
+  LLM_PROVIDER,
   VECTOR_STORE
 } from "../src/documents/documents.tokens";
 
@@ -37,7 +45,15 @@ describe("document upload and tenant isolation", () => {
   let ownerToken: string;
   let outsiderToken: string;
   let searchHits: VectorSearchHit[] = [];
-  const jobs: DocumentIngestionJob[] = [];
+  let vectorSearchError: Error | null = null;
+  const jobs: Array<{
+    input: DocumentIngestionJob;
+    options?: DocumentIngestionQueueOptions;
+  }> = [];
+  const deletedVectorDocuments: Array<{
+    tenantId: string;
+    documentId: string;
+  }> = [];
 
   beforeAll(async () => {
     process.env.JWT_SECRET = "integration-secret-with-at-least-32-characters";
@@ -51,15 +67,32 @@ describe("document upload and tenant isolation", () => {
     })
       .overrideProvider(BullMqDocumentIngestionQueue)
       .useValue({
-        enqueue: (input: DocumentIngestionJob) => {
-          jobs.push(input);
+        enqueue: (
+          input: DocumentIngestionJob,
+          options?: DocumentIngestionQueueOptions
+        ) => {
+          jobs.push(options ? { input, options } : { input });
           return Promise.resolve();
         }
       })
       .overrideProvider(EMBEDDING_PROVIDER)
       .useValue(fakeEmbeddingProvider())
+      .overrideProvider(LLM_PROVIDER)
+      .useValue(fakeLlmProvider())
       .overrideProvider(VECTOR_STORE)
-      .useValue(fakeVectorStore(() => searchHits))
+      .useValue(
+        fakeVectorStore(
+          () => {
+            if (vectorSearchError) {
+              throw vectorSearchError;
+            }
+            return searchHits;
+          },
+          (tenantId, documentId) => {
+            deletedVectorDocuments.push({ tenantId, documentId });
+          }
+        )
+      )
       .compile();
     app = module.createNestApplication();
     configureApp(app);
@@ -112,7 +145,7 @@ describe("document upload and tenant isolation", () => {
     });
     expect(document).not.toHaveProperty("tenantId");
     expect(jobs).toHaveLength(1);
-    expect(jobs[0]).toMatchObject({
+    expect(jobs[0]?.input).toMatchObject({
       version: 1,
       documentId: document.id,
       mimeType: "text/plain"
@@ -128,6 +161,104 @@ describe("document upload and tenant isolation", () => {
     await request(app!.getHttpServer())
       .get(`/api/v1/documents/${document.id}`)
       .set("Authorization", `Bearer ${outsiderToken}`)
+      .expect(404);
+  });
+
+  it("queues document reindexing with a fresh retry job key", async () => {
+    const owner = await database!.user.findUniqueOrThrow({
+      where: { email: ownerEmail },
+      include: { memberships: true }
+    });
+    const tenantId = owner.memberships[0]!.tenantId;
+    const document = await database!.document.create({
+      data: {
+        tenantId,
+        fileName: "failed.txt",
+        storageKey: `${tenantId}/${crypto.randomUUID()}/source.txt`,
+        mimeType: "text/plain",
+        sizeBytes: 12,
+        checksum: "checksum",
+        status: "FAILED",
+        failureCode: "DOCUMENT_INGESTION_FAILED",
+        failureDetail: "Chunking failed."
+      }
+    });
+
+    const response = await request(app!.getHttpServer())
+      .post(`/api/v1/documents/${document.id}/reindex`)
+      .set("Authorization", `Bearer ${ownerToken}`)
+      .expect(202);
+    const body = response.body as Document;
+
+    expect(body).toMatchObject({
+      id: document.id,
+      status: "UPLOADED",
+      failureCode: null,
+      failureDetail: null
+    });
+    expect(jobs.at(-1)).toMatchObject({
+      input: {
+        documentId: document.id,
+        tenantId,
+        storageKey: document.storageKey,
+        mimeType: "text/plain",
+        checksum: "checksum"
+      },
+      options: { dedupeKey: expect.stringMatching(/^retry-/) }
+    });
+  });
+
+  it("soft-deletes a document after removing vectors and chunks", async () => {
+    const owner = await database!.user.findUniqueOrThrow({
+      where: { email: ownerEmail },
+      include: { memberships: true }
+    });
+    const tenantId = owner.memberships[0]!.tenantId;
+    const document = await database!.document.create({
+      data: {
+        tenantId,
+        fileName: "obsolete.txt",
+        storageKey: `${tenantId}/${crypto.randomUUID()}/source.txt`,
+        mimeType: "text/plain",
+        sizeBytes: 12,
+        checksum: "checksum",
+        status: "INDEXED"
+      }
+    });
+    await database!.documentChunk.create({
+      data: {
+        tenantId,
+        documentId: document.id,
+        ordinal: 0,
+        content: "Old chunk.",
+        tokenCount: 2,
+        vectorId: crypto.randomUUID()
+      }
+    });
+
+    await request(app!.getHttpServer())
+      .delete(`/api/v1/documents/${document.id}`)
+      .set("Authorization", `Bearer ${ownerToken}`)
+      .expect(204);
+
+    const deletedDocument = await database!.document.findUniqueOrThrow({
+      where: { tenantId_id: { tenantId, id: document.id } }
+    });
+    const chunkCount = await database!.documentChunk.count({
+      where: { tenantId, documentId: document.id }
+    });
+
+    expect(deletedDocument.status).toBe("DELETING");
+    expect(deletedDocument.deletedAt).toBeInstanceOf(Date);
+    expect(chunkCount).toBe(0);
+    expect(deletedVectorDocuments).toContainEqual({
+      tenantId,
+      documentId: document.id
+    });
+
+    await request(app!.getHttpServer())
+      .get(`/api/v1/documents/${document.id}`)
+      .set("Authorization", `Bearer ${ownerToken}`)
       .expect(404);
   });
 
@@ -210,6 +341,9 @@ describe("document upload and tenant isolation", () => {
       .expect(200);
     const body = response.body as KnowledgeSearchResponse;
 
+    expect(body.answer).toBe(
+      "Tenant-owned knowledge chunk. [doc:" + `${document.id.slice(0, 8)}#0]`
+    );
     expect(body.results).toHaveLength(1);
     expect(body.results[0]).toMatchObject({
       documentId: document.id,
@@ -220,6 +354,94 @@ describe("document upload and tenant isolation", () => {
     expect(body.results[0]?.citationLabel).toBe(
       `doc:${document.id.slice(0, 8)}#0`
     );
+  });
+
+  it("streams retrieved chunks and model answer deltas", async () => {
+    const owner = await database!.user.findUniqueOrThrow({
+      where: { email: ownerEmail },
+      include: { memberships: true }
+    });
+    const tenantId = owner.memberships[0]!.tenantId;
+    const document = await database!.document.create({
+      data: {
+        tenantId,
+        fileName: "streamed.txt",
+        storageKey: `${tenantId}/${crypto.randomUUID()}/source.txt`,
+        mimeType: "text/plain",
+        sizeBytes: 12,
+        checksum: "checksum",
+        status: "INDEXED"
+      }
+    });
+    const chunk = await database!.documentChunk.create({
+      data: {
+        tenantId,
+        documentId: document.id,
+        ordinal: 0,
+        content: "Streamed knowledge chunk.",
+        tokenCount: 3,
+        vectorId: crypto.randomUUID()
+      }
+    });
+    searchHits = [
+      {
+        id: chunk.id,
+        score: 0.88,
+        payload: {
+          tenantId,
+          documentId: document.id,
+          chunkId: chunk.id,
+          ordinal: 0
+        }
+      }
+    ];
+
+    const response = await request(app!.getHttpServer())
+      .post("/api/v1/documents/search/stream")
+      .set("Authorization", `Bearer ${ownerToken}`)
+      .send({ query: "knowledge", limit: 5 })
+      .expect(200)
+      .expect("Content-Type", /application\/x-ndjson/);
+    const events = response.text
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line) as { type: string });
+
+    expect(events.map((event) => event.type)).toEqual([
+      "knowledge.search.started",
+      "knowledge.search.delta",
+      "knowledge.search.completed"
+    ]);
+    expect(events[0]).toMatchObject({
+      results: [
+        {
+          documentId: document.id,
+          chunkId: chunk.id,
+          citationLabel: `doc:${document.id.slice(0, 8)}#0`
+        }
+      ]
+    });
+  });
+
+  it("returns a diagnostic response when retrieval infrastructure is unavailable", async () => {
+    vectorSearchError = new VectorStoreError(
+      "VECTOR_STORE_UNAVAILABLE",
+      "Unable to connect to Qdrant."
+    );
+
+    const response = await request(app!.getHttpServer())
+      .post("/api/v1/documents/search")
+      .set("Authorization", `Bearer ${ownerToken}`)
+      .send({ query: "knowledge", limit: 5 })
+      .expect(503);
+
+    expect(response.body).toMatchObject({
+      code: "VECTOR_STORE_UNAVAILABLE",
+      message: "Unable to connect to Qdrant."
+    });
+    expect(response.body).toHaveProperty("correlationId");
+
+    vectorSearchError = null;
   });
 });
 
@@ -235,13 +457,36 @@ function fakeEmbeddingProvider(): EmbeddingProviderPort {
   };
 }
 
+function fakeLlmProvider(): LlmProviderPort {
+  return {
+    name: "fake",
+    streamChat: async function* (input) {
+      const prompt = input.messages.at(-1)?.content ?? "";
+      const citation = prompt.match(/\[(doc:[^\]]+)\]/)?.[1] ?? "doc:missing";
+      yield {
+        type: "delta",
+        text: `Tenant-owned knowledge chunk. [${citation}]`
+      };
+      yield {
+        type: "completed",
+        finishReason: "stop",
+        usage: { inputTokens: 10, outputTokens: 4 }
+      };
+    }
+  };
+}
+
 function fakeVectorStore(
-  hits: () => readonly VectorSearchHit[]
+  hits: () => readonly VectorSearchHit[],
+  onDelete: (tenantId: string, documentId: string) => void
 ): VectorStorePort {
   return {
     name: "fake",
-    deleteDocument: () => Promise.resolve(),
-    search: () => Promise.resolve(hits()),
+    deleteDocument: (tenantId, documentId) => {
+      onDelete(tenantId, documentId);
+      return Promise.resolve();
+    },
+    search: async () => hits(),
     upsert: () => Promise.resolve()
   };
 }

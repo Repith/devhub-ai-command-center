@@ -1,6 +1,9 @@
 import { Module } from "@nestjs/common";
 
-import { OllamaOpenAiEmbeddingProvider } from "@devhub/ai";
+import {
+  OllamaOpenAiEmbeddingProvider,
+  OllamaOpenAiProvider
+} from "@devhub/ai";
 import { PrismaDocumentRepository } from "@devhub/database";
 import { QdrantVectorStore } from "@devhub/rag";
 
@@ -14,6 +17,7 @@ import {
   DOCUMENT_INGESTION_QUEUE,
   DOCUMENT_REPOSITORY,
   EMBEDDING_PROVIDER,
+  LLM_PROVIDER,
   VECTOR_STORE
 } from "./documents.tokens";
 import { LocalDocumentStorage } from "./local-document-storage.service";
@@ -47,6 +51,15 @@ import { LocalDocumentStorage } from "./local-document-storage.service";
       inject: ["DOCUMENTS_CONFIG"],
       useFactory: (config: ReturnType<typeof loadDocumentsConfig>) =>
         new OllamaOpenAiEmbeddingProvider({
+          baseUrl: config.ollamaBaseUrl,
+          apiKey: config.ollamaApiKey
+        })
+    },
+    {
+      provide: LLM_PROVIDER,
+      inject: ["DOCUMENTS_CONFIG"],
+      useFactory: (config: ReturnType<typeof loadDocumentsConfig>) =>
+        new OllamaOpenAiProvider({
           baseUrl: config.ollamaBaseUrl,
           apiKey: config.ollamaApiKey
         })

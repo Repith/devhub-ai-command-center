@@ -15,12 +15,17 @@ import { chunkText, type VectorPoint, type VectorStorePort } from "@devhub/rag";
 import type { TenantContext } from "@devhub/domain";
 
 import { parseDocument } from "./document-parser.js";
+import type { OcrProvider } from "./ocr-provider.js";
 
 export interface ProcessDocumentOptions {
   database: DatabaseClient;
   embeddingModel: string;
   embeddingProvider: EmbeddingProviderPort;
   embeddingTimeoutMs: number;
+  ocrMaxPdfPages: number;
+  ocrProvider?: OcrProvider;
+  ocrTextMinCharacters: number;
+  ocrTextMinWords: number;
   storageDir: string;
   input: DocumentIngestionJob;
   vectorStore: VectorStorePort;
@@ -39,7 +44,12 @@ export async function processDocument(
       resolveStoragePath(options.storageDir, input.storageKey)
     );
     assertChecksum(buffer, input.checksum);
-    const parsed = await parseDocument(buffer, input.mimeType);
+    const parsed = await parseDocument(buffer, input.mimeType, {
+      ocrMaxPdfPages: options.ocrMaxPdfPages,
+      ...(options.ocrProvider ? { ocrProvider: options.ocrProvider } : {}),
+      ocrTextMinCharacters: options.ocrTextMinCharacters,
+      ocrTextMinWords: options.ocrTextMinWords
+    });
     const chunks = chunkText(parsed.text);
     if (chunks.length === 0) {
       throw new Error("Document did not contain extractable text.");

@@ -81,6 +81,9 @@ describeWithDatabase("processDocument integration", () => {
       embeddingModel: "nomic-embed-text",
       embeddingProvider: fakeEmbeddingProvider(),
       embeddingTimeoutMs: 1000,
+      ocrMaxPdfPages: 8,
+      ocrTextMinCharacters: 120,
+      ocrTextMinWords: 20,
       storageDir,
       input: job,
       vectorStore
@@ -90,6 +93,9 @@ describeWithDatabase("processDocument integration", () => {
       embeddingModel: "nomic-embed-text",
       embeddingProvider: fakeEmbeddingProvider(),
       embeddingTimeoutMs: 1000,
+      ocrMaxPdfPages: 8,
+      ocrTextMinCharacters: 120,
+      ocrTextMinWords: 20,
       storageDir,
       input: job,
       vectorStore
@@ -98,8 +104,10 @@ describeWithDatabase("processDocument integration", () => {
     const document = await repository.findById(context, documentId);
     const chunks = await repository.listChunks(context, documentId);
     expect(document?.status).toBe("INDEXED");
-    expect(chunks?.length).toBe(3);
-    expect(chunks?.map((chunk) => chunk.ordinal)).toEqual([0, 1, 2]);
+    expect(chunks?.length).toBe(80);
+    expect(chunks?.map((chunk) => chunk.ordinal)).toEqual(
+      Array.from({ length: 80 }, (_, index) => index)
+    );
     expect(chunks?.every((chunk) => chunk.vectorId === chunk.id)).toBe(true);
   });
 });

@@ -2,19 +2,58 @@
 
 ## Document Ingestion
 
-1. Validate extension, MIME type, size, and filename.
-2. Store the file outside PostgreSQL and create a `Document` record.
-3. Enqueue `process-document:<tenantId>:<documentId>:<version>`.
-4. Parse MD, TXT, or PDF with a bounded timeout.
-5. Normalize text while preserving headings, paragraphs, lists, and page data.
-6. Split semantically, then enforce a target of 500-900 tokens with 80-150
-   tokens of overlap.
-7. Generate embeddings through Ollama.
-8. Persist chunks in PostgreSQL and vectors in Qdrant.
-9. Mark the document `INDEXED` only after both stores succeed.
+1. The API validates extension, MIME type, size, filename, and basic content
+   signature.
+2. The source file is stored under `DOCUMENT_STORAGE_DIR`.
+3. PostgreSQL receives a `Document` row with status `UPLOADED`.
+4. The API enqueues `process-document:<tenantId>:<documentId>:<version>` in
+   Redis through BullMQ.
+5. `apps/worker` marks the document `PROCESSING`.
+6. MD and TXT files are normalized directly.
+7. PDF files are parsed with `pdf-parse`; if native text extraction is too
+   sparse, the worker renders pages to PNG and runs OCR.
+8. Image uploads are routed directly to OCR.
+9. `packages/rag` chunks the extracted text into retrieval units.
+10. Chunks are stored in PostgreSQL as `DocumentChunk` rows.
+11. Ollama generates embeddings with `OLLAMA_EMBEDDING_MODEL`.
+12. Qdrant stores vectors in `QDRANT_COLLECTION_NAME` with tenant and document
+    payload filters.
+13. The worker marks the document `INDEXED` only after PostgreSQL chunks and
+    Qdrant vectors both succeed.
 
 Reindexing creates a new document version and swaps active vectors
 idempotently. Deletion removes vectors before final metadata removal.
+
+If a document remains `UPLOADED`, the API accepted the file but the worker has
+not processed the job yet. Confirm that `npm run dev` is running the worker and
+that Redis is available. If the status becomes `FAILED`, inspect the document
+failure code/detail in the UI and the worker log line for the same document ID.
+Common local failures are a missing Ollama embedding or OCR model, Qdrant being
+unavailable, Redis being unavailable, or an image/PDF whose text cannot be read
+by the configured OCR model.
+
+## OCR Routing
+
+The worker decides which extraction tool to use before indexing:
+
+- text and Markdown: direct UTF-8 normalization
+- text-rich PDF: native `pdf-parse` text extraction
+- scanned or text-poor PDF: PDF page screenshot rendering plus OCR
+- JPEG, PNG, WebP: OCR
+
+Local OCR defaults:
+
+- `OLLAMA_OCR_MODEL=qwen2.5vl:7b`
+- `OCR_TIMEOUT_MS=120000`
+- `OCR_PDF_MAX_PAGES=8`
+- `OCR_TEXT_MIN_CHARACTERS=120`
+- `OCR_TEXT_MIN_WORDS=20`
+
+Install the default OCR model with:
+
+```bash
+ollama pull qwen2.5vl:7b
+```
 
 ## Retrieval
 
@@ -25,6 +64,9 @@ context, state when evidence is insufficient, and attach stable citation labels.
 
 PostgreSQL remains authoritative for access and source metadata. A Qdrant result
 is discarded if its relational record is missing, inactive, or unauthorized.
+The UI only enables retrieval testing for documents with status `INDEXED`;
+searching an empty or not-yet-created Qdrant collection returns zero results
+rather than a server error.
 
 ## MCP Tooling
 

@@ -74,16 +74,48 @@ export type KnowledgeSearchResult = z.infer<typeof knowledgeSearchResultSchema>;
 
 export const knowledgeSearchResponseSchema = z.object({
   query: z.string(),
+  answer: z.string(),
   results: z.array(knowledgeSearchResultSchema)
 });
 export type KnowledgeSearchResponse = z.infer<
   typeof knowledgeSearchResponseSchema
 >;
 
+const knowledgeSearchStreamEventBaseSchema = z.object({
+  version: z.literal(1)
+});
+
+export const knowledgeSearchStreamEventSchema = z.discriminatedUnion("type", [
+  knowledgeSearchStreamEventBaseSchema.extend({
+    type: z.literal("knowledge.search.started"),
+    query: z.string(),
+    results: z.array(knowledgeSearchResultSchema)
+  }),
+  knowledgeSearchStreamEventBaseSchema.extend({
+    type: z.literal("knowledge.search.delta"),
+    text: z.string().min(1)
+  }),
+  knowledgeSearchStreamEventBaseSchema.extend({
+    type: z.literal("knowledge.search.completed"),
+    answer: z.string()
+  }),
+  knowledgeSearchStreamEventBaseSchema.extend({
+    type: z.literal("knowledge.search.error"),
+    code: z.string().min(1),
+    message: z.string().min(1)
+  })
+]);
+export type KnowledgeSearchStreamEvent = z.infer<
+  typeof knowledgeSearchStreamEventSchema
+>;
+
 export const supportedDocumentMimeTypes = [
   "text/markdown",
   "text/plain",
-  "application/pdf"
+  "application/pdf",
+  "image/jpeg",
+  "image/png",
+  "image/webp"
 ] as const;
 
 export const supportedDocumentMimeTypeSchema = z.enum(

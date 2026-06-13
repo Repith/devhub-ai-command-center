@@ -27,6 +27,9 @@ describe("processDocument", () => {
         embeddingModel: "nomic-embed-text",
         embeddingProvider: fakeEmbeddingProvider(),
         embeddingTimeoutMs: 1000,
+        ocrMaxPdfPages: 8,
+        ocrTextMinCharacters: 120,
+        ocrTextMinWords: 20,
         storageDir,
         input: {
           version: 1,

@@ -93,9 +93,13 @@ export class QdrantVectorStore implements VectorStorePort {
           limit: input.limit,
           with_payload: true,
           filter: searchFilter(input)
-        }
+        },
+        allowNotFound: true
       }
     );
+    if (isMissingCollection(response)) {
+      return [];
+    }
     const parsed = qdrantSearchResponseSchema.safeParse(response);
     if (!parsed.success) {
       throw new VectorStoreError(
@@ -116,9 +120,18 @@ export class QdrantVectorStore implements VectorStorePort {
       return;
     }
 
-    const response = await this.request(
-      `${this.url}/collections/${this.collectionName}`
-    );
+    let response: Response;
+    try {
+      response = await this.request(
+        `${this.url}/collections/${this.collectionName}`
+      );
+    } catch (error) {
+      throw new VectorStoreError(
+        "VECTOR_STORE_UNAVAILABLE",
+        "Unable to connect to Qdrant.",
+        { cause: error }
+      );
+    }
     if (response.status === 404) {
       await this.qdrant(`/collections/${this.collectionName}`, {
         method: "PUT",
@@ -144,11 +157,20 @@ export class QdrantVectorStore implements VectorStorePort {
       allowNotFound?: boolean;
     }
   ): Promise<unknown> {
-    const response = await this.request(`${this.url}${path}`, {
-      method: options.method,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(options.body)
-    });
+    let response: Response;
+    try {
+      response = await this.request(`${this.url}${path}`, {
+        method: options.method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(options.body)
+      });
+    } catch (error) {
+      throw new VectorStoreError(
+        "VECTOR_STORE_UNAVAILABLE",
+        "Unable to connect to Qdrant.",
+        { cause: error }
+      );
+    }
     if (options.allowNotFound && response.status === 404) {
       return {};
     }
@@ -160,6 +182,14 @@ export class QdrantVectorStore implements VectorStorePort {
     }
     return response.json() as Promise<unknown>;
   }
+}
+
+function isMissingCollection(value: unknown): boolean {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    Object.keys(value).length === 0
+  );
 }
 
 function documentFilter(tenantId: string, documentId: string): object {
