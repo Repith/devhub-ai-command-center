@@ -27,6 +27,11 @@ return a generic not-found response. WebSocket rooms, BullMQ jobs, Qdrant
 filters, MCP calls, usage queries, and evaluation cases all enforce the same
 boundary. Cross-tenant tests are release blockers.
 
+LangGraph nodes run inside the worker with the same server-derived context.
+Graph state cannot accept tenant identifiers, tool permissions, or resource
+ownership from the browser. A graph node must reload or validate persisted
+ownership before touching tenant-owned data.
+
 ## Files and Retrieval
 
 Uploads use an allowlist for MD, TXT, and PDF, a configurable size limit,
@@ -41,6 +46,19 @@ Secrets live in environment variables and are never committed. Logs use
 structured fields and redact authorization headers, cookies, refresh tokens,
 passwords, tool credentials, and document bodies. Prompt and tool previews are
 bounded and configurable.
+
+OAuth refresh tokens for Gmail must be encrypted at rest and never included in
+prompts, tool arguments visible to the model, WebSocket events, run-step
+previews, or audit metadata. Gmail message bodies are treated like uploaded
+documents and RSS content: untrusted, bounded, and incapable of changing system
+policy or tool permissions.
+
+The model may prepare Gmail drafts but may not send mail through MCP in the
+first Gmail workflow. Sending requires an authenticated API request against a
+local review record whose recipients, subject, and body are visible and
+editable by the user. Any later auto-send mode must be disabled by default and
+guarded by explicit UI confirmation, sender allowlists, narrow categories, and
+auditable policy decisions.
 
 ## Rate Limits and Audit Trail
 
@@ -58,6 +76,7 @@ are available only to owner/admin roles in the active tenant.
 - Broken tenant authorization.
 - Refresh-token theft or replay.
 - Prompt injection causing unauthorized tool use.
+- Prompt injection causing unauthorized graph routing or email sending.
 - Malicious or oversized document uploads.
 - Resource exhaustion through runs, tools, parsers, or sockets.
 - Sensitive data exposure through logs and realtime events.
