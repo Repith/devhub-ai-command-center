@@ -53,6 +53,12 @@ previews, or audit metadata. Gmail message bodies are treated like uploaded
 documents and RSS content: untrusted, bounded, and incapable of changing system
 policy or tool permissions.
 
+Tenant RSS feed URLs are owned server-side and selected by feed ID in agent
+runs. Browser requests cannot provide a tenant identifier for feeds, and the
+worker reloads configured feeds with tenant context before fetching. RSS titles,
+summaries, and links are untrusted data; they may be summarized and cited, but
+cannot alter graph routing, tool allowlists, or authorization policy.
+
 The local Gmail OAuth flow requires `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`,
 `GMAIL_REDIRECT_URI`, and `GMAIL_TOKEN_ENCRYPTION_KEY`. The first implementation
 requests `https://www.googleapis.com/auth/gmail.readonly` and

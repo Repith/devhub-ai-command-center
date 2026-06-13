@@ -110,6 +110,17 @@ and timestamps, but never access or refresh tokens. Draft review responses omit
 shown to the authenticated user before sending. Sending mail is only available
 through the authenticated API review endpoint; it is not an MCP tool.
 
+## News Feeds
+
+- `GET|POST /news/feeds`
+- `PATCH|DELETE /news/feeds/:feedId`
+
+News feed responses expose name, URL, topic, enabled flag, and last fetch
+metadata, but never `tenantId`. Owners and admins manage tenant-owned RSS
+sources; members may inspect them. Agent runs may pass `newsFeedIds` to select
+configured feeds, while the Daily News Briefing template uses enabled tenant
+feeds by default.
+
 ## MCP, Usage, and Evaluation
 
 - `GET /mcp/connections`

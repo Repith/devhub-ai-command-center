@@ -819,6 +819,55 @@ button.nav-item {
   color: #858da0;
 }
 
+.feed-list {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.75rem;
+  margin: 0;
+  list-style: none;
+}
+
+.feed-list button {
+  display: grid;
+  width: 100%;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.75rem;
+  border: 1px solid transparent;
+  border-radius: 0.75rem;
+  padding: 0.75rem;
+  background: transparent;
+  color: #dfe3ec;
+  text-align: left;
+}
+
+.feed-list button:hover,
+.feed-list button.selected {
+  border-color: #343947;
+  background: #1a1d26;
+}
+
+.feed-list button.selected {
+  box-shadow: inset 3px 0 #7c6df7;
+}
+
+.feed-list button > span:last-child {
+  display: grid;
+  min-width: 0;
+  gap: 0.18rem;
+}
+
+.feed-list strong,
+.feed-list small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.feed-list small {
+  color: #858da0;
+}
+
 .status-pill.needs_review,
 .status-pill.updated {
   border-color: #5b4f2a;
@@ -842,6 +891,43 @@ button.nav-item {
   padding: 0;
   margin: 0;
   border: 0;
+}
+
+.checkbox-field {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.checkbox-field input {
+  width: 1rem;
+  height: 1rem;
+}
+
+.feed-picker {
+  display: grid;
+  gap: 0.6rem;
+  min-width: 0;
+  border: 1px solid #303543;
+  border-radius: 0.75rem;
+  padding: 0.85rem;
+  background: #11141b;
+}
+
+.feed-picker legend {
+  padding: 0 0.35rem;
+  color: #cfd4df;
+  font-size: 0.82rem;
+  font-weight: 750;
+}
+
+.feed-picker span {
+  display: grid;
+  gap: 0.12rem;
+}
+
+.feed-picker small {
+  color: #858da0;
 }
 
 .permission-note {

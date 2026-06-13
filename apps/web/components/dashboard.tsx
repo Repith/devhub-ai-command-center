@@ -6,6 +6,7 @@ import { AgentWorkspace } from "./agent-workspace";
 import { ChatWorkspace } from "./chat-workspace";
 import { GmailWorkspace } from "./gmail-workspace";
 import { KnowledgeWorkspace } from "./knowledge-workspace";
+import { NewsWorkspace } from "./news-workspace";
 import { RunsWorkspace } from "./runs-workspace";
 import type { AuthenticatedUser } from "@devhub/contracts";
 
@@ -16,7 +17,13 @@ interface DashboardProps {
 }
 
 const plannedSections = ["Evaluations"];
-type DashboardSection = "agents" | "chat" | "runs" | "knowledge" | "gmail";
+type DashboardSection =
+  | "agents"
+  | "chat"
+  | "runs"
+  | "knowledge"
+  | "gmail"
+  | "news";
 
 export function Dashboard({
   accessToken,
@@ -83,9 +90,18 @@ export function Dashboard({
             <span aria-hidden="true">05</span>
             Knowledge
           </button>
+          <button
+            className={`nav-item ${section === "news" ? "active" : ""}`}
+            type="button"
+            aria-current={section === "news" ? "page" : undefined}
+            onClick={() => setSection("news")}
+          >
+            <span aria-hidden="true">06</span>
+            News
+          </button>
           {plannedSections.map((section, index) => (
             <span className="nav-item planned" key={section}>
-              <span aria-hidden="true">0{index + 6}</span>
+              <span aria-hidden="true">0{index + 7}</span>
               {section}
               <small>Planned</small>
             </span>
@@ -128,6 +144,11 @@ export function Dashboard({
           <RunsWorkspace accessToken={accessToken} />
         ) : section === "gmail" ? (
           <GmailWorkspace accessToken={accessToken} />
+        ) : section === "news" ? (
+          <NewsWorkspace
+            accessToken={accessToken}
+            canManage={user.role !== "MEMBER"}
+          />
         ) : (
           <KnowledgeWorkspace
             accessToken={accessToken}

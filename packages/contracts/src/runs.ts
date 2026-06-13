@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { uuidSchema } from "./api.js";
+import { agentTemplateKeySchema } from "./agents.js";
 import { mcpToolIdSchema } from "./mcp.js";
 import { agentRunStatusSchema, runStepStatusSchema } from "./statuses.js";
 
@@ -10,6 +11,7 @@ export const createAgentRunSchema = z
     conversationId: uuidSchema.optional(),
     documentIds: z.array(uuidSchema).max(50).optional(),
     retrievalLimit: z.number().int().min(1).max(20).default(5),
+    newsFeedIds: z.array(uuidSchema).max(10).optional(),
     rssUrl: z.url().optional()
   })
   .strict();
@@ -21,6 +23,7 @@ export const agentRunConfigSnapshotSchema = z
     provider: z.string().min(1),
     model: z.string().min(1),
     systemPrompt: z.string().min(1),
+    templateKey: agentTemplateKeySchema.nullable().optional(),
     maxSteps: z.number().int().min(1),
     maxToolCalls: z.number().int().min(0),
     maxTokens: z.number().int().positive().nullable(),
