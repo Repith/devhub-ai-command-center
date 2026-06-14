@@ -529,20 +529,20 @@ Acceptance: users can see how an agent is expected to execute as a block graph, 
 
 ## PR 31: Workflow Compiler Foundation
 
-- [ ] Add a server-side workflow compiler in `apps/worker/src/agent-graph/workflow-compiler.ts`.
-- [ ] Compile validated `AgentWorkflowDefinition` into a LangGraph `StateGraph`.
-- [ ] Use a fixed server-side node handler registry:
+- [x] Add a server-side workflow compiler in `apps/worker/src/agent-graph/workflow-compiler.ts`.
+- [x] Compile validated `AgentWorkflowDefinition` into a LangGraph `StateGraph`.
+- [x] Use a fixed server-side node handler registry:
   - no arbitrary user code,
   - no eval,
   - no arbitrary tool execution.
-- [ ] Keep calls behind existing boundaries:
+- [x] Keep calls behind existing boundaries:
   - `ToolRegistryPort`,
   - `LlmProviderPort`,
   - tenant-scoped repositories,
   - `AgentStepRunner`,
   - budget/cancellation checks.
-- [ ] Do not enable user-edited workflows in production runtime yet.
-- [ ] Add tests for:
+- [x] Do not enable user-edited workflows in production runtime yet.
+- [x] Add tests for:
   - simple knowledge workflow compilation,
   - conditional RSS workflow compilation,
   - usage summary workflow compilation,
