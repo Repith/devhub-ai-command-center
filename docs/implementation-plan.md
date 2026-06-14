@@ -335,24 +335,24 @@ Acceptance: the default dashboard chat exercises the same LangGraph worker runti
 
 ## PR 25: Gmail Runtime Integration
 
-- [ ] Decide the Gmail tool boundary:
+- [x] Decide the Gmail tool boundary:
   - either register Gmail tools directly in the worker with a safe token access provider,
   - or route Gmail tool execution through an API-owned service boundary.
-- [ ] Register `gmail.search_threads`, `gmail.get_thread`, `gmail.create_draft`, and `gmail.update_draft` in the worker `ToolRegistryPort` only when Gmail is configured.
-- [ ] Add a tenant/user-scoped Gmail access token provider for worker-side tool execution:
+- [x] Register `gmail.search_threads`, `gmail.get_thread`, `gmail.create_draft`, and `gmail.update_draft` in the worker `ToolRegistryPort` only when Gmail is configured.
+- [x] Add a tenant/user-scoped Gmail access token provider for worker-side tool execution:
   - decrypt refresh/access tokens only server-side,
   - refresh access tokens when needed,
   - never expose tokens in prompts, logs, WebSocket events, step previews, or tool previews.
-- [ ] Extend `CreateAgentRun` or add a narrow Gmail run input contract for:
+- [x] Extend `CreateAgentRun` or add a narrow Gmail run input contract for:
   - Gmail thread search query,
   - explicit thread ID for reply drafting,
   - optional draft review target.
-- [ ] Add LangGraph routing for Gmail templates:
+- [x] Add LangGraph routing for Gmail templates:
   - `gmail-triage`: search threads -> get bounded thread summaries -> generate priority summary.
   - `gmail-reply-assistant`: get explicit thread -> generate draft content -> create/update Gmail draft -> create local draft review record.
-- [ ] Sending must remain an authenticated API action from the review UI, never a model-callable tool.
-- [ ] Validate and bound Gmail message bodies before prompt use.
-- [ ] Add tests for:
+- [x] Sending must remain an authenticated API action from the review UI, never a model-callable tool.
+- [x] Validate and bound Gmail message bodies before prompt use.
+- [x] Add tests for:
   - missing Gmail connection,
   - expired Gmail token refresh,
   - Gmail tool allowlist denial,

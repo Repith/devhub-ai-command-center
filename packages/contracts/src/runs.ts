@@ -12,7 +12,10 @@ export const createAgentRunSchema = z
     documentIds: z.array(uuidSchema).max(50).optional(),
     retrievalLimit: z.number().int().min(1).max(20).default(5),
     newsFeedIds: z.array(uuidSchema).max(10).optional(),
-    rssUrl: z.url().optional()
+    rssUrl: z.url().optional(),
+    gmailSearchQuery: z.string().trim().min(1).max(500).optional(),
+    gmailThreadId: z.string().trim().min(1).max(256).optional(),
+    gmailDraftReviewId: uuidSchema.optional()
   })
   .strict();
 export type CreateAgentRun = z.infer<typeof createAgentRunSchema>;
