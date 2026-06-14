@@ -254,11 +254,11 @@ summarizes only those feeds with links and token usage.
 
 ## PR 21: Usage and Token Summary
 
-- [ ] Expand usage contracts and API responses with dashboard-ready totals by
+- [x] Expand usage contracts and API responses with dashboard-ready totals by
   period, agent, run, provider, and model.
-- [ ] Add an agent-friendly usage summary capability that reads persisted usage
+- [x] Add an agent-friendly usage summary capability that reads persisted usage
   only and never estimates authoritative totals from prompt text.
-- [ ] Surface budget warnings and recent expensive runs in API responses and UI.
+- [x] Surface budget warnings and recent expensive runs in API responses and UI.
 - [ ] Owner review and merge.
 
 Acceptance: users can inspect token spend and latency from persisted usage data

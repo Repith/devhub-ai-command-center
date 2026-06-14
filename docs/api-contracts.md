@@ -127,8 +127,7 @@ feeds by default.
 - `POST /mcp/connections`
 - `GET /mcp/tools`
 - `POST /mcp/tools/call` for development diagnostics only
-- `GET /usage/tokens`
-- `GET /usage/agent-runs`
+- `GET /usage?period=24h|7d|30d|all`
 - `GET /golden-cases`
 - `POST /golden-cases`
 - `POST /evaluations`
@@ -136,3 +135,11 @@ feeds by default.
 
 Direct diagnostic tool calls require elevated owner authorization and are
 recorded in the audit log.
+
+Usage responses are dashboard-ready summaries derived only from persisted
+`TokenUsage` rows in the authenticated tenant. They include tenant totals,
+time-period buckets, agent totals, run totals, provider/model totals, recent
+expensive runs, and budget warnings calculated from each run's persisted config
+snapshot. The internal `usage.summary` MCP capability exposes the same
+persisted summary to the Usage Analyst agent and never estimates authoritative
+token totals from prompt text.

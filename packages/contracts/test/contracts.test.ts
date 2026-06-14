@@ -13,7 +13,8 @@ import {
   mcpToolIdSchema,
   newsFeedSchema,
   registerSchema,
-  realtimeEventSchema
+  realtimeEventSchema,
+  usageSummarySchema
 } from "../src";
 
 describe("contracts", () => {
@@ -121,6 +122,7 @@ describe("contracts", () => {
   });
 
   it("includes Gmail draft tools but no model-callable send tool", () => {
+    expect(mcpToolIdSchema.safeParse("usage.summary").success).toBe(true);
     expect(mcpToolIdSchema.safeParse("gmail.create_draft").success).toBe(true);
     expect(mcpToolIdSchema.safeParse("gmail.update_draft").success).toBe(true);
     expect(mcpToolIdSchema.safeParse("gmail.send").success).toBe(false);
@@ -167,4 +169,75 @@ describe("contracts", () => {
 
     expect(result.success).toBe(true);
   });
+
+  it("validates dashboard-ready usage summaries", () => {
+    const result = usageSummarySchema.safeParse({
+      period: "30d",
+      generatedAt: "2026-06-09T12:00:00.000Z",
+      tenant: usageTotals(),
+      periods: [
+        {
+          periodStart: "2026-06-09T00:00:00.000Z",
+          periodEnd: "2026-06-10T00:00:00.000Z",
+          ...usageTotals()
+        }
+      ],
+      agents: [
+        {
+          agentId: "64fe81ba-7faf-4b37-a2b8-347cd19b5550",
+          ...usageTotals()
+        }
+      ],
+      runs: [
+        {
+          runId: "9a50ec3e-3ba9-4775-a57f-b7c88f34a10d",
+          agentId: "64fe81ba-7faf-4b37-a2b8-347cd19b5550",
+          status: "COMPLETED",
+          startedAt: "2026-06-09T12:00:00.000Z",
+          completedAt: "2026-06-09T12:01:00.000Z",
+          createdAt: "2026-06-09T12:00:00.000Z",
+          ...usageTotals()
+        }
+      ],
+      providerModels: [
+        {
+          provider: "ollama",
+          model: "qwen3:8b",
+          ...usageTotals()
+        }
+      ],
+      recentExpensiveRuns: [],
+      budgetWarnings: [
+        {
+          runId: "9a50ec3e-3ba9-4775-a57f-b7c88f34a10d",
+          agentId: "64fe81ba-7faf-4b37-a2b8-347cd19b5550",
+          level: "NEAR_BUDGET",
+          maxTokens: 100,
+          totalTokens: 90,
+          percentUsed: 90,
+          createdAt: "2026-06-09T12:00:00.000Z"
+        }
+      ]
+    });
+
+    expect(result.success).toBe(true);
+  });
 });
+
+function usageTotals(): {
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  costMicros: number;
+  latencyMs: number;
+  retryCount: number;
+} {
+  return {
+    inputTokens: 12,
+    outputTokens: 8,
+    totalTokens: 20,
+    costMicros: 0,
+    latencyMs: 42,
+    retryCount: 1
+  };
+}

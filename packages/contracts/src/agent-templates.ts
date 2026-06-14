@@ -152,7 +152,7 @@ export const DEFAULT_AGENT_TEMPLATES = [
       knowledgeBaseIds: []
     },
     requiredSetup: [
-      { id: "usage.summary", label: "Usage summary API", status: "PLANNED" }
+      { id: "usage.summary", label: "Usage summary API", status: "READY" }
     ]
   }
 ] as const satisfies readonly AgentTemplate[];
