@@ -108,12 +108,29 @@ describe("agent runs", () => {
       status: "QUEUED",
       input: {
         message: "Use the feed and knowledge.",
+        conversationId: run.conversationId,
         retrievalLimit: 3,
         rssUrl: "https://example.com/feed.xml"
       }
     });
+    expect(run.conversationId).toEqual(expect.any(String));
     expect(run).not.toHaveProperty("tenantId");
     expect(jobs.at(-1)).toMatchObject({ runId: run.id });
+
+    const messages = await database!.message.findMany({
+      where: {
+        conversationId: run.conversationId!,
+        tenantId: jobs.at(-1)!.tenantId
+      },
+      orderBy: { sequence: "asc" }
+    });
+    expect(messages).toMatchObject([
+      {
+        role: "USER",
+        content: "Use the feed and knowledge.",
+        sequence: 1
+      }
+    ]);
 
     const snapshotResponse = await request(app!.getHttpServer())
       .get(`/api/v1/runs/${run.id}`)
@@ -127,6 +144,39 @@ describe("agent runs", () => {
       .get(`/api/v1/runs/${run.id}`)
       .set("Authorization", `Bearer ${betaToken}`)
       .expect(404);
+  });
+
+  it("continues an existing conversation when creating a durable run", async () => {
+    const first = await request(app!.getHttpServer())
+      .post(`/api/v1/agents/${agent.id}/runs`)
+      .set("Authorization", `Bearer ${alphaToken}`)
+      .send({ message: "First durable message." })
+      .expect(201);
+    const firstRun = first.body as AgentRun;
+
+    const second = await request(app!.getHttpServer())
+      .post(`/api/v1/agents/${agent.id}/runs`)
+      .set("Authorization", `Bearer ${alphaToken}`)
+      .send({
+        conversationId: firstRun.conversationId,
+        message: "Second durable message."
+      })
+      .expect(201);
+    const secondRun = second.body as AgentRun;
+
+    expect(secondRun.conversationId).toBe(firstRun.conversationId);
+
+    const messages = await database!.message.findMany({
+      where: {
+        conversationId: firstRun.conversationId!,
+        tenantId: jobs.at(-1)!.tenantId
+      },
+      orderBy: { sequence: "asc" }
+    });
+    expect(messages.map((message) => [message.role, message.content])).toEqual([
+      ["USER", "First durable message."],
+      ["USER", "Second durable message."]
+    ]);
   });
 
   it("rejects client-provided tenant context", async () => {

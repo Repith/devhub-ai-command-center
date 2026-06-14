@@ -60,6 +60,12 @@ export class ChatController {
     response.status(HttpStatus.OK);
     response.setHeader("Content-Type", "application/x-ndjson; charset=utf-8");
     response.setHeader("Cache-Control", "no-cache, no-store");
+    response.setHeader("Deprecation", "true");
+    response.setHeader(
+      "Link",
+      '</api/v1/agents/{agentId}/runs>; rel="successor-version"'
+    );
+    response.setHeader("X-DevHub-Compatibility-Path", "direct-chat");
     response.setHeader("X-Accel-Buffering", "no");
     response.flushHeaders();
     await this.write(response, prepared.started);

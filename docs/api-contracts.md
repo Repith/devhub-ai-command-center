@@ -66,11 +66,18 @@ Template install creates missing default definitions and revives deleted
 template-owned definitions without overwriting active user edits. Template reset
 intentionally restores only template-owned definitions from code defaults.
 
-Chat accepts a message and an optional existing conversation identifier. The
-response is `application/x-ndjson` with versioned `chat.started`, `chat.delta`,
-`chat.completed`, or `chat.error` records. A completed record contains the
-persisted assistant message and preliminary provider, model, token, and
-duration usage. Conversation and message responses never expose `tenantId`.
+Agent-backed user interactions should create durable runs through
+`POST /agents/:agentId/runs`. Run creation accepts a message and an optional
+existing conversation identifier. The API derives tenant context from the
+authenticated principal, creates or reuses the conversation inside the current
+tenant, persists the user message, stores the effective `conversationId` in the
+run input snapshot, and enqueues worker execution.
+
+`POST /agents/:agentId/chat` remains a compatibility endpoint for older browser
+surfaces. It is marked as a direct-chat compatibility path in response headers
+and should not be used for new agent-backed flows.
+
+Conversation and message responses never expose `tenantId`.
 
 ## Runs
 
@@ -79,8 +86,14 @@ duration usage. Conversation and message responses never expose `tenantId`.
 - `GET /agent-runs/:runId/steps`
 - `POST /agent-runs/:runId/cancel`
 
-Run creation returns `202 Accepted` with the persisted run snapshot. Cancellation
+Run creation returns `201 Created` with the persisted run snapshot. Cancellation
 is idempotent and returns the latest state.
+
+Worker-backed runs persist the full assistant answer as a conversation message
+after `llm.generate` completes. `AgentRunStep.outputPreview` is a bounded
+preview for timelines and audits, not the authoritative copy of the answer.
+The assistant message token fields and the corresponding `TokenUsage` row are
+written in the same database transaction.
 
 ## Knowledge
 

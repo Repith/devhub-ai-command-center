@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import type {
   AgentRun,
   AgentRunConfigSnapshot,
@@ -50,6 +52,11 @@ export interface AgentRunStepRecord {
 export interface CompleteStepInput {
   outputPreview: string;
   durationMs: number;
+  assistantMessage?: {
+    agentId: string;
+    content: string;
+    conversationId: string;
+  };
   provider?: string;
   model?: string;
   inputTokens?: number;
@@ -72,8 +79,75 @@ export class PrismaAgentRunRepository {
         conversationId: input.conversationId ?? null,
         input: input as Prisma.InputJsonValue,
         configSnapshot: snapshotAgent(agent) as Prisma.InputJsonValue,
-        correlationId: context.correlationId
+        correlationId: runCorrelationId()
       }
+    });
+  }
+
+  public async createQueuedWithUserMessage(
+    context: TenantContext,
+    agent: AgentDefinitionRecord,
+    input: CreateAgentRun
+  ): Promise<AgentRunRecord> {
+    return this.database.$transaction(async (transaction) => {
+      const conversationId =
+        input.conversationId ??
+        (
+          await transaction.conversation.create({
+            data: {
+              tenantId: context.tenantId,
+              agentId: agent.id,
+              title: titleFrom(input.message),
+              messages: {
+                create: {
+                  role: "USER",
+                  content: input.message,
+                  sequence: 1
+                }
+              }
+            }
+          })
+        ).id;
+
+      if (input.conversationId) {
+        const locked = await transaction.conversation.updateMany({
+          where: {
+            id: input.conversationId,
+            tenantId: context.tenantId,
+            agentId: agent.id,
+            deletedAt: null
+          },
+          data: { updatedAt: new Date() }
+        });
+        if (locked.count !== 1) {
+          throw new ConversationNotFoundError();
+        }
+        const latest = await transaction.message.findFirst({
+          where: { tenantId: context.tenantId, conversationId },
+          orderBy: { sequence: "desc" }
+        });
+        await transaction.message.create({
+          data: {
+            tenantId: context.tenantId,
+            conversationId,
+            role: "USER",
+            content: input.message,
+            sequence: (latest?.sequence ?? 0) + 1
+          }
+        });
+      }
+
+      const runInput: CreateAgentRun = { ...input, conversationId };
+      return transaction.agentRun.create({
+        data: {
+          tenantId: context.tenantId,
+          agentId: agent.id,
+          conversationId,
+          input: runInput as Prisma.InputJsonValue,
+          configSnapshot: snapshotAgent(agent) as Prisma.InputJsonValue,
+          correlationId: runCorrelationId()
+        }
+      });
     });
   }
 
@@ -258,6 +332,41 @@ export class PrismaAgentRunRepository {
           }
         });
       }
+      if (input.assistantMessage && input.provider && input.model) {
+        const locked = await transaction.conversation.updateMany({
+          where: {
+            id: input.assistantMessage.conversationId,
+            tenantId: context.tenantId,
+            agentId: input.assistantMessage.agentId,
+            deletedAt: null
+          },
+          data: { updatedAt: new Date() }
+        });
+        if (locked.count !== 1) {
+          throw new ConversationNotFoundError();
+        }
+        const latest = await transaction.message.findFirst({
+          where: {
+            tenantId: context.tenantId,
+            conversationId: input.assistantMessage.conversationId
+          },
+          orderBy: { sequence: "desc" }
+        });
+        await transaction.message.create({
+          data: {
+            tenantId: context.tenantId,
+            conversationId: input.assistantMessage.conversationId,
+            role: "ASSISTANT",
+            content: input.assistantMessage.content,
+            sequence: (latest?.sequence ?? 0) + 1,
+            provider: input.provider,
+            model: input.model,
+            inputTokens: input.inputTokens ?? 0,
+            outputTokens: input.outputTokens ?? 0,
+            durationMs: input.durationMs
+          }
+        });
+      }
       return step;
     });
   }
@@ -355,6 +464,13 @@ export class PrismaAgentRunRepository {
   }
 }
 
+export class ConversationNotFoundError extends Error {
+  public constructor() {
+    super("Conversation was not found.");
+    this.name = "ConversationNotFoundError";
+  }
+}
+
 function snapshotAgent(agent: AgentDefinitionRecord): AgentRunConfigSnapshot {
   return {
     agentId: agent.id,
@@ -376,4 +492,12 @@ function templateKey(
 ): AgentRunConfigSnapshot["templateKey"] {
   const result = agentTemplateKeySchema.safeParse(value);
   return result.success ? result.data : null;
+}
+
+function titleFrom(content: string): string {
+  return content.replace(/\s+/g, " ").trim().slice(0, 120);
+}
+
+function runCorrelationId(): string {
+  return randomUUID();
 }
