@@ -1,3 +1,5 @@
+@import "@xyflow/react/dist/style.css";
+
 :root {
   color-scheme: dark;
   font-family:
@@ -1806,6 +1808,142 @@ button.nav-item {
   display: grid;
   min-width: 0;
   gap: 0.25rem;
+}
+
+.workflow-preview {
+  display: grid;
+  gap: 0.9rem;
+  border-bottom: 1px solid #252936;
+  padding: 1.1rem 1.5rem 1.35rem;
+  background: rgb(11 13 18 / 62%);
+}
+
+.workflow-preview-state {
+  min-height: 8rem;
+  place-content: center;
+  justify-items: center;
+  text-align: center;
+}
+
+.workflow-preview-state p {
+  margin: 0;
+  color: #cbd1df;
+  font-weight: 750;
+}
+
+.workflow-preview-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.workflow-preview-heading h3 {
+  margin: 0;
+  color: #f4f6fb;
+  font-size: 1rem;
+}
+
+.workflow-preview-heading span {
+  border: 1px solid #303543;
+  border-radius: 999px;
+  padding: 0.35rem 0.55rem;
+  background: #171a22;
+  color: #b8c0d1;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.workflow-preview-canvas {
+  height: 18rem;
+  overflow: hidden;
+  border: 1px solid #252936;
+  border-radius: 0.85rem;
+  background: #0d1016;
+}
+
+.workflow-preview-canvas .react-flow__node {
+  width: 11.25rem;
+  border: 1px solid #3b4152;
+  border-radius: 0.7rem;
+  padding: 0.65rem 0.75rem;
+  background: #171a22;
+  color: #f4f6fb;
+  font-size: 0.78rem;
+  font-weight: 800;
+  box-shadow: 0 0.65rem 1.8rem rgb(0 0 0 / 18%);
+}
+
+.workflow-preview-canvas .react-flow__node.workflow-node-start,
+.workflow-preview-canvas .react-flow__node.workflow-node-complete {
+  border-color: #31543f;
+  color: #8fe3b0;
+}
+
+.workflow-preview-canvas .react-flow__node.workflow-node-fail {
+  border-color: #62343b;
+  color: #ffb1b8;
+}
+
+.workflow-preview-canvas .react-flow__node.workflow-node-condition {
+  border-color: #5b4f2a;
+  color: #f2c66d;
+}
+
+.workflow-preview-canvas .react-flow__edge-path {
+  stroke: #8b7cff;
+  stroke-width: 2;
+}
+
+.workflow-preview-canvas .workflow-edge-failure .react-flow__edge-path {
+  stroke: #ff9b9b;
+}
+
+.workflow-preview-canvas .react-flow__edge-textbg {
+  fill: #11141b;
+}
+
+.workflow-preview-canvas .react-flow__edge-text {
+  fill: #cbd1df;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.workflow-preview-steps,
+.workflow-preview-edges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.workflow-preview-steps li,
+.workflow-preview-edges li {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid #2d3240;
+  border-radius: 999px;
+  padding: 0.42rem 0.6rem;
+  background: #11141b;
+}
+
+.workflow-preview-steps span {
+  color: #858da0;
+  font-family: ui-monospace, monospace;
+  font-size: 0.65rem;
+}
+
+.workflow-preview-steps strong,
+.workflow-preview-edges span {
+  color: #e7eaf1;
+  font-size: 0.72rem;
+  white-space: nowrap;
 }
 
 .timeline-step span:not(.timeline-index) {
