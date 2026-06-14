@@ -180,7 +180,7 @@ export class GmailService {
     principal: RequestPrincipal,
     input: CreateGmailDraftReview
   ): Promise<GmailDraftReview> {
-    const record = await this.draftReviews.create(
+    const record = await this.draftReviews.createUserReview(
       this.context(principal),
       input
     );

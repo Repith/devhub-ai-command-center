@@ -369,7 +369,7 @@ model GmailDraftReview {
   status       GmailDraftReviewStatus @default(NEEDS_REVIEW)
   tenant       Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   user         User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  agentRun     AgentRun?              @relation(fields: [agentRunId], references: [id], onDelete: SetNull)
+  agentRun     AgentRun?              @relation(fields: [tenantId, agentRunId], references: [tenantId, id], onDelete: Restrict)
   createdAt    DateTime               @default(now()) @db.Timestamptz(3)
   updatedAt    DateTime               @updatedAt @db.Timestamptz(3)
   sentAt       DateTime?              @db.Timestamptz(3)

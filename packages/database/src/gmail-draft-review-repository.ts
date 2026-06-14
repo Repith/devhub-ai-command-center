@@ -29,6 +29,10 @@ export interface MarkGmailDraftSentInput {
   threadId: string | null;
 }
 
+export interface CreateGmailDraftReviewRecordInput extends CreateGmailDraftReview {
+  agentRunId?: string;
+}
+
 export class PrismaGmailDraftReviewRepository {
   public constructor(private readonly database: DatabaseClient) {}
 
@@ -60,13 +64,49 @@ export class PrismaGmailDraftReviewRepository {
 
   public create(
     context: TenantContext,
+    input: CreateGmailDraftReviewRecordInput
+  ): Promise<GmailDraftReviewRecord> {
+    return this.database.$transaction(async (transaction) => {
+      if (input.agentRunId) {
+        const agentRun = await transaction.agentRun.findUnique({
+          where: {
+            tenantId_id: {
+              tenantId: context.tenantId,
+              id: input.agentRunId
+            }
+          },
+          select: { id: true }
+        });
+        if (!agentRun) {
+          throw new Error("Agent run was not found for this tenant.");
+        }
+      }
+      return transaction.gmailDraftReview.create({
+        data: {
+          tenantId: context.tenantId,
+          userId: context.userId,
+          agentRunId: input.agentRunId ?? null,
+          threadId: input.threadId ?? null,
+          gmailDraftId: input.gmailDraftId ?? null,
+          to: [...input.to],
+          cc: [...input.cc],
+          subject: input.subject,
+          body: input.body,
+          status: "NEEDS_REVIEW"
+        }
+      });
+    });
+  }
+
+  public createUserReview(
+    context: TenantContext,
     input: CreateGmailDraftReview
   ): Promise<GmailDraftReviewRecord> {
     return this.database.gmailDraftReview.create({
       data: {
         tenantId: context.tenantId,
         userId: context.userId,
-        agentRunId: input.agentRunId ?? null,
+        agentRunId: null,
         threadId: input.threadId ?? null,
         gmailDraftId: input.gmailDraftId ?? null,
         to: [...input.to],
