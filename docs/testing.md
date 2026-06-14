@@ -11,6 +11,11 @@ repositories, migrations, BullMQ behavior, vector filtering, MCP discovery and
 calls, worker LangGraph execution, and Socket.IO authorization. Ollama has
 contract tests plus a deterministic fake for normal CI.
 
+Durable chat regression tests cover new conversation run creation, existing
+conversation continuation, assistant message persistence after successful
+worker completion, no assistant message on failure or cancellation, and usage
+summaries derived from `TokenUsage` rows created by chat-triggered runs.
+
 End-to-end tests exercise the browser-visible workflow from registration through
 agent configuration, upload, indexing, cited answer, MCP call, timeline, usage,
 and evaluation.
@@ -22,6 +27,8 @@ and evaluation.
 - A socket cannot subscribe to a foreign run.
 - A Qdrant query cannot return a foreign chunk.
 - A queue payload cannot override persisted ownership.
+- A browser-provided conversation identifier cannot attach a run to another
+  tenant or agent.
 - Refresh-token reuse revokes the affected session family.
 - A model cannot call a tool absent from the agent allowlist.
 - A graph node cannot bypass tool allowlists, tenant checks, or budget

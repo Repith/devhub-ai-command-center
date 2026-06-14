@@ -64,15 +64,18 @@ contracts and reusable logic, not framework-specific shortcuts.
 ## Runtime Flow
 
 1. The API authenticates the request and derives user and tenant context.
-2. It creates an `AgentRun` transactionally and enqueues `run-agent`.
+2. It creates or reuses a tenant-scoped conversation, persists the user
+   message, creates an `AgentRun` transactionally, and enqueues `run-agent`.
 3. The worker claims the job using an idempotent job identifier.
 4. The runner loads the agent definition and authorized resources.
 5. A worker-local LangGraph graph routes deterministic nodes for retrieval,
    optional RSS, model generation, completion, and terminal failure handling.
 6. Validated MCP calls run through an allowlisted tool registry.
 7. Every operation creates or completes an `AgentRunStep`.
-8. Usage and errors are persisted before an event is published.
-9. The UI combines Socket.IO events with REST snapshots for recovery.
+8. The final assistant response is persisted as a full conversation message;
+   `AgentRunStep.outputPreview` remains a bounded operational preview.
+9. Usage and errors are persisted before an event is published.
+10. The UI combines Socket.IO events with REST snapshots for recovery.
 
 ## Deployment Boundary
 
@@ -85,10 +88,12 @@ fast reloads. Production application images are deferred until a deployment
 target exists; this does not change the application boundaries or Compose-based
 stateful dependencies.
 
-The PR 6 chat foundation streams directly from the API to establish provider,
+The PR 6 chat foundation streamed directly from the API to establish provider,
 conversation, cancellation, and usage contracts without introducing the agent
-queue early. PR 10 replaces this direct orchestration path with durable worker
-runs while preserving the provider port and persisted conversation model.
+queue early. Durable worker-backed `AgentRun` execution is now the primary
+agent interaction path. The legacy `/agents/:agentId/chat` endpoint remains a
+compatibility path until all browser chat surfaces use run creation, Socket.IO
+events, and REST run snapshots.
 
 LangGraph is introduced after the explicit runner has proven the runtime
 contract. It must preserve the same REST, Socket.IO, repository, tool registry,

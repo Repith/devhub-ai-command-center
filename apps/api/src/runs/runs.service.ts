@@ -8,9 +8,11 @@ import type {
   CreateAgentRun
 } from "@devhub/contracts";
 import type {
+  AgentDefinitionRecord,
   PrismaAgentDefinitionRepository,
   PrismaAgentRunRepository
 } from "@devhub/database";
+import { ConversationNotFoundError } from "@devhub/database";
 import type { TenantContext } from "@devhub/domain";
 
 import type { RequestPrincipal } from "../auth/auth.types";
@@ -40,7 +42,7 @@ export class RunsService {
     if (!agent) {
       throw new NotFoundException("Agent definition was not found.");
     }
-    const run = await this.runs.createQueued(context, agent, input);
+    const run = await this.createQueuedRun(context, agent, input);
     await this.queue.enqueue({
       version: 1,
       tenantId: context.tenantId,
@@ -122,5 +124,20 @@ export class RunsService {
       userId: principal.userId,
       correlationId: principal.sessionId
     };
+  }
+
+  private async createQueuedRun(
+    context: TenantContext,
+    agent: AgentDefinitionRecord,
+    input: CreateAgentRun
+  ): Promise<Awaited<ReturnType<PrismaAgentRunRepository["createQueued"]>>> {
+    try {
+      return await this.runs.createQueuedWithUserMessage(context, agent, input);
+    } catch (error) {
+      if (error instanceof ConversationNotFoundError) {
+        throw new NotFoundException("Conversation was not found.");
+      }
+      throw error;
+    }
   }
 }

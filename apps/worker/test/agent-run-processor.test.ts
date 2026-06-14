@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { FakeLlmProvider } from "@devhub/ai";
+import { FakeLlmProvider, type LlmProviderPort } from "@devhub/ai";
 import type {
   AgentRunConfigSnapshot,
   AgentRunJob,
@@ -12,6 +12,7 @@ import type {
   AgentRunRecord,
   AgentRunStepRecord,
   CompleteStepInput,
+  ConversationMessageRecord,
   NewsFeedRecord,
   RecordNewsFeedFetchInput
 } from "@devhub/database";
@@ -29,6 +30,7 @@ describe("AgentRunProcessor", () => {
   it("completes retrieval, one MCP tool call, and generation durably", async () => {
     const input: CreateAgentRun = {
       message: "Summarize workspace knowledge and the feed.",
+      conversationId: "00000000-0000-4000-8000-000000000201",
       retrievalLimit: 3,
       rssUrl: "https://example.com/feed.xml"
     };
@@ -46,6 +48,7 @@ describe("AgentRunProcessor", () => {
     await new AgentRunProcessor({
       llmProvider,
       publisher,
+      conversations: new FakeConversationRepository(input),
       runs,
       tools
     }).process(job());
@@ -65,6 +68,11 @@ describe("AgentRunProcessor", () => {
     );
     expect(runs.usages).toEqual([
       expect.objectContaining({
+        assistantMessage: {
+          agentId: config.agentId,
+          content: "Final answer",
+          conversationId: input.conversationId
+        },
         provider: "fake",
         model: config.model,
         inputTokens: 11,
@@ -72,6 +80,11 @@ describe("AgentRunProcessor", () => {
         retryCount: 0
       })
     ]);
+    expect(llmProvider.requests[0]?.messages).toEqual(
+      expect.arrayContaining([
+        { role: "assistant", content: "Previous answer" }
+      ])
+    );
     expect(publisher.events.map((event) => event.type)).toEqual([
       "agent_run.started",
       "agent_run.step_changed",
@@ -239,6 +252,7 @@ describe("AgentRunProcessor", () => {
         retryCount: 2
       })
     ]);
+    expect(runs.assistantMessages).toHaveLength(0);
     expect(publisher.events.at(-1)).toMatchObject({
       type: "agent_run.status_changed",
       payload: {
@@ -247,11 +261,65 @@ describe("AgentRunProcessor", () => {
       }
     });
   });
+
+  it("does not persist an assistant message when generation fails", async () => {
+    const input: CreateAgentRun = {
+      message: "This will fail.",
+      conversationId: "00000000-0000-4000-8000-000000000201",
+      retrievalLimit: 5
+    };
+    const runs = new FakeRunRepository(
+      input,
+      configSnapshot({ enabledToolIds: [] })
+    );
+
+    await expect(
+      new AgentRunProcessor({
+        conversations: new FakeConversationRepository(input),
+        llmProvider: new FailingLlmProvider(),
+        runs,
+        tools: new FakeToolRegistry()
+      }).process(job())
+    ).rejects.toThrow("Synthetic model failure");
+
+    expect(runs.failed?.code).toBe("AGENT_RUN_FAILED");
+    expect(runs.assistantMessages).toHaveLength(0);
+  });
+
+  it("does not persist an assistant message when cancellation is requested", async () => {
+    const input: CreateAgentRun = {
+      message: "Cancel before side effects.",
+      conversationId: "00000000-0000-4000-8000-000000000201",
+      retrievalLimit: 5
+    };
+    const runs = new FakeRunRepository(
+      input,
+      configSnapshot({ enabledToolIds: [] })
+    );
+    runs.cancelRequested = true;
+
+    await expect(
+      new AgentRunProcessor({
+        conversations: new FakeConversationRepository(input),
+        llmProvider: new FakeLlmProvider({ chunks: ["Should not persist"] }),
+        runs,
+        tools: new FakeToolRegistry()
+      }).process(job())
+    ).rejects.toThrow("Agent run was cancelled.");
+
+    expect(runs.cancelled).toBe(true);
+    expect(runs.assistantMessages).toHaveLength(0);
+  });
 });
 
 class FakeRunRepository {
   public readonly steps: AgentRunStepRecord[] = [];
   public readonly usages: CompleteStepInput[] = [];
+  public readonly assistantMessages: NonNullable<
+    CompleteStepInput["assistantMessage"]
+  >[] = [];
+  public cancelRequested = false;
+  public cancelled = false;
   public completed = false;
   public failed: { code: string; message: string } | null = null;
   public runExists = true;
@@ -269,7 +337,7 @@ class FakeRunRepository {
   }
 
   public isCancellationRequested(): Promise<boolean> {
-    return Promise.resolve(false);
+    return Promise.resolve(this.cancelRequested);
   }
 
   public markCompleted(): Promise<AgentRunRecord> {
@@ -278,6 +346,7 @@ class FakeRunRepository {
   }
 
   public markCancelled(): Promise<AgentRunRecord> {
+    this.cancelled = true;
     return Promise.resolve(runRecord(this.input, this.config, "CANCELLED"));
   }
 
@@ -324,6 +393,9 @@ class FakeRunRepository {
     if (input.provider) {
       this.usages.push(input);
     }
+    if (input.assistantMessage) {
+      this.assistantMessages.push(input.assistantMessage);
+    }
     step.status = "COMPLETED";
     step.outputPreview = input.outputPreview;
     return Promise.resolve(step);
@@ -367,6 +439,26 @@ class FakeRunRepository {
       throw new Error(`Step ${stepId} was not created.`);
     }
     return step;
+  }
+}
+
+class FakeConversationRepository {
+  public constructor(private readonly input: CreateAgentRun) {}
+
+  public listMessages(): Promise<ConversationMessageRecord[]> {
+    return Promise.resolve([
+      messageRecord("USER", "Previous question", 1),
+      messageRecord("ASSISTANT", "Previous answer", 2),
+      messageRecord("USER", this.input.message, 3)
+    ]);
+  }
+}
+
+class FailingLlmProvider implements LlmProviderPort {
+  public readonly name = "failing-fake";
+
+  public streamChat(): AsyncIterable<never> {
+    throw new Error("Synthetic model failure");
   }
 }
 
@@ -532,5 +624,27 @@ function stepRecord(
     completedAt: status === "RUNNING" ? null : now,
     createdAt: now,
     updatedAt: now
+  };
+}
+
+function messageRecord(
+  role: ConversationMessageRecord["role"],
+  content: string,
+  sequence: number
+): ConversationMessageRecord {
+  const now = new Date();
+  return {
+    id: `00000000-0000-4000-8000-00000000030${sequence}`,
+    tenantId: job().tenantId,
+    conversationId: "00000000-0000-4000-8000-000000000201",
+    role,
+    content,
+    sequence,
+    provider: role === "ASSISTANT" ? "fake" : null,
+    model: role === "ASSISTANT" ? "qwen3:8b" : null,
+    inputTokens: null,
+    outputTokens: null,
+    durationMs: null,
+    createdAt: now
   };
 }

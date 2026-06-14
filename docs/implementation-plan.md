@@ -277,3 +277,444 @@ without relying on model-generated accounting.
 
 Acceptance: after login, the user lands on a readable daily command center
 instead of a configuration-first agent list.
+
+## PR 23: Runtime Path Audit and AgentRun Conversation Bridge
+
+- [x] Make the durable `AgentRun` path the authoritative execution path for agent-backed user interactions.
+- [x] Preserve the existing `/agents/:agentId/chat` endpoint temporarily, but mark it as a compatibility path or adapt it internally to create an `AgentRun`.
+- [x] Add conversation persistence to worker-backed runs:
+  - create or reuse a tenant-scoped conversation when `conversationId` is provided,
+  - persist the user message before enqueueing or as part of run creation,
+  - persist the full assistant message after `llm.generate` completes,
+  - keep `AgentRunStep.outputPreview` as a bounded preview, not the only copy of the answer.
+- [x] Ensure model usage from worker-backed conversations is recorded in `TokenUsage`, so `/usage` includes the main chat experience.
+- [x] Ensure direct `Message` token fields and `TokenUsage` cannot diverge silently:
+  - either derive message usage from `TokenUsage`,
+  - or write both in one transaction when the assistant message is persisted.
+- [x] Add regression tests for:
+  - new conversation + run creation,
+  - existing conversation + run continuation,
+  - assistant message persistence after run completion,
+  - failure without assistant message creation,
+  - cancellation without assistant message creation,
+  - usage summary including chat-triggered runs.
+- [x] Update `docs/architecture.md`, `docs/api-contracts.md`, and `docs/testing.md` to state that durable runs are the primary agent execution path.
+
+Acceptance: asking an agent through the application creates an `AgentRun`, produces `AgentRunStep` rows, streams progress through the existing realtime/run contracts, persists the final assistant message, and records usage in `TokenUsage`.
+
+## PR 24: Dashboard Chat over Durable Runs
+
+- [ ] Replace the home dashboard `streamChat()` path with a durable run-based chat flow.
+- [ ] Update `DashboardHome` and `ChatWorkspace` to use:
+  - `POST /api/v1/agents/:agentId/runs`,
+  - Socket.IO run events for token deltas and step changes,
+  - REST run snapshots for reconnect/recovery.
+- [ ] Keep the UI behavior equivalent for users:
+  - selected agent,
+  - message composer,
+  - streaming assistant response,
+  - cancellation,
+  - visible usage summary.
+- [ ] Add a lightweight client-side run session state:
+  - current run ID,
+  - conversation ID,
+  - streamed assistant draft,
+  - terminal run status,
+  - error message.
+- [ ] Remove duplicate client logic between command center chat and full chat workspace where practical.
+- [ ] Keep `/agents/:agentId/chat` only as a legacy/simple-model endpoint until all UI consumers are migrated.
+- [ ] Add tests for:
+  - home chat starts an `AgentRun`,
+  - token deltas render in order,
+  - reconnect recovers run snapshot,
+  - cancellation calls `/runs/:runId/cancel`,
+  - errors render from terminal run state,
+  - usage widgets refresh after completion.
+
+Acceptance: the default dashboard chat exercises the same LangGraph worker runtime as Runs, including RAG, MCP tools, budgets, timeline, usage tracking, and tenant isolation.
+
+## PR 25: Gmail Runtime Integration
+
+- [ ] Decide the Gmail tool boundary:
+  - either register Gmail tools directly in the worker with a safe token access provider,
+  - or route Gmail tool execution through an API-owned service boundary.
+- [ ] Register `gmail.search_threads`, `gmail.get_thread`, `gmail.create_draft`, and `gmail.update_draft` in the worker `ToolRegistryPort` only when Gmail is configured.
+- [ ] Add a tenant/user-scoped Gmail access token provider for worker-side tool execution:
+  - decrypt refresh/access tokens only server-side,
+  - refresh access tokens when needed,
+  - never expose tokens in prompts, logs, WebSocket events, step previews, or tool previews.
+- [ ] Extend `CreateAgentRun` or add a narrow Gmail run input contract for:
+  - Gmail thread search query,
+  - explicit thread ID for reply drafting,
+  - optional draft review target.
+- [ ] Add LangGraph routing for Gmail templates:
+  - `gmail-triage`: search threads -> get bounded thread summaries -> generate priority summary.
+  - `gmail-reply-assistant`: get explicit thread -> generate draft content -> create/update Gmail draft -> create local draft review record.
+- [ ] Sending must remain an authenticated API action from the review UI, never a model-callable tool.
+- [ ] Validate and bound Gmail message bodies before prompt use.
+- [ ] Add tests for:
+  - missing Gmail connection,
+  - expired Gmail token refresh,
+  - Gmail tool allowlist denial,
+  - Gmail triage summary without mutation,
+  - Gmail reply draft creation,
+  - local draft review creation linked to the current tenant/user/run,
+  - no send action from worker/tool registry,
+  - no token/mail-body leakage in logs, events, step previews, or audit metadata.
+
+Acceptance: Gmail Triage and Gmail Reply Assistant templates produce useful durable runs through LangGraph, create reviewable drafts when appropriate, and cannot send email without explicit authenticated user approval.
+
+## PR 26: Gmail Draft Review Integrity and Security Hardening
+
+- [ ] Remove or restrict public client control over `agentRunId` in `createGmailDraftReviewSchema`.
+- [ ] When a draft review is linked to an `AgentRun`, verify the run belongs to the current tenant and intended user context before persisting the link.
+- [ ] Update `PrismaGmailDraftReviewRepository.create` or the service layer to enforce tenant-scoped `agentRunId` validation.
+- [ ] Ensure `GmailDraftReview.agentRunId` cannot reference a run from another tenant.
+- [ ] Consider changing the Prisma relation to a tenant-aware composite relation where practical.
+- [ ] Add tests for:
+  - foreign tenant `agentRunId` rejection,
+  - foreign user review access rejection,
+  - update/reject/send only for current tenant/user,
+  - SENT/REJECTED reviews cannot be modified,
+  - send action requires a connected Gmail account,
+  - send action audits only metadata, not message body.
+
+Acceptance: Gmail draft reviews cannot be linked to or mutated through cross-tenant or cross-user identifiers, and review/send operations remain server-authoritative.
+
+## PR 27: Dynamic Template Setup State
+
+- [ ] Replace static `templateSetup` responses with dynamic setup state derived from current tenant resources.
+- [ ] Compute template readiness from:
+  - Gmail connection status,
+  - enabled tenant news feeds,
+  - indexed knowledge documents,
+  - availability of `usage.summary`,
+  - available MCP tools in the server registry.
+- [ ] Keep `DEFAULT_AGENT_TEMPLATES` as code-owned template definitions, but make `requiredSetup.status` response-time data.
+- [ ] Add setup summaries to agent responses:
+  - `READY`,
+  - `NEEDS_SETUP`,
+  - `PLANNED`,
+  - optionally `MISCONFIGURED` if an integration exists but server env is incomplete.
+- [ ] Update the dashboard and agent workspace to show actionable setup states:
+  - connect Gmail,
+  - add RSS feed,
+  - upload/index knowledge,
+  - install/reset templates.
+- [ ] Add tests for:
+  - Gmail disconnected -> Gmail templates need setup,
+  - Gmail connected -> Gmail templates ready except explicit planned review features,
+  - no news feeds -> Daily News Briefing needs setup,
+  - enabled news feeds -> Daily News Briefing ready,
+  - no indexed documents -> Knowledge Researcher shows missing knowledge,
+  - member cannot reset templates.
+
+Acceptance: template cards and selected agents show real integration readiness instead of static setup hints.
+
+## PR 28: LangGraph Runtime Modularization
+
+- [ ] Split the oversized `apps/worker/src/agent-run-processor.ts` into explicit runtime modules:
+  - `agent-graph/agent-run-graph.ts`,
+  - `agent-graph/agent-graph-state.ts`,
+  - `agent-graph/agent-step-runner.ts`,
+  - `agent-graph/nodes/load-run.node.ts`,
+  - `agent-graph/nodes/retrieve-knowledge.node.ts`,
+  - `agent-graph/nodes/fetch-news.node.ts`,
+  - `agent-graph/nodes/summarize-usage.node.ts`,
+  - `agent-graph/nodes/generate-answer.node.ts`,
+  - `agent-graph/nodes/complete-run.node.ts`.
+- [ ] Preserve `processAgentRun(options)` as the public worker entrypoint.
+- [ ] Preserve existing step kinds:
+  - `rag.retrieve`,
+  - `mcp.news`,
+  - `usage.summary`,
+  - `llm.generate`.
+- [ ] Keep all persistence, cancellation, budget, retry, usage, and realtime behavior behind reusable helpers.
+- [ ] Consider compiling the default graph once per processor instance instead of rebuilding the graph for every run, as long as run-specific state remains passed through invocation.
+- [ ] Treat runtime-only values such as `AbortSignal`, service dependencies, and transient caches as non-persisted graph state. LangGraph supports untracked values for state that should exist during execution but not be checkpointed; use that pattern if checkpointers are introduced later.
+- [ ] Add focused unit tests for each node and router:
+  - load run success / missing run,
+  - retrieval enabled / disabled,
+  - news URL / configured feeds / no feeds,
+  - usage summary enabled / disabled,
+  - LLM token stream,
+  - completion,
+  - cancellation,
+  - timeout,
+  - tool registry error,
+  - token budget exceeded,
+  - max tool calls exceeded.
+
+Acceptance: the LangGraph runtime is small, testable, and ready for future workflow compilation without changing external API, queue, persistence, or realtime contracts.
+
+## PR 29: Safe Workflow Definition Contracts
+
+- [ ] Add `packages/contracts/src/agent-workflows.ts`.
+- [ ] Define Zod schemas for a future visual workflow graph:
+  - `AgentWorkflowDefinition`,
+  - `AgentWorkflowNode`,
+  - `AgentWorkflowEdge`,
+  - `AgentWorkflowNodeType`,
+  - `AgentWorkflowCondition`,
+  - node config schemas.
+- [ ] Supported MVP node types:
+  - `start`,
+  - `knowledge.search`,
+  - `news.fetch_rss`,
+  - `usage.summary`,
+  - `gmail.search_threads`,
+  - `gmail.get_thread`,
+  - `gmail.create_draft`,
+  - `gmail.update_draft`,
+  - `llm.generate`,
+  - `condition`,
+  - `human.review`,
+  - `complete`,
+  - `fail`.
+- [ ] Supported safe condition types:
+  - `always`,
+  - `field.exists`,
+  - `field.equals`,
+  - `tool.enabled`,
+  - `connection.exists`,
+  - `previousStep.succeeded`,
+  - `previousStep.failed`.
+- [ ] Explicitly reject:
+  - arbitrary JavaScript,
+  - string expressions that require `eval`,
+  - user-defined code,
+  - arbitrary HTTP calls,
+  - arbitrary shell commands,
+  - arbitrary MCP tool IDs outside `mcpToolIdSchema`.
+- [ ] Add validation helpers for:
+  - exactly one start node,
+  - at least one terminal node,
+  - no dangling edges,
+  - no orphaned required nodes,
+  - unique node IDs,
+  - unique edge IDs,
+  - valid node config,
+  - valid safe conditions,
+  - no unsupported cycles in MVP.
+- [ ] Add contract tests for valid and invalid workflow definitions.
+
+Acceptance: the repository has a safe, serializable workflow DSL that can be rendered visually later but cannot execute arbitrary code.
+
+## PR 30: Read-only Workflow Visualizer
+
+- [ ] Add `@xyflow/react` to `apps/web`.
+- [ ] Import React Flow CSS in the global stylesheet, not inside arbitrary components.
+- [ ] Add a read-only `AgentWorkflowPreview` component.
+- [ ] Render static graphs for current template/runtime paths:
+  - Knowledge Researcher,
+  - Daily News Briefing,
+  - Usage Analyst,
+  - Gmail Triage,
+  - Gmail Reply Assistant.
+- [ ] Show conditional edge labels:
+  - `if tool enabled`,
+  - `if rssUrl exists`,
+  - `if enabled feeds exist`,
+  - `if Gmail connected`,
+  - `on failure`.
+- [ ] Add this preview to the Agent detail or Runs workspace.
+- [ ] Keep it read-only in this PR.
+- [ ] Add tests for:
+  - expected nodes render,
+  - expected edge labels render,
+  - missing workflow falls back to template graph,
+  - loading/error/empty states.
+
+Acceptance: users can see how an agent is expected to execute as a block graph, without changing runtime behavior yet.
+
+## PR 31: Workflow Compiler Foundation
+
+- [ ] Add a server-side workflow compiler in `apps/worker/src/agent-graph/workflow-compiler.ts`.
+- [ ] Compile validated `AgentWorkflowDefinition` into a LangGraph `StateGraph`.
+- [ ] Use a fixed server-side node handler registry:
+  - no arbitrary user code,
+  - no eval,
+  - no arbitrary tool execution.
+- [ ] Keep calls behind existing boundaries:
+  - `ToolRegistryPort`,
+  - `LlmProviderPort`,
+  - tenant-scoped repositories,
+  - `AgentStepRunner`,
+  - budget/cancellation checks.
+- [ ] Do not enable user-edited workflows in production runtime yet.
+- [ ] Add tests for:
+  - simple knowledge workflow compilation,
+  - conditional RSS workflow compilation,
+  - usage summary workflow compilation,
+  - unknown node rejection,
+  - unknown condition rejection,
+  - dangling edge rejection,
+  - missing terminal rejection,
+  - unsupported cycle rejection,
+  - disabled tool cannot be called.
+
+Acceptance: workflow definitions can be validated and compiled safely in tests, but default runtime remains code-owned until the editor and persistence are ready.
+
+## PR 32: Editable Workflow Persistence and Visual Editor
+
+- [ ] Add optional workflow definition persistence to `AgentDefinition`, using a JSON column plus a workflow version field.
+- [ ] Add API endpoints:
+  - `GET /api/v1/agents/:agentId/workflow`,
+  - `PUT /api/v1/agents/:agentId/workflow`,
+  - `POST /api/v1/agents/:agentId/workflow/validate`.
+- [ ] Enforce owner/admin role checks and tenant ownership.
+- [ ] Build an MVP React Flow editor:
+  - node palette,
+  - draggable nodes,
+  - connectable edges,
+  - edge condition editor,
+  - selected node config panel,
+  - validation panel,
+  - save/reset actions.
+- [ ] Start node must exist and not be deletable.
+- [ ] Complete/fail terminal path must be required.
+- [ ] Save must be disabled until server validation passes.
+- [ ] Store only safe workflow JSON, not executable code.
+- [ ] Add tests for:
+  - owner/admin can save valid workflow,
+  - member cannot save workflow,
+  - invalid workflow rejected server-side,
+  - unknown node type rejected,
+  - forbidden condition rejected,
+  - cross-tenant save rejected,
+  - editor can add/connect/configure nodes,
+  - reset to template graph.
+
+Acceptance: owners/admins can visually configure an agent workflow using safe block definitions, and the server remains authoritative for validation.
+
+## PR 33: Runtime Execution from Saved Workflows
+
+- [ ] If an agent has a saved workflow definition, validate and compile it at run start.
+- [ ] If no saved workflow exists, use the code-owned default graph.
+- [ ] Keep the existing default template behavior stable.
+- [ ] Preserve all runtime boundaries:
+  - PostgreSQL is source of truth,
+  - BullMQ is the durable job boundary,
+  - `AgentRunStep` records every operation,
+  - tool calls go through allowlists,
+  - usage is persisted,
+  - realtime events remain compatible.
+- [ ] Add workflow version/config version to `AgentRun.configSnapshot`.
+- [ ] Add tests for:
+  - default agent uses default graph,
+  - custom workflow uses compiled graph,
+  - invalid saved workflow fails safely,
+  - disabled tool cannot be executed even if graph references it,
+  - conditional path chooses expected branch,
+  - terminal failure persists run status,
+  - retry does not duplicate completed workflow nodes.
+
+Acceptance: saved visual workflows can safely control agent execution without bypassing existing tenant, tool, budget, persistence, and realtime safeguards.
+
+## PR 34: Full-runtime Golden Set Evaluation
+
+- [ ] Keep the current fast evaluator as `FAST_LLM_ONLY`.
+- [ ] Add a `FULL_AGENT_RUNTIME` evaluation mode.
+- [ ] In full-runtime mode, each golden case should:
+  - create an `AgentRun`,
+  - execute the same LangGraph runtime as a normal user request,
+  - wait for terminal state,
+  - evaluate final assistant content,
+  - evaluate expected sources,
+  - record tool calls used,
+  - record workflow/config version,
+  - record usage, latency, and terminal error code.
+- [ ] Extend evaluation results with:
+  - runtime mode,
+  - agent run ID,
+  - workflow version,
+  - tool calls used,
+  - terminal status,
+  - error code/message preview.
+- [ ] Add UI entry for Evaluations, since the dashboard still treats Evaluations as planned.
+- [ ] Add tests for:
+  - expected fact pass/fail,
+  - forbidden claim pass/fail,
+  - expected source pass/fail,
+  - retrieval miss,
+  - disabled tool regression,
+  - graph failure,
+  - budget failure,
+  - Gmail missing connection,
+  - usage regression.
+
+Acceptance: golden set evaluation can catch regressions in prompts, retrieval, tools, graph routing, workflow definitions, usage, and source grounding.
+
+## PR 35: Usage and Observability Optimization
+
+- [ ] Ensure every model generation path writes authoritative `TokenUsage`.
+- [ ] Remove or deprecate direct chat usage that only lives in `Message` rows.
+- [ ] Add a `ToolAuditSink` implementation for worker MCP calls so tool audits are persisted, not only defined in the registry abstraction.
+- [ ] Optimize `PrismaUsageRepository.summarize` for larger tenants:
+  - keep current in-memory aggregation for local MVP,
+  - add DB-level aggregation or cursor windows when records exceed the current 5000-row cap,
+  - document local MVP limits.
+- [ ] Add run-level observability:
+  - selected workflow version,
+  - selected template key,
+  - tool call count,
+  - retrieval hit count,
+  - final answer token count,
+  - model latency.
+- [ ] Ensure previews remain bounded:
+  - tool inputs,
+  - tool outputs,
+  - RSS entries,
+  - Gmail message snippets,
+  - document chunks.
+- [ ] Add tests for:
+  - usage summary includes worker chat,
+  - usage summary excludes foreign tenants,
+  - tool audit records success/failure/denied,
+  - large usage datasets do not break summary,
+  - preview limits are enforced.
+
+Acceptance: usage and audit views reflect the actual agent runtime path and remain reliable as local datasets grow.
+
+## PR 36: Release Readiness and End-to-End Command Center Flow
+
+- [ ] Add E2E coverage for the complete command center:
+  - register/login,
+  - install templates,
+  - upload/index knowledge,
+  - ask Knowledge Researcher,
+  - configure RSS feed,
+  - run Daily News Briefing,
+  - connect or simulate Gmail,
+  - create/review/reject/send draft through API review path,
+  - inspect run timeline,
+  - inspect usage summary,
+  - run full-runtime golden evaluation.
+- [ ] Add accessibility pass for:
+  - home dashboard,
+  - agent workspace,
+  - run timeline,
+  - Gmail review queue,
+  - news workspace,
+  - workflow visualizer/editor.
+- [ ] Update docs:
+  - architecture,
+  - local development,
+  - API contracts,
+  - RAG/MCP,
+  - security,
+  - testing,
+  - demo script,
+  - portfolio release notes.
+- [ ] Remove stale claims from docs where implementation differs.
+- [ ] Verify the documented demo from a clean checkout.
+- [ ] Run and record:
+  - `npm run format:check`,
+  - `npm run lint`,
+  - `npm run typecheck`,
+  - `npm run test`,
+  - `npm run build`,
+  - integration/E2E suites where available.
+- [ ] Tag `v0.1.0` only after owner review.
+
+Acceptance: the application works as a coherent local-first AI command center where the default user flow, durable runtime, templates, tools, timeline, usage, and evaluation all exercise the same architecture.

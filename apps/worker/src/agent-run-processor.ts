@@ -19,9 +19,11 @@ import type {
 } from "@devhub/ai";
 import {
   PrismaAgentRunRepository,
+  PrismaConversationRepository,
   PrismaDocumentRepository,
   PrismaNewsFeedRepository,
   PrismaUsageRepository,
+  type ConversationMessageRecord,
   type NewsFeedRecord,
   type DatabaseClient
 } from "@devhub/database";
@@ -61,6 +63,7 @@ export async function processAgentRun(
   options: AgentRunProcessorOptions & { input: AgentRunJob }
 ): Promise<void> {
   const documents = new PrismaDocumentRepository(options.database);
+  const conversations = new PrismaConversationRepository(options.database);
   const newsFeeds = new PrismaNewsFeedRepository(options.database);
   const runs = new PrismaAgentRunRepository(options.database);
   const usage = new PrismaUsageRepository(options.database);
@@ -78,6 +81,7 @@ export async function processAgentRun(
   const processor = new AgentRunProcessor({
     llmProvider: options.llmProvider,
     ...(options.publisher ? { publisher: options.publisher } : {}),
+    conversations,
     newsFeeds,
     retryCount: options.retryCount ?? 0,
     runs,
@@ -88,6 +92,7 @@ export async function processAgentRun(
 }
 
 export interface AgentRunProcessorDependencies {
+  conversations?: Pick<PrismaConversationRepository, "listMessages">;
   llmProvider: LlmProviderPort;
   newsFeeds?: Pick<
     PrismaNewsFeedRepository,
@@ -114,6 +119,11 @@ export interface AgentRunProcessorDependencies {
 }
 
 interface StepExecutionResult {
+  assistantMessage?: {
+    agentId: string;
+    content: string;
+    conversationId: string;
+  };
   budgetExceeded?: { code: string; message: string };
   outputPreview: string;
   skipped?: boolean;
@@ -619,6 +629,7 @@ export class AgentRunProcessor {
     this.assertTokenBudget(config, state.tokens);
     const messages: readonly LlmMessage[] = [
       { role: "system", content: config.systemPrompt },
+      ...(await this.conversationHistoryMessages(context, input)),
       {
         role: "user",
         content: [
@@ -670,6 +681,15 @@ export class AgentRunProcessor {
             }
           }
         : {}),
+      ...(input.conversationId
+        ? {
+            assistantMessage: {
+              agentId: config.agentId,
+              content,
+              conversationId: input.conversationId
+            }
+          }
+        : {}),
       outputPreview: preview({ content }),
       usage: {
         provider: this.deps.llmProvider.name,
@@ -678,6 +698,23 @@ export class AgentRunProcessor {
         outputTokens: completed.usage.outputTokens
       }
     };
+  }
+
+  private async conversationHistoryMessages(
+    context: TenantContext,
+    input: CreateAgentRun
+  ): Promise<readonly LlmMessage[]> {
+    if (!input.conversationId || !this.deps.conversations) {
+      return [];
+    }
+    const messages = await this.deps.conversations.listMessages(
+      context,
+      input.conversationId
+    );
+    if (!messages) {
+      throw new Error("Conversation was not found.");
+    }
+    return previousConversationMessages(messages, input.message);
   }
 
   private async runStep(
@@ -725,6 +762,9 @@ export class AgentRunProcessor {
         updatedStep = await this.deps.runs.completeStep(context, step.id, {
           outputPreview: result.outputPreview,
           durationMs,
+          ...(result.assistantMessage
+            ? { assistantMessage: result.assistantMessage }
+            : {}),
           retryCount: this.deps.retryCount ?? 0,
           ...(result.usage ?? {})
         });
@@ -939,6 +979,27 @@ function graphStepUpdate(
     tokens: execution.tokens,
     toolCalls: execution.toolCalls
   };
+}
+
+function previousConversationMessages(
+  messages: readonly ConversationMessageRecord[],
+  currentUserMessage: string
+): readonly LlmMessage[] {
+  const history = latestMessageIsCurrentUserInput(messages, currentUserMessage)
+    ? messages.slice(0, -1)
+    : messages;
+  return history.slice(-20).map((message) => ({
+    role: message.role === "USER" ? "user" : "assistant",
+    content: message.content
+  }));
+}
+
+function latestMessageIsCurrentUserInput(
+  messages: readonly ConversationMessageRecord[],
+  currentUserMessage: string
+): boolean {
+  const latest = messages.at(-1);
+  return latest?.role === "USER" && latest.content === currentUserMessage;
 }
 
 function errorCode(error: unknown): string {
