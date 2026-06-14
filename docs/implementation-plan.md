@@ -413,7 +413,7 @@ Acceptance: template cards and selected agents show real integration readiness i
 
 ## PR 28: LangGraph Runtime Modularization
 
-- [ ] Split the oversized `apps/worker/src/agent-run-processor.ts` into explicit runtime modules:
+- [x] Split the oversized `apps/worker/src/agent-run-processor.ts` into explicit runtime modules:
   - `agent-graph/agent-run-graph.ts`,
   - `agent-graph/agent-graph-state.ts`,
   - `agent-graph/agent-step-runner.ts`,
@@ -423,16 +423,16 @@ Acceptance: template cards and selected agents show real integration readiness i
   - `agent-graph/nodes/summarize-usage.node.ts`,
   - `agent-graph/nodes/generate-answer.node.ts`,
   - `agent-graph/nodes/complete-run.node.ts`.
-- [ ] Preserve `processAgentRun(options)` as the public worker entrypoint.
-- [ ] Preserve existing step kinds:
+- [x] Preserve `processAgentRun(options)` as the public worker entrypoint.
+- [x] Preserve existing step kinds:
   - `rag.retrieve`,
   - `mcp.news`,
   - `usage.summary`,
   - `llm.generate`.
-- [ ] Keep all persistence, cancellation, budget, retry, usage, and realtime behavior behind reusable helpers.
-- [ ] Consider compiling the default graph once per processor instance instead of rebuilding the graph for every run, as long as run-specific state remains passed through invocation.
-- [ ] Treat runtime-only values such as `AbortSignal`, service dependencies, and transient caches as non-persisted graph state. LangGraph supports untracked values for state that should exist during execution but not be checkpointed; use that pattern if checkpointers are introduced later.
-- [ ] Add focused unit tests for each node and router:
+- [x] Keep all persistence, cancellation, budget, retry, usage, and realtime behavior behind reusable helpers.
+- [x] Consider compiling the default graph once per processor instance instead of rebuilding the graph for every run, as long as run-specific state remains passed through invocation.
+- [x] Treat runtime-only values such as `AbortSignal`, service dependencies, and transient caches as non-persisted graph state. LangGraph supports untracked values for state that should exist during execution but not be checkpointed; use that pattern if checkpointers are introduced later.
+- [x] Add focused unit tests for each node and router:
   - load run success / missing run,
   - retrieval enabled / disabled,
   - news URL / configured feeds / no feeds,
