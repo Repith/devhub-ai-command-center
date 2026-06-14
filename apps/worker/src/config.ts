@@ -4,6 +4,10 @@ export interface WorkerConfig {
   databaseUrl: string;
   embeddingModel: string;
   embeddingTimeoutMs: number;
+  gmailClientId?: string;
+  gmailClientSecret?: string;
+  gmailTokenEncryptionKey?: string;
+  gmailToolTimeoutMs: number;
   llmModel: string;
   llmTimeoutMs: number;
   ollamaApiKey: string;
@@ -29,6 +33,16 @@ export function loadWorkerConfig(): WorkerConfig {
     databaseUrl,
     embeddingModel: process.env.OLLAMA_EMBEDDING_MODEL ?? "nomic-embed-text",
     embeddingTimeoutMs: Number(process.env.EMBEDDING_TIMEOUT_MS ?? 120000),
+    ...(process.env.GMAIL_CLIENT_ID
+      ? { gmailClientId: process.env.GMAIL_CLIENT_ID }
+      : {}),
+    ...(process.env.GMAIL_CLIENT_SECRET
+      ? { gmailClientSecret: process.env.GMAIL_CLIENT_SECRET }
+      : {}),
+    ...(process.env.GMAIL_TOKEN_ENCRYPTION_KEY
+      ? { gmailTokenEncryptionKey: process.env.GMAIL_TOKEN_ENCRYPTION_KEY }
+      : {}),
+    gmailToolTimeoutMs: Number(process.env.GMAIL_TOOL_TIMEOUT_MS ?? 15000),
     llmModel: process.env.OLLAMA_CHAT_MODEL ?? "qwen3:8b",
     llmTimeoutMs: Number(process.env.OLLAMA_CHAT_TIMEOUT_MS ?? 120000),
     ollamaApiKey: process.env.OLLAMA_API_KEY ?? "ollama",

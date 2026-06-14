@@ -13,6 +13,7 @@ import type {
   AgentRunStepRecord,
   CompleteStepInput,
   ConversationMessageRecord,
+  GmailDraftReviewRecord,
   NewsFeedRecord,
   RecordNewsFeedFetchInput
 } from "@devhub/database";
@@ -22,6 +23,7 @@ import type {
   ToolCallResult,
   ToolRegistryPort
 } from "@devhub/mcp";
+import { ToolRegistryError } from "@devhub/mcp";
 
 import { AgentRunProcessor } from "../src/agent-run-processor";
 import type { RealtimeEventPublisher } from "../src/realtime-event-publisher";
@@ -310,6 +312,175 @@ describe("AgentRunProcessor", () => {
     expect(runs.cancelled).toBe(true);
     expect(runs.assistantMessages).toHaveLength(0);
   });
+
+  it("runs Gmail triage with bounded thread context and no draft mutation", async () => {
+    const input: CreateAgentRun = {
+      message: "Prioritize my inbox.",
+      retrievalLimit: 3,
+      gmailSearchQuery: "is:unread newer_than:2d"
+    };
+    const config = configSnapshot({
+      enabledToolIds: ["gmail.search_threads", "gmail.get_thread"],
+      maxToolCalls: 6,
+      templateKey: "gmail-triage"
+    });
+    const runs = new FakeRunRepository(input, config);
+    const tools = new FakeToolRegistry();
+    const publisher = new FakeRealtimePublisher();
+    const llmProvider = new FakeLlmProvider({ chunks: ["Priority summary"] });
+
+    await new AgentRunProcessor({
+      llmProvider,
+      publisher,
+      runs,
+      tools
+    }).process(job());
+
+    expect(tools.calls.map((call) => call.toolId)).toEqual([
+      "gmail.search_threads",
+      "gmail.get_thread"
+    ]);
+    expect(tools.calls.map((call) => call.toolId)).not.toContain(
+      "gmail.create_draft"
+    );
+    expect(tools.calls.map((call) => call.toolId)).not.toContain(
+      "gmail.update_draft"
+    );
+    expect(llmProvider.requests[0]?.messages.at(-1)?.content).toContain(
+      "SECRET_BODY"
+    );
+    const persistedTimeline = JSON.stringify({
+      steps: runs.steps,
+      events: publisher.events
+    });
+    expect(persistedTimeline).not.toContain("SECRET_BODY");
+    expect(runs.completed).toBe(true);
+  });
+
+  it("creates a Gmail draft and local review for the reply assistant", async () => {
+    const input: CreateAgentRun = {
+      message: "Reply politely.",
+      retrievalLimit: 3,
+      gmailThreadId: "thread-1"
+    };
+    const config = configSnapshot({
+      enabledToolIds: ["gmail.get_thread", "gmail.create_draft"],
+      maxToolCalls: 6,
+      templateKey: "gmail-reply-assistant"
+    });
+    const runs = new FakeRunRepository(input, config);
+    const tools = new FakeToolRegistry();
+    const draftReviews = new FakeDraftReviewRepository();
+    const llmProvider = new FakeLlmProvider({ chunks: ["Draft answer"] });
+
+    await new AgentRunProcessor({
+      draftReviews,
+      llmProvider,
+      runs,
+      tools
+    }).process(job());
+
+    expect(tools.calls.map((call) => call.toolId)).toEqual([
+      "gmail.get_thread",
+      "gmail.create_draft"
+    ]);
+    expect(tools.list({ enabledToolIds: config.enabledToolIds })).not.toContain(
+      "gmail.send" as McpToolId
+    );
+    expect(tools.calls.at(-1)?.input).toEqual({
+      threadId: "thread-1",
+      to: ["sender@example.com"],
+      cc: [],
+      subject: "Re: Project update",
+      body: "Draft answer"
+    });
+    expect(draftReviews.created).toEqual([
+      expect.objectContaining({
+        agentRunId: job().runId,
+        threadId: "thread-1",
+        gmailDraftId: "draft-1",
+        to: ["sender@example.com"],
+        body: "Draft answer"
+      })
+    ]);
+    expect(runs.completed).toBe(true);
+    expect(JSON.stringify(runs.steps)).not.toContain("SECRET_BODY");
+  });
+
+  it("updates an existing Gmail draft review target for the reply assistant", async () => {
+    const input: CreateAgentRun = {
+      message: "Improve the existing draft.",
+      retrievalLimit: 3,
+      gmailThreadId: "thread-1",
+      gmailDraftReviewId: "00000000-0000-4000-8000-000000000401"
+    };
+    const config = configSnapshot({
+      enabledToolIds: ["gmail.get_thread", "gmail.update_draft"],
+      maxToolCalls: 6,
+      templateKey: "gmail-reply-assistant"
+    });
+    const runs = new FakeRunRepository(input, config);
+    const tools = new FakeToolRegistry();
+    const draftReviews = new FakeDraftReviewRepository();
+    draftReviews.existingGmailDraftId = "draft-existing";
+    const llmProvider = new FakeLlmProvider({ chunks: ["Updated answer"] });
+
+    await new AgentRunProcessor({
+      draftReviews,
+      llmProvider,
+      runs,
+      tools
+    }).process(job());
+
+    expect(tools.calls.map((call) => call.toolId)).toEqual([
+      "gmail.get_thread",
+      "gmail.update_draft"
+    ]);
+    expect(tools.calls.at(-1)?.input).toEqual({
+      draftId: "draft-existing",
+      threadId: "thread-1",
+      to: ["sender@example.com"],
+      cc: [],
+      subject: "Re: Project update",
+      body: "Updated answer"
+    });
+    expect(draftReviews.updated).toEqual([
+      {
+        id: input.gmailDraftReviewId,
+        input: {
+          to: ["sender@example.com"],
+          cc: [],
+          subject: "Re: Project update",
+          body: "Updated answer"
+        }
+      }
+    ]);
+    expect(draftReviews.created).toHaveLength(0);
+  });
+
+  it("fails Gmail tool execution when the agent allowlist denies a required tool", async () => {
+    const input: CreateAgentRun = {
+      message: "Prioritize my inbox.",
+      retrievalLimit: 3,
+      gmailSearchQuery: "is:unread"
+    };
+    const config = configSnapshot({
+      enabledToolIds: ["gmail.search_threads"],
+      templateKey: "gmail-triage"
+    });
+    const runs = new FakeRunRepository(input, config);
+
+    await expect(
+      new AgentRunProcessor({
+        llmProvider: new FakeLlmProvider({ chunks: ["Should not run"] }),
+        runs,
+        tools: new FakeToolRegistry()
+      }).process(job())
+    ).rejects.toThrow("Tool gmail.get_thread is not enabled");
+
+    expect(runs.failed?.code).toBe("TOOL_NOT_ALLOWED");
+    expect(runs.completed).toBe(false);
+  });
 });
 
 class FakeRunRepository {
@@ -465,11 +636,30 @@ class FailingLlmProvider implements LlmProviderPort {
 class FakeToolRegistry implements ToolRegistryPort {
   public readonly calls: ToolCallInput[] = [];
 
-  public list(): readonly McpToolId[] {
-    return ["knowledge.search", "news.fetch_rss", "usage.summary"];
+  public list(
+    agent: Pick<ToolCallInput["agent"], "enabledToolIds">
+  ): readonly McpToolId[] {
+    const registered: readonly McpToolId[] = [
+      "knowledge.search",
+      "news.fetch_rss",
+      "usage.summary",
+      "gmail.search_threads",
+      "gmail.get_thread",
+      "gmail.create_draft",
+      "gmail.update_draft"
+    ];
+    return agent.enabledToolIds.filter((toolId): toolId is McpToolId =>
+      registered.includes(toolId as McpToolId)
+    );
   }
 
   public call<TOutput>(input: ToolCallInput): Promise<ToolCallResult<TOutput>> {
+    if (!input.agent.enabledToolIds.includes(input.toolId)) {
+      throw new ToolRegistryError(
+        "TOOL_NOT_ALLOWED",
+        `Tool ${input.toolId} is not enabled for this agent.`
+      );
+    }
     this.calls.push(input);
     if (input.toolId === "news.fetch_rss") {
       return Promise.resolve({
@@ -487,10 +677,151 @@ class FakeToolRegistry implements ToolRegistryPort {
         outputPreview: `${input.toolId} output`
       });
     }
+    if (input.toolId === "gmail.search_threads") {
+      return Promise.resolve({
+        output: {
+          threads: [
+            {
+              id: "thread-1",
+              snippet: "Inbox preview",
+              historyId: "history-1"
+            }
+          ]
+        } as TOutput,
+        outputPreview: "gmail.search_threads output"
+      });
+    }
+    if (input.toolId === "gmail.get_thread") {
+      return Promise.resolve({
+        output: gmailThreadOutput() as TOutput,
+        outputPreview: "gmail.get_thread output includes SECRET_BODY"
+      });
+    }
+    if (input.toolId === "gmail.create_draft") {
+      return Promise.resolve({
+        output: {
+          draftId: "draft-1",
+          messageId: null,
+          threadId: "thread-1"
+        } as TOutput,
+        outputPreview: "gmail.create_draft output"
+      });
+    }
+    if (input.toolId === "gmail.update_draft") {
+      return Promise.resolve({
+        output: {
+          draftId: "draft-1",
+          messageId: null,
+          threadId: "thread-1"
+        } as TOutput,
+        outputPreview: "gmail.update_draft output"
+      });
+    }
     return Promise.resolve({
       output: { ok: true } as TOutput,
       outputPreview: `${input.toolId} output`
     });
+  }
+}
+
+class FakeDraftReviewRepository {
+  public readonly created: {
+    agentRunId?: string;
+    threadId?: string;
+    gmailDraftId?: string;
+    to: string[];
+    cc: string[];
+    subject: string;
+    body: string;
+  }[] = [];
+  public readonly updated: {
+    id: string;
+    input: {
+      to: string[];
+      cc: string[];
+      subject: string;
+      body: string;
+    };
+  }[] = [];
+  public existingGmailDraftId: string | null = null;
+
+  public create(
+    _context: TenantContext,
+    input: {
+      agentRunId?: string;
+      threadId?: string;
+      gmailDraftId?: string;
+      to: string[];
+      cc: string[];
+      subject: string;
+      body: string;
+    }
+  ): Promise<GmailDraftReviewRecord> {
+    this.created.push(input);
+    const now = new Date();
+    return Promise.resolve({
+      id: "00000000-0000-4000-8000-000000000401",
+      tenantId: job().tenantId,
+      userId: job().userId,
+      agentRunId: input.agentRunId ?? null,
+      threadId: input.threadId ?? null,
+      gmailDraftId: input.gmailDraftId ?? null,
+      to: input.to,
+      cc: input.cc,
+      subject: input.subject,
+      body: input.body,
+      status: "NEEDS_REVIEW",
+      createdAt: now,
+      updatedAt: now,
+      sentAt: null
+    });
+  }
+
+  public findById(
+    _context: TenantContext,
+    id: string
+  ): Promise<GmailDraftReviewRecord | null> {
+    if (!this.existingGmailDraftId) {
+      return Promise.resolve(null);
+    }
+    return Promise.resolve(
+      gmailDraftReviewRecord({
+        id,
+        gmailDraftId: this.existingGmailDraftId
+      })
+    );
+  }
+
+  public update(
+    _context: TenantContext,
+    id: string,
+    input: {
+      to?: string[];
+      cc?: string[];
+      subject?: string;
+      body?: string;
+    }
+  ): Promise<GmailDraftReviewRecord | null> {
+    this.updated.push({
+      id,
+      input: {
+        to: input.to ?? [],
+        cc: input.cc ?? [],
+        subject: input.subject ?? "",
+        body: input.body ?? ""
+      }
+    });
+    return Promise.resolve(
+      gmailDraftReviewRecord({
+        id,
+        gmailDraftId: this.existingGmailDraftId,
+        to: input.to ?? [],
+        cc: input.cc ?? [],
+        subject: input.subject ?? "",
+        body: input.body ?? "",
+        status: "UPDATED"
+      })
+    );
   }
 }
 
@@ -539,6 +870,7 @@ function job(): AgentRunJob {
 
 function configSnapshot(input: {
   enabledToolIds: readonly string[];
+  maxToolCalls?: number;
   maxTokens?: number | null;
   templateKey?: AgentRunConfigSnapshot["templateKey"];
 }): AgentRunConfigSnapshot {
@@ -549,11 +881,52 @@ function configSnapshot(input: {
     systemPrompt: "Answer carefully.",
     templateKey: input.templateKey ?? null,
     maxSteps: 8,
-    maxToolCalls: 4,
+    maxToolCalls: input.maxToolCalls ?? 4,
     maxTokens: input.maxTokens ?? null,
     timeoutMs: 120_000,
     enabledToolIds: [...input.enabledToolIds],
     knowledgeBaseIds: []
+  };
+}
+
+function gmailThreadOutput() {
+  return {
+    id: "thread-1",
+    messages: [
+      {
+        id: "message-1",
+        threadId: "thread-1",
+        internalDate: "1710000000000",
+        from: "Sender <sender@example.com>",
+        to: "Me <me@example.com>",
+        subject: "Project update",
+        snippet: "Short snippet",
+        bodyText: "SECRET_BODY: Please review the attached proposal."
+      }
+    ]
+  };
+}
+
+function gmailDraftReviewRecord(
+  input: Partial<GmailDraftReviewRecord>
+): GmailDraftReviewRecord {
+  const now = new Date();
+  return {
+    id: "00000000-0000-4000-8000-000000000401",
+    tenantId: job().tenantId,
+    userId: job().userId,
+    agentRunId: null,
+    threadId: "thread-1",
+    gmailDraftId: null,
+    to: ["sender@example.com"],
+    cc: [],
+    subject: "Re: Project update",
+    body: "Draft answer",
+    status: "NEEDS_REVIEW",
+    createdAt: now,
+    updatedAt: now,
+    sentAt: null,
+    ...input
   };
 }
 
