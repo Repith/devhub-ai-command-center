@@ -124,10 +124,34 @@ describe("golden set evaluation", () => {
       .expect(201);
     const evaluationRun = evaluation.body as EvaluationRun;
 
-    expect(evaluationRun).toMatchObject({ status: "QUEUED" });
-    expect(evaluationRun.configVersion).toContain("golden-set:v1");
+    expect(evaluationRun).toMatchObject({
+      mode: "FAST_LLM_ONLY",
+      status: "QUEUED"
+    });
+    expect(evaluationRun.configVersion).toContain(
+      "golden-set:v1:FAST_LLM_ONLY"
+    );
     expect(jobs.at(-1)).toMatchObject({
-      evaluationRunId: evaluationRun.id
+      evaluationRunId: evaluationRun.id,
+      mode: "FAST_LLM_ONLY"
+    });
+
+    const runtimeEvaluation = await request(app!.getHttpServer())
+      .post("/api/v1/evaluations/golden-set")
+      .set("Authorization", `Bearer ${alphaToken}`)
+      .send({ mode: "FULL_AGENT_RUNTIME" })
+      .expect(201);
+    const runtimeRun = runtimeEvaluation.body as EvaluationRun;
+    expect(runtimeRun).toMatchObject({
+      mode: "FULL_AGENT_RUNTIME",
+      status: "QUEUED"
+    });
+    expect(runtimeRun.configVersion).toContain(
+      "golden-set:v1:FULL_AGENT_RUNTIME"
+    );
+    expect(jobs.at(-1)).toMatchObject({
+      evaluationRunId: runtimeRun.id,
+      mode: "FULL_AGENT_RUNTIME"
     });
 
     const report = await request(app!.getHttpServer())

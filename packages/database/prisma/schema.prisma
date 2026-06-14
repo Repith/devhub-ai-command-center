@@ -47,6 +47,11 @@ enum EvaluationStatus {
   FAILED
 }
 
+enum EvaluationMode {
+  FAST_LLM_ONLY
+  FULL_AGENT_RUNTIME
+}
+
 enum MessageRole {
   USER
   ASSISTANT
@@ -76,37 +81,37 @@ enum NewsFeedFetchStatus {
 }
 
 model User {
-  id           String       @id @default(uuid()) @db.Uuid
-  email        String       @unique
-  passwordHash String
-  displayName  String?
-  memberships  Membership[]
-  refreshSessions RefreshSession[]
+  id                  String               @id @default(uuid()) @db.Uuid
+  email               String               @unique
+  passwordHash        String
+  displayName         String?
+  memberships         Membership[]
+  refreshSessions     RefreshSession[]
   externalConnections ExternalConnection[]
-  gmailDraftReviews GmailDraftReview[]
-  newsFeeds     TenantNewsFeed[]
-  createdAt    DateTime     @default(now()) @db.Timestamptz(3)
-  updatedAt    DateTime     @updatedAt @db.Timestamptz(3)
+  gmailDraftReviews   GmailDraftReview[]
+  newsFeeds           TenantNewsFeed[]
+  createdAt           DateTime             @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime             @updatedAt @db.Timestamptz(3)
 }
 
 model Tenant {
-  id             String            @id @default(uuid()) @db.Uuid
-  name           String
-  slug           String            @unique
-  memberships    Membership[]
-  agents         AgentDefinition[]
-  conversations  Conversation[]
-  documents      Document[]
-  agentRuns      AgentRun[]
-  goldenCases    GoldenCase[]
-  evaluationRuns EvaluationRun[]
-  auditLogs      AuditLog[]
-  refreshSessions RefreshSession[]
+  id                  String               @id @default(uuid()) @db.Uuid
+  name                String
+  slug                String               @unique
+  memberships         Membership[]
+  agents              AgentDefinition[]
+  conversations       Conversation[]
+  documents           Document[]
+  agentRuns           AgentRun[]
+  goldenCases         GoldenCase[]
+  evaluationRuns      EvaluationRun[]
+  auditLogs           AuditLog[]
+  refreshSessions     RefreshSession[]
   externalConnections ExternalConnection[]
-  gmailDraftReviews GmailDraftReview[]
-  newsFeeds      TenantNewsFeed[]
-  createdAt      DateTime          @default(now()) @db.Timestamptz(3)
-  updatedAt      DateTime          @updatedAt @db.Timestamptz(3)
+  gmailDraftReviews   GmailDraftReview[]
+  newsFeeds           TenantNewsFeed[]
+  createdAt           DateTime             @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime             @updatedAt @db.Timestamptz(3)
 }
 
 model AuditLog {
@@ -126,33 +131,33 @@ model AuditLog {
 }
 
 model Membership {
-  id        String         @id @default(uuid()) @db.Uuid
-  tenantId  String         @db.Uuid
-  userId    String         @db.Uuid
-  role      MembershipRole
-  tenant    Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id              String           @id @default(uuid()) @db.Uuid
+  tenantId        String           @db.Uuid
+  userId          String           @db.Uuid
+  role            MembershipRole
+  tenant          Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   refreshSessions RefreshSession[]
-  createdAt DateTime       @default(now()) @db.Timestamptz(3)
-  updatedAt DateTime       @updatedAt @db.Timestamptz(3)
+  createdAt       DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime         @updatedAt @db.Timestamptz(3)
 
   @@unique([tenantId, userId])
   @@index([userId])
 }
 
 model RefreshSession {
-  id                  String       @id @default(uuid()) @db.Uuid
-  tenantId            String       @db.Uuid
-  userId              String       @db.Uuid
-  familyId            String       @db.Uuid
-  tokenHash           String       @unique
-  expiresAt           DateTime     @db.Timestamptz(3)
-  revokedAt           DateTime?    @db.Timestamptz(3)
-  replacedBySessionId String?      @db.Uuid
-  membership          Membership   @relation(fields: [tenantId, userId], references: [tenantId, userId], onDelete: Cascade)
-  tenant              Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  user                User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt           DateTime     @default(now()) @db.Timestamptz(3)
+  id                  String     @id @default(uuid()) @db.Uuid
+  tenantId            String     @db.Uuid
+  userId              String     @db.Uuid
+  familyId            String     @db.Uuid
+  tokenHash           String     @unique
+  expiresAt           DateTime   @db.Timestamptz(3)
+  revokedAt           DateTime?  @db.Timestamptz(3)
+  replacedBySessionId String?    @db.Uuid
+  membership          Membership @relation(fields: [tenantId, userId], references: [tenantId, userId], onDelete: Cascade)
+  tenant              Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user                User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt           DateTime   @default(now()) @db.Timestamptz(3)
 
   @@index([tenantId, userId, revokedAt])
   @@index([familyId, revokedAt])
@@ -160,27 +165,27 @@ model RefreshSession {
 }
 
 model AgentDefinition {
-  id               String       @id @default(uuid()) @db.Uuid
-  tenantId         String       @db.Uuid
+  id               String         @id @default(uuid()) @db.Uuid
+  tenantId         String         @db.Uuid
   name             String
   description      String?
   provider         String
   model            String
   systemPrompt     String
   templateKey      String?
-  maxSteps         Int          @default(8)
-  maxToolCalls     Int          @default(4)
+  maxSteps         Int            @default(8)
+  maxToolCalls     Int            @default(4)
   maxTokens        Int?
-  timeoutMs        Int          @default(120000)
-  enabledToolIds   String[]     @default([])
-  knowledgeBaseIds String[]     @default([])
-  tenant           Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  timeoutMs        Int            @default(120000)
+  enabledToolIds   String[]       @default([])
+  knowledgeBaseIds String[]       @default([])
+  tenant           Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   conversations    Conversation[]
   runs             AgentRun[]
   goldenCases      GoldenCase[]
-  createdAt        DateTime     @default(now()) @db.Timestamptz(3)
-  updatedAt        DateTime     @updatedAt @db.Timestamptz(3)
-  deletedAt        DateTime?    @db.Timestamptz(3)
+  createdAt        DateTime       @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime       @updatedAt @db.Timestamptz(3)
+  deletedAt        DateTime?      @db.Timestamptz(3)
 
   @@unique([tenantId, id])
   @@unique([tenantId, templateKey])
@@ -263,26 +268,26 @@ model DocumentChunk {
 }
 
 model AgentRun {
-  id             String          @id @default(uuid()) @db.Uuid
-  tenantId       String          @db.Uuid
-  agentId        String          @db.Uuid
-  conversationId String?         @db.Uuid
-  status         AgentRunStatus  @default(QUEUED)
-  input          Json
-  configSnapshot Json
-  correlationId  String
-  startedAt      DateTime?       @db.Timestamptz(3)
-  completedAt    DateTime?       @db.Timestamptz(3)
-  errorCode      String?
-  errorMessage   String?
-  tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  agent          AgentDefinition @relation(fields: [tenantId, agentId], references: [tenantId, id], onDelete: Restrict)
-  conversation   Conversation?   @relation(fields: [tenantId, conversationId], references: [tenantId, id], onDelete: Restrict)
-  steps          AgentRunStep[]
-  tokenUsage     TokenUsage[]
+  id                String             @id @default(uuid()) @db.Uuid
+  tenantId          String             @db.Uuid
+  agentId           String             @db.Uuid
+  conversationId    String?            @db.Uuid
+  status            AgentRunStatus     @default(QUEUED)
+  input             Json
+  configSnapshot    Json
+  correlationId     String
+  startedAt         DateTime?          @db.Timestamptz(3)
+  completedAt       DateTime?          @db.Timestamptz(3)
+  errorCode         String?
+  errorMessage      String?
+  tenant            Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  agent             AgentDefinition    @relation(fields: [tenantId, agentId], references: [tenantId, id], onDelete: Restrict)
+  conversation      Conversation?      @relation(fields: [tenantId, conversationId], references: [tenantId, id], onDelete: Restrict)
+  steps             AgentRunStep[]
+  tokenUsage        TokenUsage[]
   gmailDraftReviews GmailDraftReview[]
-  createdAt      DateTime        @default(now()) @db.Timestamptz(3)
-  updatedAt      DateTime        @updatedAt @db.Timestamptz(3)
+  createdAt         DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime           @updatedAt @db.Timestamptz(3)
 
   @@unique([tenantId, id])
   @@unique([tenantId, correlationId])
@@ -428,6 +433,7 @@ model EvaluationRun {
   id            String             @id @default(uuid()) @db.Uuid
   tenantId      String             @db.Uuid
   status        EvaluationStatus   @default(QUEUED)
+  mode          EvaluationMode     @default(FAST_LLM_ONLY)
   configVersion String
   startedAt     DateTime?          @db.Timestamptz(3)
   completedAt   DateTime?          @db.Timestamptz(3)
@@ -441,21 +447,29 @@ model EvaluationRun {
 }
 
 model EvaluationResult {
-  id              String        @id @default(uuid()) @db.Uuid
-  tenantId        String        @db.Uuid
-  evaluationRunId String        @db.Uuid
-  goldenCaseId    String        @db.Uuid
-  passed          Boolean
-  score           Float
-  details         Json
-  latencyMs       Int
-  inputTokens     Int
-  outputTokens    Int
-  retrievalHit    Boolean
-  evaluationRun   EvaluationRun @relation(fields: [tenantId, evaluationRunId], references: [tenantId, id], onDelete: Cascade)
-  goldenCase      GoldenCase    @relation(fields: [tenantId, goldenCaseId], references: [tenantId, id], onDelete: Cascade)
-  createdAt       DateTime      @default(now()) @db.Timestamptz(3)
+  id                  String         @id @default(uuid()) @db.Uuid
+  tenantId            String         @db.Uuid
+  evaluationRunId     String         @db.Uuid
+  goldenCaseId        String         @db.Uuid
+  mode                EvaluationMode @default(FAST_LLM_ONLY)
+  agentRunId          String?        @db.Uuid
+  passed              Boolean
+  score               Float
+  details             Json
+  latencyMs           Int
+  inputTokens         Int
+  outputTokens        Int
+  retrievalHit        Boolean
+  toolCallsUsed       Int            @default(0)
+  terminalStatus      String?
+  errorCode           String?
+  errorMessagePreview String?
+  workflowVersion     String?
+  evaluationRun       EvaluationRun  @relation(fields: [tenantId, evaluationRunId], references: [tenantId, id], onDelete: Cascade)
+  goldenCase          GoldenCase     @relation(fields: [tenantId, goldenCaseId], references: [tenantId, id], onDelete: Cascade)
+  createdAt           DateTime       @default(now()) @db.Timestamptz(3)
 
   @@unique([tenantId, evaluationRunId, goldenCaseId])
   @@index([tenantId, goldenCaseId])
+  @@index([tenantId, agentRunId])
 }

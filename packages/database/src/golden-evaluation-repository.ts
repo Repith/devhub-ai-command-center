@@ -1,5 +1,6 @@
 import type {
   CreateGoldenCase,
+  EvaluationMode,
   EvaluationReport,
   EvaluationResult,
   EvaluationResultDetails,
@@ -34,6 +35,7 @@ export interface EvaluationRunRecord {
   id: string;
   tenantId: string;
   status: EvaluationRun["status"];
+  mode: EvaluationMode;
   configVersion: string;
   startedAt: Date | null;
   completedAt: Date | null;
@@ -46,6 +48,8 @@ export interface EvaluationResultRecord {
   tenantId: string;
   evaluationRunId: string;
   goldenCaseId: string;
+  mode: EvaluationMode;
+  agentRunId: string | null;
   passed: boolean;
   score: number;
   details: unknown;
@@ -53,11 +57,18 @@ export interface EvaluationResultRecord {
   inputTokens: number;
   outputTokens: number;
   retrievalHit: boolean;
+  toolCallsUsed: number;
+  terminalStatus: string | null;
+  errorCode: string | null;
+  errorMessagePreview: string | null;
+  workflowVersion: string | null;
   createdAt: Date;
 }
 
 export interface CreateEvaluationResultInput {
   goldenCaseId: string;
+  mode?: EvaluationMode;
+  agentRunId?: string | null;
   passed: boolean;
   score: number;
   details: EvaluationResultDetails;
@@ -65,6 +76,11 @@ export interface CreateEvaluationResultInput {
   inputTokens: number;
   outputTokens: number;
   retrievalHit: boolean;
+  toolCallsUsed?: number;
+  terminalStatus?: string | null;
+  errorCode?: string | null;
+  errorMessagePreview?: string | null;
+  workflowVersion?: string | null;
 }
 
 export class PrismaGoldenEvaluationRepository {
@@ -152,12 +168,14 @@ export class PrismaGoldenEvaluationRepository {
 
   public async createEvaluationRun(
     context: TenantContext,
-    configVersion: string
+    configVersion: string,
+    mode: EvaluationMode = "FAST_LLM_ONLY"
   ): Promise<EvaluationRunRecord> {
     return this.database.evaluationRun.create({
       data: {
         tenantId: context.tenantId,
         status: "QUEUED",
+        mode,
         configVersion
       }
     });
@@ -265,6 +283,7 @@ export class PrismaGoldenEvaluationRepository {
     return {
       id: record.id,
       status: record.status,
+      mode: record.mode,
       configVersion: record.configVersion,
       startedAt: record.startedAt?.toISOString() ?? null,
       completedAt: record.completedAt?.toISOString() ?? null,
@@ -278,6 +297,8 @@ export class PrismaGoldenEvaluationRepository {
       id: record.id,
       evaluationRunId: record.evaluationRunId,
       goldenCaseId: record.goldenCaseId,
+      mode: record.mode,
+      agentRunId: record.agentRunId,
       passed: record.passed,
       score: record.score,
       details: record.details as EvaluationResultDetails,
@@ -285,6 +306,11 @@ export class PrismaGoldenEvaluationRepository {
       inputTokens: record.inputTokens,
       outputTokens: record.outputTokens,
       retrievalHit: record.retrievalHit,
+      toolCallsUsed: record.toolCallsUsed,
+      terminalStatus: record.terminalStatus,
+      errorCode: record.errorCode,
+      errorMessagePreview: record.errorMessagePreview,
+      workflowVersion: record.workflowVersion,
       createdAt: record.createdAt.toISOString()
     };
   }
@@ -314,6 +340,8 @@ export class PrismaGoldenEvaluationRepository {
 
 function resultData(input: CreateEvaluationResultInput): {
   goldenCaseId: string;
+  mode: EvaluationMode;
+  agentRunId: string | null;
   passed: boolean;
   score: number;
   details: Prisma.InputJsonValue;
@@ -321,15 +349,27 @@ function resultData(input: CreateEvaluationResultInput): {
   inputTokens: number;
   outputTokens: number;
   retrievalHit: boolean;
+  toolCallsUsed: number;
+  terminalStatus: string | null;
+  errorCode: string | null;
+  errorMessagePreview: string | null;
+  workflowVersion: string | null;
 } {
   return {
     goldenCaseId: input.goldenCaseId,
+    mode: input.mode ?? "FAST_LLM_ONLY",
+    agentRunId: input.agentRunId ?? null,
     passed: input.passed,
     score: input.score,
     details: input.details as Prisma.InputJsonValue,
     latencyMs: input.latencyMs,
     inputTokens: input.inputTokens,
     outputTokens: input.outputTokens,
-    retrievalHit: input.retrievalHit
+    retrievalHit: input.retrievalHit,
+    toolCallsUsed: input.toolCallsUsed ?? 0,
+    terminalStatus: input.terminalStatus ?? null,
+    errorCode: input.errorCode ?? null,
+    errorMessagePreview: input.errorMessagePreview ?? null,
+    workflowVersion: input.workflowVersion ?? null
   };
 }

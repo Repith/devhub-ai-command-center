@@ -613,9 +613,9 @@ Acceptance: saved visual workflows can safely control agent execution without by
 
 ## PR 34: Full-runtime Golden Set Evaluation
 
-- [ ] Keep the current fast evaluator as `FAST_LLM_ONLY`.
-- [ ] Add a `FULL_AGENT_RUNTIME` evaluation mode.
-- [ ] In full-runtime mode, each golden case should:
+- [x] Keep the current fast evaluator as `FAST_LLM_ONLY`.
+- [x] Add a `FULL_AGENT_RUNTIME` evaluation mode.
+- [x] In full-runtime mode, each golden case should:
   - create an `AgentRun`,
   - execute the same LangGraph runtime as a normal user request,
   - wait for terminal state,
@@ -624,15 +624,15 @@ Acceptance: saved visual workflows can safely control agent execution without by
   - record tool calls used,
   - record workflow/config version,
   - record usage, latency, and terminal error code.
-- [ ] Extend evaluation results with:
+- [x] Extend evaluation results with:
   - runtime mode,
   - agent run ID,
   - workflow version,
   - tool calls used,
   - terminal status,
   - error code/message preview.
-- [ ] Add UI entry for Evaluations, since the dashboard still treats Evaluations as planned.
-- [ ] Add tests for:
+- [x] Add UI entry for Evaluations, since the dashboard still treats Evaluations as planned.
+- [x] Add tests for:
   - expected fact pass/fail,
   - forbidden claim pass/fail,
   - expected source pass/fail,
