@@ -92,6 +92,35 @@ describe("contracts", () => {
     expect(result.success).toBe(true);
   });
 
+  it("allows misconfigured integration setup status responses", () => {
+    const result = agentDefinitionSchema.safeParse({
+      id: "64fe81ba-7faf-4b37-a2b8-347cd19b5550",
+      name: "Gmail Triage",
+      description: null,
+      templateKey: "gmail-triage",
+      templateSetup: [
+        {
+          id: "gmail.oauth",
+          label: "Gmail connection",
+          status: "MISCONFIGURED"
+        }
+      ],
+      provider: "ollama",
+      model: "qwen3:8b",
+      systemPrompt: "Review Gmail.",
+      maxSteps: 8,
+      maxToolCalls: 4,
+      maxTokens: null,
+      timeoutMs: 120_000,
+      enabledToolIds: [],
+      knowledgeBaseIds: [],
+      createdAt: "2026-06-09T12:00:00.000Z",
+      updatedAt: "2026-06-09T12:00:00.000Z"
+    });
+
+    expect(result.success).toBe(true);
+  });
+
   it("rejects tenant identifiers in registration input", () => {
     const result = registerSchema.safeParse({
       email: "owner@example.com",

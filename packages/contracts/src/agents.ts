@@ -14,6 +14,7 @@ export type AgentTemplateKey = z.infer<typeof agentTemplateKeySchema>;
 export const integrationSetupStatusSchema = z.enum([
   "READY",
   "NEEDS_SETUP",
+  "MISCONFIGURED",
   "PLANNED"
 ]);
 export type IntegrationSetupStatus = z.infer<
