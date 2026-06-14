@@ -8,6 +8,7 @@ import type { z } from "zod";
 import {
   createAgentDefinitionSchema,
   type AgentDefinition,
+  type AgentTemplateRequirement,
   type CreateAgentDefinition
 } from "@devhub/contracts";
 
@@ -117,7 +118,7 @@ export function AgentForm({
                 className={`setup-chip ${item.status.toLowerCase().replace("_", "-")}`}
                 key={item.id}
               >
-                {item.label}: {item.status.toLowerCase().replace("_", " ")}
+                {item.label}: {setupAction(item)}
               </span>
             ))}
           </div>
@@ -338,6 +339,28 @@ function parseCommaList(value: string): string[] {
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function setupAction(item: AgentTemplateRequirement): string {
+  if (item.status === "READY") {
+    return "ready";
+  }
+  if (item.status === "MISCONFIGURED") {
+    return "check server config";
+  }
+  if (item.status === "PLANNED") {
+    return "planned";
+  }
+  if (item.id === "gmail.oauth") {
+    return "connect Gmail";
+  }
+  if (item.id === "tenant-news-feeds") {
+    return "add RSS feed";
+  }
+  if (item.id === "knowledge.documents") {
+    return "upload indexed knowledge";
+  }
+  return "setup needed";
 }
 
 function agentDefaults(agent: AgentDefinition): CreateAgentDefinition {

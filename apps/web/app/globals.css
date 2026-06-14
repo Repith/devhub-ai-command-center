@@ -767,6 +767,11 @@ button.nav-item {
   color: #f2c66d;
 }
 
+.setup-chip.misconfigured {
+  border-color: #6c3840;
+  color: #ff9aa5;
+}
+
 .setup-chip.planned {
   color: #858da0;
 }

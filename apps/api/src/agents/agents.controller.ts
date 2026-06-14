@@ -55,8 +55,10 @@ export class AgentsController {
 
   @Get("templates")
   @Roles("OWNER", "ADMIN", "MEMBER")
-  public listTemplates(): AgentTemplateList {
-    return this.agents.listTemplates();
+  public listTemplates(
+    @CurrentUser() principal: RequestPrincipal
+  ): Promise<AgentTemplateList> {
+    return this.agents.listTemplates(principal);
   }
 
   @Post("templates/install")

@@ -52,7 +52,12 @@ export const DEFAULT_AGENT_TEMPLATES = [
       knowledgeBaseIds: []
     },
     requiredSetup: [
-      { id: "knowledge.search", label: "Knowledge search", status: "READY" }
+      { id: "knowledge.search", label: "Knowledge search", status: "READY" },
+      {
+        id: "knowledge.documents",
+        label: "Indexed knowledge documents",
+        status: "NEEDS_SETUP"
+      }
     ]
   },
   {

@@ -383,25 +383,25 @@ Acceptance: Gmail draft reviews cannot be linked to or mutated through cross-ten
 
 ## PR 27: Dynamic Template Setup State
 
-- [ ] Replace static `templateSetup` responses with dynamic setup state derived from current tenant resources.
-- [ ] Compute template readiness from:
+- [x] Replace static `templateSetup` responses with dynamic setup state derived from current tenant resources.
+- [x] Compute template readiness from:
   - Gmail connection status,
   - enabled tenant news feeds,
   - indexed knowledge documents,
   - availability of `usage.summary`,
   - available MCP tools in the server registry.
-- [ ] Keep `DEFAULT_AGENT_TEMPLATES` as code-owned template definitions, but make `requiredSetup.status` response-time data.
-- [ ] Add setup summaries to agent responses:
+- [x] Keep `DEFAULT_AGENT_TEMPLATES` as code-owned template definitions, but make `requiredSetup.status` response-time data.
+- [x] Add setup summaries to agent responses:
   - `READY`,
   - `NEEDS_SETUP`,
   - `PLANNED`,
   - optionally `MISCONFIGURED` if an integration exists but server env is incomplete.
-- [ ] Update the dashboard and agent workspace to show actionable setup states:
+- [x] Update the dashboard and agent workspace to show actionable setup states:
   - connect Gmail,
   - add RSS feed,
   - upload/index knowledge,
   - install/reset templates.
-- [ ] Add tests for:
+- [x] Add tests for:
   - Gmail disconnected -> Gmail templates need setup,
   - Gmail connected -> Gmail templates ready except explicit planned review features,
   - no news feeds -> Daily News Briefing needs setup,
