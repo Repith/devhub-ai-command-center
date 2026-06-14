@@ -266,11 +266,11 @@ without relying on model-generated accounting.
 
 ## PR 22: Main Dashboard Home
 
-- [ ] Make the first authenticated screen a command center with chat, selected
+- [x] Make the first authenticated screen a command center with chat, selected
   agent, knowledge state, Gmail review queue, news briefing, token usage, and
   recent run timeline.
-- [ ] Keep Agents, Knowledge, Runs, and Settings as secondary workspaces.
-- [ ] Add accessible loading, empty, error, and unauthorized states for each
+- [x] Keep Agents, Knowledge, Runs, and Settings as secondary workspaces.
+- [x] Add accessible loading, empty, error, and unauthorized states for each
   dashboard widget.
 - [ ] Verify the layout across desktop and mobile before merge.
 - [ ] Owner review and merge.

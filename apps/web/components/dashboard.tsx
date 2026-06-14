@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import { AgentWorkspace } from "./agent-workspace";
 import { ChatWorkspace } from "./chat-workspace";
+import { DashboardHome } from "./dashboard-home";
 import { GmailWorkspace } from "./gmail-workspace";
 import { KnowledgeWorkspace } from "./knowledge-workspace";
 import { NewsWorkspace } from "./news-workspace";
@@ -16,8 +17,9 @@ interface DashboardProps {
   onLogout(): Promise<void>;
 }
 
-const plannedSections = ["Evaluations"];
+const plannedSections = ["Evaluations", "Settings"];
 type DashboardSection =
+  | "home"
   | "agents"
   | "chat"
   | "runs"
@@ -30,7 +32,7 @@ export function Dashboard({
   user,
   onLogout
 }: DashboardProps): React.JSX.Element {
-  const [section, setSection] = useState<DashboardSection>("agents");
+  const [section, setSection] = useState<DashboardSection>("home");
 
   return (
     <div className="dashboard-shell">
@@ -46,13 +48,13 @@ export function Dashboard({
         </div>
         <nav aria-label="Primary navigation">
           <button
-            className={`nav-item ${section === "agents" ? "active" : ""}`}
+            className={`nav-item ${section === "home" ? "active" : ""}`}
             type="button"
-            aria-current={section === "agents" ? "page" : undefined}
-            onClick={() => setSection("agents")}
+            aria-current={section === "home" ? "page" : undefined}
+            onClick={() => setSection("home")}
           >
             <span aria-hidden="true">01</span>
-            Agents
+            Home
           </button>
           <button
             className={`nav-item ${section === "chat" ? "active" : ""}`}
@@ -64,12 +66,21 @@ export function Dashboard({
             Chat
           </button>
           <button
+            className={`nav-item ${section === "agents" ? "active" : ""}`}
+            type="button"
+            aria-current={section === "agents" ? "page" : undefined}
+            onClick={() => setSection("agents")}
+          >
+            <span aria-hidden="true">03</span>
+            Agents
+          </button>
+          <button
             className={`nav-item ${section === "runs" ? "active" : ""}`}
             type="button"
             aria-current={section === "runs" ? "page" : undefined}
             onClick={() => setSection("runs")}
           >
-            <span aria-hidden="true">03</span>
+            <span aria-hidden="true">04</span>
             Runs
           </button>
           <button
@@ -78,7 +89,7 @@ export function Dashboard({
             aria-current={section === "gmail" ? "page" : undefined}
             onClick={() => setSection("gmail")}
           >
-            <span aria-hidden="true">04</span>
+            <span aria-hidden="true">05</span>
             Gmail
           </button>
           <button
@@ -87,7 +98,7 @@ export function Dashboard({
             aria-current={section === "knowledge" ? "page" : undefined}
             onClick={() => setSection("knowledge")}
           >
-            <span aria-hidden="true">05</span>
+            <span aria-hidden="true">06</span>
             Knowledge
           </button>
           <button
@@ -96,12 +107,12 @@ export function Dashboard({
             aria-current={section === "news" ? "page" : undefined}
             onClick={() => setSection("news")}
           >
-            <span aria-hidden="true">06</span>
+            <span aria-hidden="true">07</span>
             News
           </button>
           {plannedSections.map((section, index) => (
             <span className="nav-item planned" key={section}>
-              <span aria-hidden="true">0{index + 7}</span>
+              <span aria-hidden="true">0{index + 8}</span>
               {section}
               <small>Planned</small>
             </span>
@@ -133,7 +144,9 @@ export function Dashboard({
           </div>
         </header>
 
-        {section === "agents" ? (
+        {section === "home" ? (
+          <DashboardHome accessToken={accessToken} onNavigate={setSection} />
+        ) : section === "agents" ? (
           <AgentWorkspace
             accessToken={accessToken}
             canManage={user.role !== "MEMBER"}
