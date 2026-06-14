@@ -241,11 +241,11 @@ final recipients, subject, and body in the application before the API sends it.
 
 ## PR 20: RSS News Agent
 
-- [ ] Add tenant-owned RSS feed configuration with name, URL, topic, enabled
+- [x] Add tenant-owned RSS feed configuration with name, URL, topic, enabled
   flag, and last fetch metadata.
-- [ ] Extend the Daily News Briefing graph path to fetch selected feeds,
+- [x] Extend the Daily News Briefing graph path to fetch selected feeds,
   summarize entries, include source links, and record usage.
-- [ ] Treat feed entries as untrusted content and keep external news API
+- [x] Treat feed entries as untrusted content and keep external news API
   providers out of scope.
 - [ ] Owner review and merge.
 

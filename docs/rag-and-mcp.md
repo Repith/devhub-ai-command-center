@@ -93,7 +93,11 @@ that the user can inspect and edit.
 
 RSS remains the first news provider. Tenant feed configuration owns the set of
 URLs the briefing agent may read, and feed entries are bounded before they enter
-prompts or previews.
+prompts or previews. `GET|POST|PATCH|DELETE /news/feeds` manages these sources;
+the worker fetches selected `newsFeedIds` or, for the Daily News Briefing
+template, the tenant's enabled feeds. Each fetch records last fetch status,
+timestamp, item count, and a stable error code without treating feed content as
+instructions.
 
 ## Untrusted Content
 

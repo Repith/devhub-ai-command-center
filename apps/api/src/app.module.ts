@@ -8,6 +8,7 @@ import { ChatModule } from "./chat/chat.module";
 import { DocumentsModule } from "./documents/documents.module";
 import { GmailModule } from "./gmail/gmail.module";
 import { GoldenModule } from "./golden/golden.module";
+import { NewsModule } from "./news/news.module";
 import { RealtimeModule } from "./realtime/realtime.module";
 import { RunsModule } from "./runs/runs.module";
 import { UsageModule } from "./usage/usage.module";
@@ -21,6 +22,7 @@ import { UsageModule } from "./usage/usage.module";
     DocumentsModule,
     GmailModule,
     GoldenModule,
+    NewsModule,
     RealtimeModule,
     RunsModule,
     UsageModule

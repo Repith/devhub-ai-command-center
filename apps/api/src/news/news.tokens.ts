@@ -1,0 +1,1 @@
+export const NEWS_FEED_REPOSITORY = Symbol("NEWS_FEED_REPOSITORY");

@@ -12,11 +12,13 @@ import type {
   AgentRun,
   AgentRunSnapshot,
   AgentRunStep,
+  NewsFeed,
   RealtimeEvent,
   UsageSummary
 } from "@devhub/contracts";
 
 import { listAgents } from "@/lib/agents-api";
+import { listNewsFeeds } from "@/lib/news-api";
 import { createRealtimeClient } from "@/lib/realtime-client";
 import { cancelRun, getRunSnapshot, listRuns, startRun } from "@/lib/runs-api";
 import { getUsageSummary } from "@/lib/usage-api";
@@ -34,6 +36,7 @@ export function RunsWorkspace({
     "Summarize the current workspace context."
   );
   const [rssUrl, setRssUrl] = useState("");
+  const [selectedNewsFeedIds, setSelectedNewsFeedIds] = useState<string[]>([]);
   const [agentId, setAgentId] = useState("");
   const [liveText, setLiveText] = useState<Record<string, string>>({});
 
@@ -48,6 +51,10 @@ export function RunsWorkspace({
   const usageQuery = useQuery({
     queryKey: ["usage"],
     queryFn: () => getUsageSummary(accessToken)
+  });
+  const newsFeedsQuery = useQuery({
+    queryKey: ["news-feeds"],
+    queryFn: () => listNewsFeeds(accessToken)
   });
   const selectedRun =
     runsQuery.data?.find((run) => run.id === selectedRunId) ??
@@ -94,6 +101,9 @@ export function RunsWorkspace({
       startRun(accessToken, agentId, {
         message,
         retrievalLimit: 5,
+        ...(selectedNewsFeedIds.length
+          ? { newsFeedIds: selectedNewsFeedIds }
+          : {}),
         ...(rssUrl.trim() ? { rssUrl: rssUrl.trim() } : {})
       }),
     onSuccess: async (run) => {
@@ -209,6 +219,11 @@ export function RunsWorkspace({
                 onChange={(event) => setRssUrl(event.target.value)}
               />
             </label>
+            <NewsFeedPicker
+              feeds={(newsFeedsQuery.data ?? []).filter((feed) => feed.enabled)}
+              selectedIds={selectedNewsFeedIds}
+              onChange={setSelectedNewsFeedIds}
+            />
             <button
               className="primary-button"
               type="submit"
@@ -233,6 +248,48 @@ export function RunsWorkspace({
         </div>
       </div>
     </section>
+  );
+}
+
+function NewsFeedPicker({
+  feeds,
+  selectedIds,
+  onChange
+}: {
+  feeds: readonly NewsFeed[];
+  selectedIds: readonly string[];
+  onChange(ids: string[]): void;
+}): React.JSX.Element {
+  if (feeds.length === 0) {
+    return (
+      <div className="permission-note">
+        Add enabled RSS feeds in News to run tenant-owned briefings.
+      </div>
+    );
+  }
+  return (
+    <fieldset className="feed-picker">
+      <legend>Tenant RSS feeds</legend>
+      {feeds.map((feed) => (
+        <label className="checkbox-field" key={feed.id}>
+          <input
+            checked={selectedIds.includes(feed.id)}
+            type="checkbox"
+            onChange={(event) => {
+              onChange(
+                event.currentTarget.checked
+                  ? [...selectedIds, feed.id]
+                  : selectedIds.filter((id) => id !== feed.id)
+              );
+            }}
+          />
+          <span>
+            {feed.name}
+            <small>{feed.topic ?? new URL(feed.url).host}</small>
+          </span>
+        </label>
+      ))}
+    </fieldset>
   );
 }
 
