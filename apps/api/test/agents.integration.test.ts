@@ -20,8 +20,11 @@ import { DATABASE_CLIENT } from "../src/database/database.module";
 const ownerEmail = `agent-owner-${crypto.randomUUID()}@example.com`;
 const memberEmail = `agent-member-${crypto.randomUUID()}@example.com`;
 const password = "correct horse battery staple";
+const describeWithDatabase = process.env.DATABASE_URL
+  ? describe
+  : describe.skip;
 
-describe("agent configuration and tenant isolation", () => {
+describeWithDatabase("agent configuration and tenant isolation", () => {
   let app: INestApplication | undefined;
   let database: DatabaseClient | undefined;
   let ownerToken: string;

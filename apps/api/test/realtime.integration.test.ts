@@ -20,8 +20,11 @@ import { DATABASE_CLIENT } from "../src/database/database.module";
 const email = `realtime-${crypto.randomUUID()}@example.com`;
 const foreignEmail = `realtime-foreign-${crypto.randomUUID()}@example.com`;
 const password = "correct horse battery staple";
+const describeWithDatabase = process.env.DATABASE_URL
+  ? describe
+  : describe.skip;
 
-describe("authenticated realtime gateway", () => {
+describeWithDatabase("authenticated realtime gateway", () => {
   let app: INestApplication | undefined;
   let database: DatabaseClient | undefined;
   let origin: string;
