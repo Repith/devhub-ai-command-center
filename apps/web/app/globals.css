@@ -1602,7 +1602,24 @@ button.nav-item {
   padding: 0;
 }
 
-.panel-heading.compact > span {
+.usage-heading-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.6rem;
+}
+
+.usage-heading-actions select {
+  min-height: 2rem;
+  border: 1px solid #2d3240;
+  border-radius: 0.5rem;
+  padding: 0 0.55rem;
+  background: #11141b;
+  color: #f4f6fb;
+}
+
+.usage-heading-actions span {
   color: #70e1a1;
   font-family: ui-monospace, monospace;
   font-size: 0.8rem;
@@ -1658,9 +1675,13 @@ button.nav-item {
 }
 
 .usage-list code {
+  overflow: hidden;
+  max-width: 12rem;
   color: #c8c0ff;
   font-family: ui-monospace, monospace;
   font-size: 0.75rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 @keyframes spin {

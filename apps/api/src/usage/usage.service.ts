@@ -1,6 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 
-import type { UsageSummary } from "@devhub/contracts";
+import type { UsageSummary, UsageSummaryQuery } from "@devhub/contracts";
 import type { PrismaUsageRepository } from "@devhub/database";
 import type { TenantContext } from "@devhub/domain";
 
@@ -14,8 +14,11 @@ export class UsageService {
     private readonly usage: PrismaUsageRepository
   ) {}
 
-  public summarize(principal: RequestPrincipal): Promise<UsageSummary> {
-    return this.usage.summarize(this.context(principal));
+  public summarize(
+    principal: RequestPrincipal,
+    query: UsageSummaryQuery
+  ): Promise<UsageSummary> {
+    return this.usage.summarize(this.context(principal), query);
   }
 
   private context(principal: RequestPrincipal): TenantContext {

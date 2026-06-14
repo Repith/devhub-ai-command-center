@@ -27,6 +27,11 @@ return a generic not-found response. WebSocket rooms, BullMQ jobs, Qdrant
 filters, MCP calls, usage queries, and evaluation cases all enforce the same
 boundary. Cross-tenant tests are release blockers.
 
+Usage summaries and the `usage.summary` MCP capability read persisted
+`TokenUsage` rows with the same server-derived tenant context. They do not
+accept browser-supplied tenant identifiers and do not estimate authoritative
+token totals from prompt or response text.
+
 LangGraph nodes run inside the worker with the same server-derived context.
 Graph state cannot accept tenant identifiers, tool permissions, or resource
 ownership from the browser. A graph node must reload or validate persisted

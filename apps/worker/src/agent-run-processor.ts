@@ -21,6 +21,7 @@ import {
   PrismaAgentRunRepository,
   PrismaDocumentRepository,
   PrismaNewsFeedRepository,
+  PrismaUsageRepository,
   type NewsFeedRecord,
   type DatabaseClient
 } from "@devhub/database";
@@ -28,6 +29,7 @@ import type { TenantContext } from "@devhub/domain";
 import {
   createKnowledgeSearchTool,
   createNewsFetchRssTool,
+  createUsageSummaryTool,
   preview,
   StaticToolRegistry,
   ToolRegistryError,
@@ -61,6 +63,7 @@ export async function processAgentRun(
   const documents = new PrismaDocumentRepository(options.database);
   const newsFeeds = new PrismaNewsFeedRepository(options.database);
   const runs = new PrismaAgentRunRepository(options.database);
+  const usage = new PrismaUsageRepository(options.database);
   const tools = new StaticToolRegistry([
     createKnowledgeSearchTool({
       documents,
@@ -69,7 +72,8 @@ export async function processAgentRun(
       embeddingTimeoutMs: options.embeddingTimeoutMs,
       vectorStore: options.vectorStore
     }),
-    createNewsFetchRssTool({ timeoutMs: options.rssTimeoutMs })
+    createNewsFetchRssTool({ timeoutMs: options.rssTimeoutMs }),
+    createUsageSummaryTool({ usage })
   ]);
   const processor = new AgentRunProcessor({
     llmProvider: options.llmProvider,
@@ -77,7 +81,8 @@ export async function processAgentRun(
     newsFeeds,
     retryCount: options.retryCount ?? 0,
     runs,
-    tools
+    tools,
+    usage
   });
   await processor.process(options.input);
 }
@@ -105,6 +110,7 @@ export interface AgentRunProcessorDependencies {
     | "startStep"
   >;
   tools: ToolRegistryPort;
+  usage?: Pick<PrismaUsageRepository, "summarize">;
 }
 
 interface StepExecutionResult {
@@ -166,6 +172,7 @@ export class AgentRunProcessor {
         this.retrieveKnowledgeNode(state)
       )
       .addNode("fetchNews", (state) => this.fetchNewsNode(state))
+      .addNode("summarizeUsage", (state) => this.summarizeUsageNode(state))
       .addNode("generateAnswer", (state) => this.generateAnswerNode(state))
       .addNode("completeRun", (state) => this.completeRunNode(state))
       .addEdge(START, "loadRun")
@@ -174,7 +181,11 @@ export class AgentRunProcessor {
         END
       ])
       .addEdge("retrieveKnowledge", "fetchNews")
-      .addEdge("fetchNews", "generateAnswer")
+      .addConditionalEdges("fetchNews", shouldSummarizeUsage, [
+        "summarizeUsage",
+        "generateAnswer"
+      ])
+      .addEdge("summarizeUsage", "generateAnswer")
       .addEdge("generateAnswer", "completeRun")
       .addEdge("completeRun", END)
       .compile();
@@ -258,12 +269,28 @@ export class AgentRunProcessor {
       loaded.config,
       state.outputs,
       loaded.signal,
+      loaded.config.enabledToolIds.includes("usage.summary") ? 4 : 3,
       execution
     );
     return {
       tokens: execution.tokens,
       toolCalls: execution.toolCalls
     };
+  }
+
+  private async summarizeUsageNode(
+    state: AgentRunGraphStateValue
+  ): Promise<Partial<AgentRunGraphStateValue>> {
+    const loaded = loadedGraphState(state);
+    const execution = executionStateFromGraph(state);
+    const output = await this.runUsageStep(
+      loaded.context,
+      loaded.runId,
+      loaded.input,
+      loaded.config,
+      execution
+    );
+    return graphStepUpdate(state, output, execution);
   }
 
   private async completeRunNode(
@@ -491,12 +518,13 @@ export class AgentRunProcessor {
     config: AgentRunConfigSnapshot,
     contextOutputs: readonly string[],
     signal: AbortSignal,
+    sequence: number,
     state: ExecutionState
   ): Promise<string> {
     return this.runStep(
       context,
       runId,
-      3,
+      sequence,
       "llm.generate",
       input.message,
       config,
@@ -514,11 +542,35 @@ export class AgentRunProcessor {
     );
   }
 
+  private async runUsageStep(
+    context: TenantContext,
+    runId: string,
+    input: CreateAgentRun,
+    config: AgentRunConfigSnapshot,
+    state: ExecutionState
+  ): Promise<string> {
+    return this.runStep(
+      context,
+      runId,
+      3,
+      "usage.summary",
+      input.message,
+      config,
+      () =>
+        this.runTool(context, config, state, "usage.summary", {
+          period: "30d"
+        })
+    );
+  }
+
   private async runTool<TOutput>(
     context: TenantContext,
     config: AgentRunConfigSnapshot,
     state: ExecutionState,
-    toolId: Extract<McpToolId, "knowledge.search" | "news.fetch_rss">,
+    toolId: Extract<
+      McpToolId,
+      "knowledge.search" | "news.fetch_rss" | "usage.summary"
+    >,
     input: unknown
   ): Promise<StepExecutionResult> {
     const result = await this.callTool<TOutput>(
@@ -535,7 +587,10 @@ export class AgentRunProcessor {
     context: TenantContext,
     config: AgentRunConfigSnapshot,
     state: ExecutionState,
-    toolId: Extract<McpToolId, "knowledge.search" | "news.fetch_rss">,
+    toolId: Extract<
+      McpToolId,
+      "knowledge.search" | "news.fetch_rss" | "usage.summary"
+    >,
     input: unknown
   ): Promise<ToolCallResult<TOutput>> {
     if (state.toolCalls >= config.maxToolCalls) {
@@ -836,6 +891,14 @@ function shouldContinueAfterLoad(
   state: AgentRunGraphStateValue
 ): "retrieveKnowledge" | typeof END {
   return state.shouldStop ? END : "retrieveKnowledge";
+}
+
+function shouldSummarizeUsage(
+  state: AgentRunGraphStateValue
+): "summarizeUsage" | "generateAnswer" {
+  return state.config?.enabledToolIds.includes("usage.summary")
+    ? "summarizeUsage"
+    : "generateAnswer";
 }
 
 function loadedGraphState(state: AgentRunGraphStateValue): {

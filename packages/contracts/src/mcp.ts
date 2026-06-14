@@ -2,10 +2,15 @@ import { z } from "zod";
 
 import { uuidSchema } from "./api.js";
 import { knowledgeSearchRequestSchema } from "./documents.js";
+import {
+  usageSummaryToolInputSchema,
+  usageSummaryToolOutputSchema
+} from "./usage.js";
 
 export const mcpToolIdSchema = z.enum([
   "knowledge.search",
   "news.fetch_rss",
+  "usage.summary",
   "gmail.search_threads",
   "gmail.get_thread",
   "gmail.create_draft",
@@ -76,6 +81,17 @@ export const newsFetchRssOutputSchema = z
   })
   .strict();
 export type NewsFetchRssOutput = z.infer<typeof newsFetchRssOutputSchema>;
+
+export const usageSummaryToolInputContractSchema = usageSummaryToolInputSchema;
+export type UsageSummaryToolInputContract = z.infer<
+  typeof usageSummaryToolInputContractSchema
+>;
+
+export const usageSummaryToolOutputContractSchema =
+  usageSummaryToolOutputSchema;
+export type UsageSummaryToolOutputContract = z.infer<
+  typeof usageSummaryToolOutputContractSchema
+>;
 
 const gmailMessageIdSchema = z.string().min(1).max(256);
 const gmailRecipientsSchema = z.array(z.email()).min(1).max(25);

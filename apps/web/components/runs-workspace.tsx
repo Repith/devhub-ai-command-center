@@ -14,6 +14,7 @@ import type {
   AgentRunStep,
   NewsFeed,
   RealtimeEvent,
+  UsagePeriod,
   UsageSummary
 } from "@devhub/contracts";
 
@@ -37,6 +38,7 @@ export function RunsWorkspace({
   );
   const [rssUrl, setRssUrl] = useState("");
   const [selectedNewsFeedIds, setSelectedNewsFeedIds] = useState<string[]>([]);
+  const [usagePeriod, setUsagePeriod] = useState<UsagePeriod>("30d");
   const [agentId, setAgentId] = useState("");
   const [liveText, setLiveText] = useState<Record<string, string>>({});
 
@@ -49,8 +51,8 @@ export function RunsWorkspace({
     queryFn: () => listRuns(accessToken)
   });
   const usageQuery = useQuery({
-    queryKey: ["usage"],
-    queryFn: () => getUsageSummary(accessToken)
+    queryKey: ["usage", usagePeriod],
+    queryFn: () => getUsageSummary(accessToken, usagePeriod)
   });
   const newsFeedsQuery = useQuery({
     queryKey: ["news-feeds"],
@@ -244,6 +246,8 @@ export function RunsWorkspace({
           <UsagePanel
             usage={usageQuery.data ?? null}
             isLoading={usageQuery.isPending}
+            period={usagePeriod}
+            onPeriodChange={setUsagePeriod}
           />
         </div>
       </div>
@@ -383,10 +387,14 @@ function Timeline({
 
 function UsagePanel({
   usage,
-  isLoading
+  isLoading,
+  period,
+  onPeriodChange
 }: {
   usage: UsageSummary | null;
   isLoading: boolean;
+  period: UsagePeriod;
+  onPeriodChange(period: UsagePeriod): void;
 }): React.JSX.Element {
   if (isLoading) {
     return (
@@ -413,7 +421,21 @@ function UsagePanel({
           <p className="section-kicker">Usage</p>
           <h2 id="usage-title">Tenant budget view</h2>
         </div>
-        <span>{formatMicros(usage.tenant.costMicros)}</span>
+        <div className="usage-heading-actions">
+          <select
+            aria-label="Usage period"
+            value={period}
+            onChange={(event) =>
+              onPeriodChange(event.target.value as UsagePeriod)
+            }
+          >
+            <option value="24h">24 hours</option>
+            <option value="7d">7 days</option>
+            <option value="30d">30 days</option>
+            <option value="all">All time</option>
+          </select>
+          <span>{formatMicros(usage.tenant.costMicros)}</span>
+        </div>
       </div>
       <div className="usage-stats">
         <UsageStat label="Tokens" value={usage.tenant.totalTokens} />
@@ -427,10 +449,17 @@ function UsagePanel({
         getId={(row) => row.agentId}
       />
       <UsageList
-        title="By run"
-        rows={usage.runs.slice(0, 5)}
+        title="Provider / model"
+        rows={usage.providerModels.slice(0, 5)}
+        getId={(row) => `${row.provider}/${row.model}`}
+        renderLabel={(row) => `${row.provider}/${row.model}`}
+      />
+      <UsageList
+        title="Recent expensive runs"
+        rows={usage.recentExpensiveRuns.slice(0, 5)}
         getId={(row) => row.runId}
       />
+      <UsageWarnings warnings={usage.budgetWarnings.slice(0, 5)} />
     </section>
   );
 }
@@ -455,11 +484,13 @@ function UsageStat({
 function UsageList<T extends { totalTokens: number; latencyMs: number }>({
   title,
   rows,
-  getId
+  getId,
+  renderLabel
 }: {
   title: string;
   rows: readonly T[];
   getId(row: T): string;
+  renderLabel?(row: T): string;
 }): React.JSX.Element {
   return (
     <div className="usage-list">
@@ -472,13 +503,40 @@ function UsageList<T extends { totalTokens: number; latencyMs: number }>({
             const id = getId(row);
             return (
               <li key={id}>
-                <code>{shortId(id)}</code>
+                <code>{renderLabel ? renderLabel(row) : shortId(id)}</code>
                 <span>
                   {row.totalTokens.toLocaleString()} tokens / {row.latencyMs} ms
                 </span>
               </li>
             );
           })}
+        </ol>
+      )}
+    </div>
+  );
+}
+
+function UsageWarnings({
+  warnings
+}: {
+  warnings: UsageSummary["budgetWarnings"];
+}): React.JSX.Element {
+  return (
+    <div className="usage-list">
+      <h3>Budget warnings</h3>
+      {warnings.length === 0 ? (
+        <span>No runs near budget.</span>
+      ) : (
+        <ol>
+          {warnings.map((warning) => (
+            <li key={warning.runId}>
+              <code>{warning.level === "OVER_BUDGET" ? "over" : "near"}</code>
+              <span>
+                {shortId(warning.runId)} used {warning.percentUsed}% of{" "}
+                {warning.maxTokens.toLocaleString()} tokens
+              </span>
+            </li>
+          ))}
         </ol>
       )}
     </div>

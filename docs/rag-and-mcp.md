@@ -91,6 +91,11 @@ configuration only. Sending mail is deliberately outside the MCP tool surface in
 the first version; it is an authenticated API action tied to a review record
 that the user can inspect and edit.
 
+The `usage.summary` capability is an internal MCP tool for the Usage Analyst
+template. It reads persisted `TokenUsage` rows and run snapshots for the
+authenticated tenant only; it never estimates token counts from prompt text or
+model output.
+
 RSS remains the first news provider. Tenant feed configuration owns the set of
 URLs the briefing agent may read, and feed entries are bounded before they enter
 prompts or previews. `GET|POST|PATCH|DELETE /news/feeds` manages these sources;

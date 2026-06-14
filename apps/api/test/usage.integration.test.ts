@@ -80,9 +80,10 @@ describe("usage summary", () => {
       12,
       8,
       42,
-      2
+      2,
+      25
     );
-    await seedUsage(betaUser.tenantId, betaAgent.id, 100, 50, 999, 0);
+    await seedUsage(betaUser.tenantId, betaAgent.id, 100, 50, 999, 0, null);
   });
 
   afterAll(async () => {
@@ -101,6 +102,8 @@ describe("usage summary", () => {
       .expect(200);
     const summary = response.body as UsageSummary;
 
+    expect(summary.period).toBe("30d");
+    expect(summary.generatedAt).toEqual(expect.any(String));
     expect(summary.tenant).toMatchObject({
       inputTokens: 12,
       outputTokens: 8,
@@ -113,7 +116,30 @@ describe("usage summary", () => {
       expect.objectContaining({ agentId: alphaAgent.id, totalTokens: 20 })
     ]);
     expect(summary.runs).toEqual([
+      expect.objectContaining({
+        runId: alphaRunId,
+        status: "QUEUED",
+        totalTokens: 20
+      })
+    ]);
+    expect(summary.providerModels).toEqual([
+      expect.objectContaining({
+        provider: "ollama",
+        model: "qwen3:8b",
+        totalTokens: 20
+      })
+    ]);
+    expect(summary.recentExpensiveRuns).toEqual([
       expect.objectContaining({ runId: alphaRunId, totalTokens: 20 })
+    ]);
+    expect(summary.budgetWarnings).toEqual([
+      expect.objectContaining({
+        runId: alphaRunId,
+        level: "NEAR_BUDGET",
+        maxTokens: 25,
+        totalTokens: 20,
+        percentUsed: 80
+      })
     ]);
     expect(JSON.stringify(summary)).not.toContain(betaAgent.id);
     expect(JSON.stringify(summary)).not.toContain(betaUser.tenantId);
@@ -144,7 +170,8 @@ describe("usage summary", () => {
     inputTokens: number,
     outputTokens: number,
     latencyMs: number,
-    retryCount: number
+    retryCount: number,
+    maxTokens: number | null
   ): Promise<string> {
     const run = await database!.agentRun.create({
       data: {
@@ -158,7 +185,7 @@ describe("usage summary", () => {
           systemPrompt: "Track usage.",
           maxSteps: 8,
           maxToolCalls: 4,
-          maxTokens: null,
+          maxTokens,
           timeoutMs: 120_000,
           enabledToolIds: [],
           knowledgeBaseIds: []
