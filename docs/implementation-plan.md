@@ -449,15 +449,15 @@ Acceptance: the LangGraph runtime is small, testable, and ready for future workf
 
 ## PR 29: Safe Workflow Definition Contracts
 
-- [ ] Add `packages/contracts/src/agent-workflows.ts`.
-- [ ] Define Zod schemas for a future visual workflow graph:
+- [x] Add `packages/contracts/src/agent-workflows.ts`.
+- [x] Define Zod schemas for a future visual workflow graph:
   - `AgentWorkflowDefinition`,
   - `AgentWorkflowNode`,
   - `AgentWorkflowEdge`,
   - `AgentWorkflowNodeType`,
   - `AgentWorkflowCondition`,
   - node config schemas.
-- [ ] Supported MVP node types:
+- [x] Supported MVP node types:
   - `start`,
   - `knowledge.search`,
   - `news.fetch_rss`,
@@ -471,7 +471,7 @@ Acceptance: the LangGraph runtime is small, testable, and ready for future workf
   - `human.review`,
   - `complete`,
   - `fail`.
-- [ ] Supported safe condition types:
+- [x] Supported safe condition types:
   - `always`,
   - `field.exists`,
   - `field.equals`,
@@ -479,14 +479,14 @@ Acceptance: the LangGraph runtime is small, testable, and ready for future workf
   - `connection.exists`,
   - `previousStep.succeeded`,
   - `previousStep.failed`.
-- [ ] Explicitly reject:
+- [x] Explicitly reject:
   - arbitrary JavaScript,
   - string expressions that require `eval`,
   - user-defined code,
   - arbitrary HTTP calls,
   - arbitrary shell commands,
   - arbitrary MCP tool IDs outside `mcpToolIdSchema`.
-- [ ] Add validation helpers for:
+- [x] Add validation helpers for:
   - exactly one start node,
   - at least one terminal node,
   - no dangling edges,
@@ -496,7 +496,7 @@ Acceptance: the LangGraph runtime is small, testable, and ready for future workf
   - valid node config,
   - valid safe conditions,
   - no unsupported cycles in MVP.
-- [ ] Add contract tests for valid and invalid workflow definitions.
+- [x] Add contract tests for valid and invalid workflow definitions.
 
 Acceptance: the repository has a safe, serializable workflow DSL that can be rendered visually later but cannot execute arbitrary code.
 

@@ -18,8 +18,11 @@ import { DATABASE_CLIENT } from "../src/database/database.module";
 const alphaEmail = `usage-alpha-${crypto.randomUUID()}@example.com`;
 const betaEmail = `usage-beta-${crypto.randomUUID()}@example.com`;
 const password = "correct horse battery staple";
+const describeWithDatabase = process.env.DATABASE_URL
+  ? describe
+  : describe.skip;
 
-describe("usage summary", () => {
+describeWithDatabase("usage summary", () => {
   let app: INestApplication | undefined;
   let database: DatabaseClient | undefined;
   let alphaToken: string;

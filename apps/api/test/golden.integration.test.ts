@@ -21,8 +21,11 @@ import { GOLDEN_EVALUATION_QUEUE } from "../src/golden/golden.tokens";
 const alphaEmail = `golden-alpha-${crypto.randomUUID()}@example.com`;
 const betaEmail = `golden-beta-${crypto.randomUUID()}@example.com`;
 const password = "correct horse battery staple";
+const describeWithDatabase = process.env.DATABASE_URL
+  ? describe
+  : describe.skip;
 
-describe("golden set evaluation", () => {
+describeWithDatabase("golden set evaluation", () => {
   let app: INestApplication | undefined;
   let database: DatabaseClient | undefined;
   let alphaToken: string;

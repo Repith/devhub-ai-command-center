@@ -15,6 +15,9 @@ const jwtSecret = "integration-secret-with-at-least-32-characters";
 const alphaEmail = `alpha-${crypto.randomUUID()}@example.com`;
 const betaEmail = `beta-${crypto.randomUUID()}@example.com`;
 const password = "correct horse battery staple";
+const describeWithDatabase = process.env.DATABASE_URL
+  ? describe
+  : describe.skip;
 
 interface AccessClaims {
   sub: string;
@@ -32,7 +35,7 @@ function refreshCookie(response: request.Response): string {
   return value.split(";")[0]!;
 }
 
-describe("authentication and tenancy", () => {
+describeWithDatabase("authentication and tenancy", () => {
   let app: INestApplication | undefined;
   let database: DatabaseClient | undefined;
   let alphaAccessToken: string;

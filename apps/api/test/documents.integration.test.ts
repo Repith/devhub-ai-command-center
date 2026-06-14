@@ -38,8 +38,11 @@ const ownerEmail = `documents-owner-${crypto.randomUUID()}@example.com`;
 const outsiderEmail = `documents-outsider-${crypto.randomUUID()}@example.com`;
 const password = "correct horse battery staple";
 const storageDir = join("data", "test-uploads", crypto.randomUUID());
+const describeWithDatabase = process.env.DATABASE_URL
+  ? describe
+  : describe.skip;
 
-describe("document upload and tenant isolation", () => {
+describeWithDatabase("document upload and tenant isolation", () => {
   let app: INestApplication | undefined;
   let database: DatabaseClient | undefined;
   let ownerToken: string;

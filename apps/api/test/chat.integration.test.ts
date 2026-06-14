@@ -20,8 +20,11 @@ import { DATABASE_CLIENT } from "../src/database/database.module";
 const ownerEmail = `chat-owner-${crypto.randomUUID()}@example.com`;
 const outsiderEmail = `chat-outsider-${crypto.randomUUID()}@example.com`;
 const password = "correct horse battery staple";
+const describeWithDatabase = process.env.DATABASE_URL
+  ? describe
+  : describe.skip;
 
-describe("Ollama chat foundation", () => {
+describeWithDatabase("Ollama chat foundation", () => {
   let app: INestApplication | undefined;
   let database: DatabaseClient | undefined;
   let ownerToken: string;
