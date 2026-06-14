@@ -7,6 +7,7 @@ import type {
   EvaluationRunList,
   GoldenCase,
   GoldenCaseList,
+  StartGoldenEvaluation,
   UpdateGoldenCase
 } from "@devhub/contracts";
 import type {
@@ -115,26 +116,29 @@ export class GoldenService {
   }
 
   public async startEvaluation(
-    principal: RequestPrincipal
+    principal: RequestPrincipal,
+    input: StartGoldenEvaluation
   ): Promise<EvaluationRun> {
     const context = this.context(principal);
     const cases = await this.evaluations.listCases(context);
     const run = await this.evaluations.createEvaluationRun(
       context,
-      configVersion(cases)
+      configVersion(cases, input.mode),
+      input.mode
     );
     await this.queue.enqueue({
       version: 1,
       tenantId: principal.tenantId,
       userId: principal.userId,
       correlationId: principal.sessionId,
-      evaluationRunId: run.id
+      evaluationRunId: run.id,
+      mode: input.mode
     });
     await this.audit.record(principal, {
       action: "evaluation.started",
       resourceType: "evaluation_run",
       resourceId: run.id,
-      metadata: { configVersion: run.configVersion }
+      metadata: { configVersion: run.configVersion, mode: run.mode }
     });
     return this.evaluations.toEvaluationRunResponse(run);
   }
@@ -192,10 +196,13 @@ export class GoldenService {
   }
 }
 
-function configVersion(cases: readonly { updatedAt: Date }[]): string {
+function configVersion(
+  cases: readonly { updatedAt: Date }[],
+  mode: StartGoldenEvaluation["mode"]
+): string {
   const latest = cases.reduce<number>(
     (current, item) => Math.max(current, item.updatedAt.getTime()),
     0
   );
-  return `golden-set:v1:cases-${cases.length}:updated-${latest}`;
+  return `golden-set:v1:${mode}:cases-${cases.length}:updated-${latest}`;
 }

@@ -108,6 +108,25 @@ if (require.main === module) {
         database,
         input: job.data,
         llmProvider,
+        runtime: {
+          embeddingModel: config.embeddingModel,
+          embeddingProvider,
+          embeddingTimeoutMs: config.embeddingTimeoutMs,
+          publisher,
+          retryCount: job.attemptsMade,
+          rssTimeoutMs: config.rssTimeoutMs,
+          ...(config.gmailTokenEncryptionKey
+            ? {
+                gmail: {
+                  clientId: config.gmailClientId,
+                  clientSecret: config.gmailClientSecret,
+                  timeoutMs: config.gmailToolTimeoutMs,
+                  tokenEncryptionKey: config.gmailTokenEncryptionKey
+                }
+              }
+            : {}),
+          vectorStore
+        },
         timeoutMs: config.llmTimeoutMs
       });
     },

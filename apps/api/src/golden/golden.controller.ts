@@ -95,8 +95,7 @@ export class GoldenController {
     @Body(new ZodValidationPipe(startGoldenEvaluationSchema))
     input: StartGoldenEvaluation
   ): Promise<EvaluationRun> {
-    void input;
-    return this.golden.startEvaluation(principal);
+    return this.golden.startEvaluation(principal, input);
   }
 
   @Get("evaluations")

@@ -5,6 +5,7 @@ import { useState } from "react";
 import { AgentWorkspace } from "./agent-workspace";
 import { ChatWorkspace } from "./chat-workspace";
 import { DashboardHome } from "./dashboard-home";
+import { EvaluationsWorkspace } from "./evaluations-workspace";
 import { GmailWorkspace } from "./gmail-workspace";
 import { KnowledgeWorkspace } from "./knowledge-workspace";
 import { NewsWorkspace } from "./news-workspace";
@@ -17,12 +18,13 @@ interface DashboardProps {
   onLogout(): Promise<void>;
 }
 
-const plannedSections = ["Evaluations", "Settings"];
+const plannedSections = ["Settings"];
 type DashboardSection =
   | "home"
   | "agents"
   | "chat"
   | "runs"
+  | "evaluations"
   | "knowledge"
   | "gmail"
   | "news";
@@ -93,12 +95,21 @@ export function Dashboard({
             Gmail
           </button>
           <button
+            className={`nav-item ${section === "evaluations" ? "active" : ""}`}
+            type="button"
+            aria-current={section === "evaluations" ? "page" : undefined}
+            onClick={() => setSection("evaluations")}
+          >
+            <span aria-hidden="true">06</span>
+            Evaluations
+          </button>
+          <button
             className={`nav-item ${section === "knowledge" ? "active" : ""}`}
             type="button"
             aria-current={section === "knowledge" ? "page" : undefined}
             onClick={() => setSection("knowledge")}
           >
-            <span aria-hidden="true">06</span>
+            <span aria-hidden="true">07</span>
             Knowledge
           </button>
           <button
@@ -107,12 +118,12 @@ export function Dashboard({
             aria-current={section === "news" ? "page" : undefined}
             onClick={() => setSection("news")}
           >
-            <span aria-hidden="true">07</span>
+            <span aria-hidden="true">08</span>
             News
           </button>
           {plannedSections.map((section, index) => (
             <span className="nav-item planned" key={section}>
-              <span aria-hidden="true">0{index + 8}</span>
+              <span aria-hidden="true">0{index + 9}</span>
               {section}
               <small>Planned</small>
             </span>
@@ -155,6 +166,8 @@ export function Dashboard({
           <ChatWorkspace accessToken={accessToken} />
         ) : section === "runs" ? (
           <RunsWorkspace accessToken={accessToken} />
+        ) : section === "evaluations" ? (
+          <EvaluationsWorkspace accessToken={accessToken} />
         ) : section === "gmail" ? (
           <GmailWorkspace accessToken={accessToken} />
         ) : section === "news" ? (

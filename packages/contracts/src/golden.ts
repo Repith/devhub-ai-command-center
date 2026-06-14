@@ -3,6 +3,12 @@ import { z } from "zod";
 import { uuidSchema } from "./api.js";
 import { evaluationStatusSchema } from "./statuses.js";
 
+export const evaluationModeSchema = z.enum([
+  "FAST_LLM_ONLY",
+  "FULL_AGENT_RUNTIME"
+]);
+export type EvaluationMode = z.infer<typeof evaluationModeSchema>;
+
 export const createGoldenCaseSchema = z
   .object({
     agentId: uuidSchema,
@@ -49,12 +55,17 @@ export const goldenCaseListSchema = z.object({
 });
 export type GoldenCaseList = z.infer<typeof goldenCaseListSchema>;
 
-export const startGoldenEvaluationSchema = z.object({}).strict();
+export const startGoldenEvaluationSchema = z
+  .object({
+    mode: evaluationModeSchema.default("FAST_LLM_ONLY")
+  })
+  .strict();
 export type StartGoldenEvaluation = z.infer<typeof startGoldenEvaluationSchema>;
 
 export const evaluationRunSchema = z.object({
   id: uuidSchema,
   status: evaluationStatusSchema,
+  mode: evaluationModeSchema,
   configVersion: z.string().min(1),
   startedAt: z.iso.datetime().nullable(),
   completedAt: z.iso.datetime().nullable(),
@@ -91,6 +102,8 @@ export const evaluationResultSchema = z.object({
   id: uuidSchema,
   evaluationRunId: uuidSchema,
   goldenCaseId: uuidSchema,
+  mode: evaluationModeSchema,
+  agentRunId: uuidSchema.nullable(),
   passed: z.boolean(),
   score: z.number().min(0).max(1),
   details: evaluationResultDetailsSchema,
@@ -98,6 +111,11 @@ export const evaluationResultSchema = z.object({
   inputTokens: z.number().int().nonnegative(),
   outputTokens: z.number().int().nonnegative(),
   retrievalHit: z.boolean(),
+  toolCallsUsed: z.number().int().nonnegative(),
+  terminalStatus: z.string().nullable(),
+  errorCode: z.string().nullable(),
+  errorMessagePreview: z.string().nullable(),
+  workflowVersion: z.string().nullable(),
   createdAt: z.iso.datetime()
 });
 export type EvaluationResult = z.infer<typeof evaluationResultSchema>;
@@ -114,7 +132,8 @@ export const goldenEvaluationJobSchema = z
     tenantId: uuidSchema,
     userId: uuidSchema,
     correlationId: z.string().min(1),
-    evaluationRunId: uuidSchema
+    evaluationRunId: uuidSchema,
+    mode: evaluationModeSchema.default("FAST_LLM_ONLY")
   })
   .strict();
 export type GoldenEvaluationJob = z.infer<typeof goldenEvaluationJobSchema>;
