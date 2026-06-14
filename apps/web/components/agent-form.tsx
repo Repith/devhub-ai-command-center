@@ -12,6 +12,8 @@ import {
   type CreateAgentDefinition
 } from "@devhub/contracts";
 
+import { AgentWorkflowPreview } from "./agent-workflow-preview";
+
 interface AgentFormProps {
   agent: AgentDefinition | null;
   canManage: boolean;
@@ -124,6 +126,8 @@ export function AgentForm({
           </div>
         </div>
       ) : null}
+
+      {!isNew && agent ? <AgentWorkflowPreview agent={agent} /> : null}
 
       <form
         className="agent-form"

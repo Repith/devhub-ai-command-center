@@ -502,24 +502,24 @@ Acceptance: the repository has a safe, serializable workflow DSL that can be ren
 
 ## PR 30: Read-only Workflow Visualizer
 
-- [ ] Add `@xyflow/react` to `apps/web`.
-- [ ] Import React Flow CSS in the global stylesheet, not inside arbitrary components.
-- [ ] Add a read-only `AgentWorkflowPreview` component.
-- [ ] Render static graphs for current template/runtime paths:
+- [x] Add `@xyflow/react` to `apps/web`.
+- [x] Import React Flow CSS in the global stylesheet, not inside arbitrary components.
+- [x] Add a read-only `AgentWorkflowPreview` component.
+- [x] Render static graphs for current template/runtime paths:
   - Knowledge Researcher,
   - Daily News Briefing,
   - Usage Analyst,
   - Gmail Triage,
   - Gmail Reply Assistant.
-- [ ] Show conditional edge labels:
+- [x] Show conditional edge labels:
   - `if tool enabled`,
   - `if rssUrl exists`,
   - `if enabled feeds exist`,
   - `if Gmail connected`,
   - `on failure`.
-- [ ] Add this preview to the Agent detail or Runs workspace.
-- [ ] Keep it read-only in this PR.
-- [ ] Add tests for:
+- [x] Add this preview to the Agent detail or Runs workspace.
+- [x] Keep it read-only in this PR.
+- [x] Add tests for:
   - expected nodes render,
   - expected edge labels render,
   - missing workflow falls back to template graph,
