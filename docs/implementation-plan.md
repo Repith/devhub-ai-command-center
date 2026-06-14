@@ -366,12 +366,12 @@ Acceptance: Gmail Triage and Gmail Reply Assistant templates produce useful dura
 
 ## PR 26: Gmail Draft Review Integrity and Security Hardening
 
-- [ ] Remove or restrict public client control over `agentRunId` in `createGmailDraftReviewSchema`.
-- [ ] When a draft review is linked to an `AgentRun`, verify the run belongs to the current tenant and intended user context before persisting the link.
-- [ ] Update `PrismaGmailDraftReviewRepository.create` or the service layer to enforce tenant-scoped `agentRunId` validation.
-- [ ] Ensure `GmailDraftReview.agentRunId` cannot reference a run from another tenant.
-- [ ] Consider changing the Prisma relation to a tenant-aware composite relation where practical.
-- [ ] Add tests for:
+- [x] Remove or restrict public client control over `agentRunId` in `createGmailDraftReviewSchema`.
+- [x] When a draft review is linked to an `AgentRun`, verify the run belongs to the current tenant and intended user context before persisting the link.
+- [x] Update `PrismaGmailDraftReviewRepository.create` or the service layer to enforce tenant-scoped `agentRunId` validation.
+- [x] Ensure `GmailDraftReview.agentRunId` cannot reference a run from another tenant.
+- [x] Consider changing the Prisma relation to a tenant-aware composite relation where practical.
+- [x] Add tests for:
   - foreign tenant `agentRunId` rejection,
   - foreign user review access rejection,
   - update/reject/send only for current tenant/user,

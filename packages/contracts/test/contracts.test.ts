@@ -7,6 +7,7 @@ import {
   chatStreamEventSchema,
   createChatMessageSchema,
   createAgentDefinitionSchema,
+  createGmailDraftReviewSchema,
   documentStatusSchema,
   gmailDraftReviewSchema,
   gmailSearchThreadsInputSchema,
@@ -150,6 +151,20 @@ describe("contracts", () => {
         sentAt: null
       }).success
     ).toBe(true);
+  });
+
+  it("rejects client-controlled agent run links in Gmail draft review input", () => {
+    const result = createGmailDraftReviewSchema.safeParse({
+      agentRunId: "9a50ec3e-3ba9-4775-a57f-b7c88f34a10d",
+      threadId: "thread-1",
+      gmailDraftId: "draft-1",
+      to: ["client@example.com"],
+      cc: [],
+      subject: "Re: Update",
+      body: "Thanks for the note."
+    });
+
+    expect(result.success).toBe(false);
   });
 
   it("validates tenant news feeds without tenant identifiers", () => {

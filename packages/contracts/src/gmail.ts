@@ -83,7 +83,6 @@ export type GmailDraftReviewList = z.infer<typeof gmailDraftReviewListSchema>;
 
 export const createGmailDraftReviewSchema = z
   .object({
-    agentRunId: uuidSchema.optional(),
     threadId: z.string().trim().min(1).max(256).optional(),
     gmailDraftId: z.string().trim().min(1).max(256).optional(),
     to: recipientListSchema.min(1),
