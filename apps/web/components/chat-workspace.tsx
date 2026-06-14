@@ -1,17 +1,10 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
-
-import type { ChatUsage, ConversationMessage } from "@devhub/contracts";
+import { useEffect, useState } from "react";
 
 import { listAgents } from "../lib/agents-api";
-import { streamChat } from "../lib/chat-api";
-import {
-  createRealtimeClient,
-  type RealtimeConnectionStatus,
-  type RealtimeClient
-} from "../lib/realtime-client";
+import { useDurableRunChat } from "../lib/use-durable-run-chat";
 
 interface ChatWorkspaceProps {
   accessToken: string;
@@ -25,18 +18,8 @@ export function ChatWorkspace({
     queryFn: () => listAgents(accessToken)
   });
   const [agentId, setAgentId] = useState("");
-  const [conversationId, setConversationId] = useState<string>();
-  const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [draft, setDraft] = useState("");
-  const [assistantDraft, setAssistantDraft] = useState("");
-  const [usage, setUsage] = useState<ChatUsage>();
-  const [error, setError] = useState("");
-  const [isStreaming, setIsStreaming] = useState(false);
-  const [realtimeStatus, setRealtimeStatus] =
-    useState<RealtimeConnectionStatus>("connecting");
-  const [latencyMs, setLatencyMs] = useState<number>();
-  const realtime = useRef<RealtimeClient | null>(null);
-  const abortController = useRef<AbortController | null>(null);
+  const chat = useDurableRunChat({ accessToken, agentId });
 
   useEffect(() => {
     if (!agentId && agents.data?.[0]) {
@@ -44,123 +27,31 @@ export function ChatWorkspace({
     }
   }, [agentId, agents.data]);
 
-  useEffect(() => {
-    const client = createRealtimeClient(accessToken);
-    realtime.current = client;
-    const runProbe = async (): Promise<void> => {
-      try {
-        const result = await client.probe();
-        if (result.ack.ok) {
-          setLatencyMs(result.latencyMs);
-        } else {
-          setRealtimeStatus("error");
-        }
-      } catch {
-        setRealtimeStatus("error");
-      }
-    };
-    client.socket.on("connect", () => {
-      setRealtimeStatus("connected");
-      void runProbe();
-    });
-    client.socket.on("disconnect", () => setRealtimeStatus("disconnected"));
-    client.socket.on("connect_error", () => setRealtimeStatus("error"));
-
-    return () => {
-      client.socket.disconnect();
-      realtime.current = null;
-    };
-  }, [accessToken]);
-
-  useEffect(
-    () => () => {
-      abortController.current?.abort();
-    },
-    []
-  );
-
-  const testRealtime = async (): Promise<void> => {
-    if (!realtime.current?.socket.connected) {
-      realtime.current?.socket.connect();
-      setRealtimeStatus("connecting");
-      return;
-    }
-    try {
-      const result = await realtime.current.probe();
-      if (result.ack.ok) {
-        setLatencyMs(result.latencyMs);
-        setRealtimeStatus("connected");
-      } else {
-        setRealtimeStatus("error");
-      }
-    } catch {
-      setRealtimeStatus("error");
-    }
-  };
-
   const send = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const message = draft.trim();
-    if (!agentId || !message || isStreaming) {
+    if (!agentId || !message || chat.isRunning) {
       return;
     }
-
-    const controller = new AbortController();
-    abortController.current = controller;
     setDraft("");
-    setAssistantDraft("");
-    setUsage(undefined);
-    setError("");
-    setIsStreaming(true);
-    try {
-      await streamChat(
-        accessToken,
-        agentId,
-        { message, ...(conversationId ? { conversationId } : {}) },
-        (chatEvent) => {
-          if (chatEvent.type === "chat.started") {
-            setConversationId(chatEvent.conversationId);
-            setMessages((current) => [...current, chatEvent.userMessage]);
-          } else if (chatEvent.type === "chat.delta") {
-            setAssistantDraft((current) => current + chatEvent.text);
-          } else if (chatEvent.type === "chat.completed") {
-            setMessages((current) => [...current, chatEvent.assistantMessage]);
-            setAssistantDraft("");
-            setUsage(chatEvent.usage);
-          } else {
-            setError(`${chatEvent.code}: ${chatEvent.message}`);
-          }
-        },
-        controller.signal
-      );
-    } catch (caught) {
-      if (!controller.signal.aborted) {
-        setError(caught instanceof Error ? caught.message : "Chat failed.");
-      }
-    } finally {
-      setIsStreaming(false);
-      abortController.current = null;
-    }
+    await chat.send(message);
   };
 
   const startNewConversation = (): void => {
-    abortController.current?.abort();
-    setConversationId(undefined);
-    setMessages([]);
-    setAssistantDraft("");
-    setUsage(undefined);
-    setError("");
+    void chat.cancel();
+    chat.reset();
+    setDraft("");
   };
 
   return (
     <section className="workspace chat-workspace" id="chat">
       <div className="workspace-heading">
         <div>
-          <p className="section-kicker">Connectivity lab</p>
-          <h1>Chat with Ollama</h1>
+          <p className="section-kicker">Runtime chat</p>
+          <h1>Chat over durable runs</h1>
           <p>
-            Exercise the complete browser, API, provider and realtime path from
-            one diagnostic workspace.
+            Exercise the browser, API, worker, LangGraph, timeline and usage
+            path from one diagnostic workspace.
           </p>
         </div>
         <button
@@ -175,37 +66,27 @@ export function ChatWorkspace({
       <div className="connection-grid" aria-label="Connection status">
         <article className="connection-card">
           <span
-            className={`connection-indicator ${realtimeStatus}`}
+            className={`connection-indicator ${chat.realtimeStatus}`}
             aria-hidden="true"
           />
           <div>
             <strong>Socket.IO</strong>
-            <span>
-              {realtimeStatus}
-              {latencyMs === undefined ? "" : ` · ${latencyMs} ms`}
-            </span>
+            <span>{chat.realtimeStatus}</span>
           </div>
-          <button
-            className="text-button"
-            type="button"
-            onClick={() => void testRealtime()}
-          >
-            Test
-          </button>
         </article>
         <article className="connection-card">
           <span
-            className={`connection-indicator ${isStreaming ? "connecting" : usage ? "connected" : "disconnected"}`}
+            className={`connection-indicator ${chat.isRunning ? "connecting" : chat.usage ? "connected" : "disconnected"}`}
             aria-hidden="true"
           />
           <div>
-            <strong>Ollama stream</strong>
+            <strong>Agent run</strong>
             <span>
-              {isStreaming
-                ? "receiving tokens"
-                : usage
-                  ? `${usage.model} · ${usage.durationMs} ms`
-                  : "send a message to test"}
+              {chat.isRunning
+                ? `running ${chat.currentRunId?.slice(0, 8) ?? ""}`
+                : chat.terminalStatus
+                  ? chat.terminalStatus.toLowerCase()
+                  : "send a message to start"}
             </span>
           </div>
         </article>
@@ -219,35 +100,40 @@ export function ChatWorkspace({
               value={agentId}
               onChange={(event) => {
                 setAgentId(event.target.value);
-                startNewConversation();
+                chat.reset();
               }}
-              disabled={agents.isPending || isStreaming}
+              disabled={agents.isPending || chat.isRunning}
             >
               {agents.data?.map((agent) => (
                 <option key={agent.id} value={agent.id}>
-                  {agent.name} · {agent.model}
+                  {agent.name} / {agent.model}
                 </option>
               ))}
             </select>
           </label>
-          {conversationId ? (
+          {chat.conversationId ? (
             <span className="conversation-id">
-              Conversation {conversationId.slice(0, 8)}
+              Conversation {chat.conversationId.slice(0, 8)}
+            </span>
+          ) : null}
+          {chat.currentRunId ? (
+            <span className="conversation-id">
+              Run {chat.currentRunId.slice(0, 8)}
             </span>
           ) : null}
         </div>
 
         <div className="message-list" aria-live="polite">
-          {messages.length === 0 && !assistantDraft ? (
+          {chat.messages.length === 0 && !chat.assistantDraft ? (
             <div className="chat-empty">
-              <strong>Ready for a round trip.</strong>
+              <strong>Ready for a durable round trip.</strong>
               <span>
-                Your first message creates a persisted conversation and streams
-                the Ollama response back here.
+                Your first message creates a conversation, starts an AgentRun,
+                and streams worker progress back here.
               </span>
             </div>
           ) : null}
-          {messages.map((message) => (
+          {chat.messages.map((message) => (
             <article
               className={`chat-message ${message.role.toLowerCase()}`}
               key={message.id}
@@ -256,19 +142,20 @@ export function ChatWorkspace({
               <p>{message.content}</p>
             </article>
           ))}
-          {assistantDraft ? (
+          {chat.assistantDraft ? (
             <article className="chat-message assistant streaming">
-              <span>Assistant · streaming</span>
-              <p>{assistantDraft}</p>
+              <span>Assistant / streaming</span>
+              <p>{chat.assistantDraft}</p>
             </article>
           ) : null}
         </div>
 
-        {error ? <p role="alert">{error}</p> : null}
-        {usage ? (
+        {chat.error ? <p role="alert">{chat.error}</p> : null}
+        {chat.usage ? (
           <p className="usage-line">
-            {usage.provider}/{usage.model} · {usage.inputTokens} input ·{" "}
-            {usage.outputTokens} output tokens · {usage.durationMs} ms
+            {chat.usage.provider}/{chat.usage.model} / {chat.usage.inputTokens}{" "}
+            input / {chat.usage.outputTokens} output tokens /{" "}
+            {chat.usage.durationMs} ms
           </p>
         ) : null}
 
@@ -280,16 +167,25 @@ export function ChatWorkspace({
             id="chat-message"
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
-            placeholder="Ask the selected local agent something..."
+            placeholder="Ask the selected agent something..."
             rows={3}
-            disabled={!agentId || isStreaming}
+            disabled={!agentId || chat.isRunning}
           />
+          {chat.isRunning ? (
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={() => void chat.cancel()}
+            >
+              Cancel
+            </button>
+          ) : null}
           <button
             className="primary-button"
             type="submit"
-            disabled={!agentId || !draft.trim() || isStreaming}
+            disabled={!agentId || !draft.trim() || chat.isRunning}
           >
-            {isStreaming ? "Streaming..." : "Send"}
+            {chat.isRunning ? "Running" : "Send"}
           </button>
         </form>
       </div>

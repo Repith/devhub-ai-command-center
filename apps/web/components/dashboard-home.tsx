@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 import type {
   AgentDefinition,
@@ -15,11 +15,11 @@ import type {
 } from "@devhub/contracts";
 
 import { listAgents } from "@/lib/agents-api";
-import { streamChat } from "@/lib/chat-api";
 import { listDocuments } from "@/lib/documents-api";
 import { getGmailStatus, listGmailDraftReviews } from "@/lib/gmail-api";
 import { listNewsFeeds } from "@/lib/news-api";
 import { listRuns, startRun } from "@/lib/runs-api";
+import { useDurableRunChat } from "@/lib/use-durable-run-chat";
 import { getUsageSummary } from "@/lib/usage-api";
 import {
   pendingDraftReviews,
@@ -52,13 +52,8 @@ export function DashboardHome({
 }: DashboardHomeProps): React.JSX.Element {
   const queryClient = useQueryClient();
   const [agentId, setAgentId] = useState("");
-  const [conversationId, setConversationId] = useState<string>();
   const [draft, setDraft] = useState("");
-  const [messages, setMessages] = useState<HomeChatMessage[]>([]);
-  const [assistantDraft, setAssistantDraft] = useState("");
-  const [usage, setUsage] = useState<ChatUsage>();
-  const [chatError, setChatError] = useState("");
-  const abortController = useRef<AbortController | null>(null);
+  const chat = useDurableRunChat({ accessToken, agentId });
 
   const agentsQuery = useQuery({
     queryKey: ["agents", accessToken],
@@ -110,58 +105,6 @@ export function DashboardHome({
     }
   }, [agentId, selectedAgent]);
 
-  useEffect(
-    () => () => {
-      abortController.current?.abort();
-    },
-    []
-  );
-
-  const chatMutation = useMutation({
-    mutationFn: async (message: string) => {
-      if (!selectedAgent) {
-        return;
-      }
-      const controller = new AbortController();
-      abortController.current = controller;
-      setAssistantDraft("");
-      setChatError("");
-      setUsage(undefined);
-      await streamChat(
-        accessToken,
-        selectedAgent.id,
-        { message, ...(conversationId ? { conversationId } : {}) },
-        (event) => {
-          if (event.type === "chat.started") {
-            setConversationId(event.conversationId);
-            setMessages((current) => [
-              ...current,
-              toHomeMessage(event.userMessage)
-            ]);
-          } else if (event.type === "chat.delta") {
-            setAssistantDraft((current) => current + event.text);
-          } else if (event.type === "chat.completed") {
-            setMessages((current) => [
-              ...current,
-              toHomeMessage(event.assistantMessage)
-            ]);
-            setAssistantDraft("");
-            setUsage(event.usage);
-          } else {
-            setChatError(`${event.code}: ${event.message}`);
-          }
-        },
-        controller.signal
-      );
-    },
-    onError: (error) => {
-      setChatError(error instanceof Error ? error.message : "Chat failed.");
-    },
-    onSettled: () => {
-      abortController.current = null;
-    }
-  });
-
   const briefingMutation = useMutation({
     mutationFn: () => {
       if (!dailyNewsAgent) {
@@ -183,11 +126,11 @@ export function DashboardHome({
   const sendMessage = (event: React.FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
     const message = draft.trim();
-    if (!message || !selectedAgent || chatMutation.isPending) {
+    if (!message || !selectedAgent || chat.isRunning) {
       return;
     }
     setDraft("");
-    void chatMutation.mutateAsync(message);
+    void chat.send(message);
   };
 
   return (
@@ -225,14 +168,10 @@ export function DashboardHome({
             <select
               aria-label="Selected agent"
               value={selectedAgent?.id ?? ""}
-              disabled={agentsQuery.isPending || chatMutation.isPending}
+              disabled={agentsQuery.isPending || chat.isRunning}
               onChange={(event) => {
                 setAgentId(event.target.value);
-                setConversationId(undefined);
-                setMessages([]);
-                setAssistantDraft("");
-                setUsage(undefined);
-                setChatError("");
+                chat.reset();
               }}
             >
               {(agentsQuery.data ?? []).map((agent) => (
@@ -246,10 +185,10 @@ export function DashboardHome({
             agents={agentsQuery.data ?? []}
             isLoading={agentsQuery.isPending}
             isError={agentsQuery.isError}
-            messages={messages}
-            assistantDraft={assistantDraft}
-            usage={usage}
-            error={chatError}
+            messages={chat.messages.map(toHomeMessage)}
+            assistantDraft={chat.assistantDraft}
+            usage={chat.usage}
+            error={chat.error}
             onRetryAgents={() => void agentsQuery.refetch()}
           />
           <form className="home-composer" onSubmit={sendMessage}>
@@ -261,17 +200,24 @@ export function DashboardHome({
               value={draft}
               rows={3}
               placeholder="Ask about your knowledge base, mailbox, news, or usage..."
-              disabled={!selectedAgent || chatMutation.isPending}
+              disabled={!selectedAgent || chat.isRunning}
               onChange={(event) => setDraft(event.currentTarget.value)}
             />
+            {chat.isRunning ? (
+              <button
+                className="secondary-button"
+                type="button"
+                onClick={() => void chat.cancel()}
+              >
+                Cancel
+              </button>
+            ) : null}
             <button
               className="primary-button"
               type="submit"
-              disabled={
-                !selectedAgent || !draft.trim() || chatMutation.isPending
-              }
+              disabled={!selectedAgent || !draft.trim() || chat.isRunning}
             >
-              {chatMutation.isPending ? "Streaming" : "Send"}
+              {chat.isRunning ? "Running" : "Send"}
             </button>
           </form>
         </section>
