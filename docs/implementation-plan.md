@@ -304,26 +304,26 @@ Acceptance: asking an agent through the application creates an `AgentRun`, produ
 
 ## PR 24: Dashboard Chat over Durable Runs
 
-- [ ] Replace the home dashboard `streamChat()` path with a durable run-based chat flow.
-- [ ] Update `DashboardHome` and `ChatWorkspace` to use:
+- [x] Replace the home dashboard `streamChat()` path with a durable run-based chat flow.
+- [x] Update `DashboardHome` and `ChatWorkspace` to use:
   - `POST /api/v1/agents/:agentId/runs`,
   - Socket.IO run events for token deltas and step changes,
   - REST run snapshots for reconnect/recovery.
-- [ ] Keep the UI behavior equivalent for users:
+- [x] Keep the UI behavior equivalent for users:
   - selected agent,
   - message composer,
   - streaming assistant response,
   - cancellation,
   - visible usage summary.
-- [ ] Add a lightweight client-side run session state:
+- [x] Add a lightweight client-side run session state:
   - current run ID,
   - conversation ID,
   - streamed assistant draft,
   - terminal run status,
   - error message.
-- [ ] Remove duplicate client logic between command center chat and full chat workspace where practical.
-- [ ] Keep `/agents/:agentId/chat` only as a legacy/simple-model endpoint until all UI consumers are migrated.
-- [ ] Add tests for:
+- [x] Remove duplicate client logic between command center chat and full chat workspace where practical.
+- [x] Keep `/agents/:agentId/chat` only as a legacy/simple-model endpoint until all UI consumers are migrated.
+- [x] Add tests for:
   - home chat starts an `AgentRun`,
   - token deltas render in order,
   - reconnect recovers run snapshot,
