@@ -1,9 +1,14 @@
 import {
   agentDefinitionListSchema,
   agentDefinitionSchema,
+  agentWorkflowResponseSchema,
+  agentWorkflowValidationResponseSchema,
   agentTemplateListSchema,
   installAgentTemplatesResponseSchema,
   type AgentDefinition,
+  type AgentWorkflowDefinition,
+  type AgentWorkflowResponse,
+  type AgentWorkflowValidationResponse,
   type AgentTemplateList,
   type CreateAgentDefinition,
   type InstallAgentTemplatesResponse,
@@ -86,4 +91,47 @@ export function deleteAgent(
     method: "DELETE",
     accessToken
   });
+}
+
+export function getAgentWorkflow(
+  accessToken: string,
+  agentId: string
+): Promise<AgentWorkflowResponse> {
+  return apiRequest(
+    `/agents/${agentId}/workflow`,
+    agentWorkflowResponseSchema,
+    { accessToken }
+  );
+}
+
+export function validateAgentWorkflow(
+  accessToken: string,
+  agentId: string,
+  definition: unknown
+): Promise<AgentWorkflowValidationResponse> {
+  return apiRequest(
+    `/agents/${agentId}/workflow/validate`,
+    agentWorkflowValidationResponseSchema,
+    {
+      method: "POST",
+      accessToken,
+      body: definition
+    }
+  );
+}
+
+export function saveAgentWorkflow(
+  accessToken: string,
+  agentId: string,
+  definition: AgentWorkflowDefinition
+): Promise<AgentWorkflowResponse> {
+  return apiRequest(
+    `/agents/${agentId}/workflow`,
+    agentWorkflowResponseSchema,
+    {
+      method: "PUT",
+      accessToken,
+      body: { definition }
+    }
+  );
 }

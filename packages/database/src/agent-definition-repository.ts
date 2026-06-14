@@ -1,11 +1,14 @@
 import type {
+  AgentWorkflowDefinition,
   AgentTemplate,
   CreateAgentDefinition,
   UpdateAgentDefinition
 } from "@devhub/contracts";
+import { agentWorkflowDefinitionSchema } from "@devhub/contracts";
 import type { TenantContext, TenantMutableRepository } from "@devhub/domain";
 
 import type { DatabaseClient } from "./client.js";
+import { Prisma } from "./generated/prisma/client.js";
 
 export interface AgentDefinitionRecord {
   id: string;
@@ -22,8 +25,15 @@ export interface AgentDefinitionRecord {
   timeoutMs: number;
   enabledToolIds: readonly string[];
   knowledgeBaseIds: readonly string[];
+  workflowDefinition: unknown | null;
+  workflowVersion: number | null;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface AgentWorkflowRecord {
+  definition: AgentWorkflowDefinition | null;
+  version: number | null;
 }
 
 export class PrismaAgentDefinitionRepository implements TenantMutableRepository<
@@ -122,6 +132,52 @@ export class PrismaAgentDefinitionRepository implements TenantMutableRepository<
     return result.count === 1;
   }
 
+  public async findWorkflow(
+    context: TenantContext,
+    id: string
+  ): Promise<AgentWorkflowRecord | null> {
+    const record = await this.database.agentDefinition.findFirst({
+      where: { id, tenantId: context.tenantId, deletedAt: null },
+      select: { workflowDefinition: true, workflowVersion: true }
+    });
+    if (!record) {
+      return null;
+    }
+    return {
+      definition: parseStoredWorkflow(record.workflowDefinition),
+      version: record.workflowVersion
+    };
+  }
+
+  public async saveWorkflow(
+    context: TenantContext,
+    id: string,
+    definition: AgentWorkflowDefinition
+  ): Promise<AgentWorkflowRecord | null> {
+    const existing = await this.database.agentDefinition.findFirst({
+      where: { id, tenantId: context.tenantId, deletedAt: null },
+      select: { workflowVersion: true }
+    });
+    if (!existing) {
+      return null;
+    }
+
+    const [record] = await this.database.agentDefinition.updateManyAndReturn({
+      where: { id, tenantId: context.tenantId, deletedAt: null },
+      data: {
+        workflowDefinition: definition,
+        workflowVersion: (existing.workflowVersion ?? 0) + 1
+      }
+    });
+    if (!record) {
+      return null;
+    }
+    return {
+      definition: parseStoredWorkflow(record.workflowDefinition),
+      version: record.workflowVersion
+    };
+  }
+
   public async installTemplates(
     context: TenantContext,
     templates: readonly AgentTemplate[]
@@ -207,6 +263,8 @@ export class PrismaAgentDefinitionRepository implements TenantMutableRepository<
     timeoutMs: number;
     enabledToolIds: string[];
     knowledgeBaseIds: string[];
+    workflowDefinition: typeof Prisma.DbNull;
+    workflowVersion: null;
   } {
     return {
       name: template.definition.name,
@@ -219,7 +277,17 @@ export class PrismaAgentDefinitionRepository implements TenantMutableRepository<
       maxTokens: template.definition.maxTokens ?? null,
       timeoutMs: template.definition.timeoutMs,
       enabledToolIds: [...template.definition.enabledToolIds],
-      knowledgeBaseIds: [...template.definition.knowledgeBaseIds]
+      knowledgeBaseIds: [...template.definition.knowledgeBaseIds],
+      workflowDefinition: Prisma.DbNull,
+      workflowVersion: null
     };
   }
+}
+
+function parseStoredWorkflow(value: unknown): AgentWorkflowDefinition | null {
+  if (value === null) {
+    return null;
+  }
+  const parsed = agentWorkflowDefinitionSchema.safeParse(value);
+  return parsed.success ? parsed.data : null;
 }

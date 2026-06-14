@@ -176,6 +176,7 @@ export function AgentWorkspace({
 
         <AgentForm
           key={creating ? "new" : (selectedAgent?.id ?? "empty")}
+          accessToken={accessToken}
           agent={creating ? null : selectedAgent}
           canManage={canManage}
           isNew={creating}

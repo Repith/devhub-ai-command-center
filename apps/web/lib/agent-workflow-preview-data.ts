@@ -64,6 +64,13 @@ export function workflowPreviewForAgent(
   return workflowPreviewForTemplate(template);
 }
 
+export function defaultWorkflowDefinitionForAgent(
+  agent: AgentDefinition
+): AgentWorkflowDefinition | null {
+  const template = previewTemplateForAgent(agent);
+  return template ? workflowDefinitionForTemplate(template) : null;
+}
+
 export function workflowPreviewForTemplate(
   template: WorkflowPreviewTemplate
 ): WorkflowPreviewGraph {
@@ -82,7 +89,7 @@ export function workflowPreviewForTemplate(
       id: edge.id,
       source: edge.sourceNodeId,
       target: edge.targetNodeId,
-      label: conditionLabel(edge)
+      label: workflowConditionLabel(edge)
     }))
   };
 }
@@ -249,7 +256,7 @@ function workflowDefinitionForTemplate(
   };
 }
 
-function conditionLabel(edge: AgentWorkflowEdge): string {
+export function workflowConditionLabel(edge: AgentWorkflowEdge): string {
   const condition = edge.condition ?? { type: "always" };
   if (condition.type === "always") {
     return "always";

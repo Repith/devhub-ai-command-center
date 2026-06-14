@@ -557,13 +557,13 @@ Acceptance: workflow definitions can be validated and compiled safely in tests, 
 
 ## PR 32: Editable Workflow Persistence and Visual Editor
 
-- [ ] Add optional workflow definition persistence to `AgentDefinition`, using a JSON column plus a workflow version field.
+- [x] Add optional workflow definition persistence to `AgentDefinition`, using a JSON column plus a workflow version field.
 - [ ] Add API endpoints:
-  - `GET /api/v1/agents/:agentId/workflow`,
-  - `PUT /api/v1/agents/:agentId/workflow`,
-  - `POST /api/v1/agents/:agentId/workflow/validate`.
-- [ ] Enforce owner/admin role checks and tenant ownership.
-- [ ] Build an MVP React Flow editor:
+  - [x] `GET /api/v1/agents/:agentId/workflow`,
+  - [x] `PUT /api/v1/agents/:agentId/workflow`,
+  - [x] `POST /api/v1/agents/:agentId/workflow/validate`.
+- [x] Enforce owner/admin role checks and tenant ownership.
+- [x] Build an MVP React Flow editor:
   - node palette,
   - draggable nodes,
   - connectable edges,
@@ -571,19 +571,19 @@ Acceptance: workflow definitions can be validated and compiled safely in tests, 
   - selected node config panel,
   - validation panel,
   - save/reset actions.
-- [ ] Start node must exist and not be deletable.
-- [ ] Complete/fail terminal path must be required.
-- [ ] Save must be disabled until server validation passes.
-- [ ] Store only safe workflow JSON, not executable code.
-- [ ] Add tests for:
-  - owner/admin can save valid workflow,
-  - member cannot save workflow,
-  - invalid workflow rejected server-side,
-  - unknown node type rejected,
-  - forbidden condition rejected,
-  - cross-tenant save rejected,
-  - editor can add/connect/configure nodes,
-  - reset to template graph.
+- [x] Start node must exist and not be deletable.
+- [x] Complete/fail terminal path must be required.
+- [x] Save must be disabled until server validation passes.
+- [x] Store only safe workflow JSON, not executable code.
+- [x] Add tests for:
+  - [x] owner/admin can save valid workflow,
+  - [x] member cannot save workflow,
+  - [x] invalid workflow rejected server-side,
+  - [x] unknown node type rejected,
+  - [x] forbidden condition rejected,
+  - [x] cross-tenant save rejected,
+  - [x] editor can add/connect/configure nodes,
+  - [x] reset to template graph.
 
 Acceptance: owners/admins can visually configure an agent workflow using safe block definitions, and the server remains authoritative for validation.
 

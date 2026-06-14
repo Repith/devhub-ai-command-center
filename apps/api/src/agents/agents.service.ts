@@ -5,13 +5,19 @@ import type {
   AgentTemplate,
   AgentTemplateKey,
   AgentTemplateRequirement,
+  AgentWorkflowDefinition,
+  AgentWorkflowResponse,
+  AgentWorkflowValidationResponse,
   CreateAgentDefinition,
   InstallAgentTemplatesResponse,
   IntegrationSetupStatus,
   McpToolId,
   UpdateAgentDefinition
 } from "@devhub/contracts";
-import { DEFAULT_AGENT_TEMPLATES } from "@devhub/contracts";
+import {
+  DEFAULT_AGENT_TEMPLATES,
+  agentWorkflowDefinitionSchema
+} from "@devhub/contracts";
 import type {
   AgentDefinitionRecord,
   DatabaseClient,
@@ -122,6 +128,71 @@ export class AgentsService {
     });
   }
 
+  public async getWorkflow(
+    principal: RequestPrincipal,
+    agentId: string
+  ): Promise<AgentWorkflowResponse> {
+    const workflow = await this.agents.findWorkflow(
+      this.context(principal),
+      agentId
+    );
+    if (!workflow) {
+      throw new NotFoundException("Agent definition was not found.");
+    }
+    return workflow;
+  }
+
+  public async validateWorkflow(
+    principal: RequestPrincipal,
+    agentId: string,
+    input: unknown
+  ): Promise<AgentWorkflowValidationResponse> {
+    const workflow = await this.agents.findWorkflow(
+      this.context(principal),
+      agentId
+    );
+    if (!workflow) {
+      throw new NotFoundException("Agent definition was not found.");
+    }
+    const result = agentWorkflowDefinitionSchema.safeParse(input);
+    if (result.success) {
+      return { valid: true, errors: [] };
+    }
+    return {
+      valid: false,
+      errors: result.error.issues.map((issue) => ({
+        code: issue.code,
+        message: issue.message,
+        path: issue.path.filter(
+          (part): part is string | number =>
+            typeof part === "string" || typeof part === "number"
+        )
+      }))
+    };
+  }
+
+  public async saveWorkflow(
+    principal: RequestPrincipal,
+    agentId: string,
+    definition: AgentWorkflowDefinition
+  ): Promise<AgentWorkflowResponse> {
+    const workflow = await this.agents.saveWorkflow(
+      this.context(principal),
+      agentId,
+      definition
+    );
+    if (!workflow) {
+      throw new NotFoundException("Agent definition was not found.");
+    }
+    await this.audit.record(principal, {
+      action: "agent.workflow_saved",
+      resourceType: "agent",
+      resourceId: agentId,
+      metadata: { workflowVersion: workflow.version }
+    });
+    return workflow;
+  }
+
   public async listTemplates(
     principal: RequestPrincipal
   ): Promise<{ data: AgentTemplate[] }> {
@@ -182,6 +253,7 @@ export class AgentsService {
       description: record.description,
       templateKey: this.templateKey(record),
       templateSetup: this.templateSetup(record, setup),
+      workflowVersion: record.workflowVersion,
       provider: record.provider,
       model: record.model,
       systemPrompt: record.systemPrompt,

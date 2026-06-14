@@ -12,9 +12,11 @@ import {
   type CreateAgentDefinition
 } from "@devhub/contracts";
 
+import { AgentWorkflowEditor } from "./agent-workflow-editor";
 import { AgentWorkflowPreview } from "./agent-workflow-preview";
 
 interface AgentFormProps {
+  accessToken: string;
   agent: AgentDefinition | null;
   canManage: boolean;
   isNew: boolean;
@@ -46,6 +48,7 @@ const DATE_FORMATTER = new Intl.DateTimeFormat("en-US", {
 });
 
 export function AgentForm({
+  accessToken,
   agent,
   canManage,
   isNew,
@@ -128,6 +131,13 @@ export function AgentForm({
       ) : null}
 
       {!isNew && agent ? <AgentWorkflowPreview agent={agent} /> : null}
+      {!isNew && agent ? (
+        <AgentWorkflowEditor
+          accessToken={accessToken}
+          agent={agent}
+          canManage={canManage}
+        />
+      ) : null}
 
       <form
         className="agent-form"

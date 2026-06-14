@@ -9,11 +9,13 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   UseGuards
 } from "@nestjs/common";
 
 import {
   createAgentDefinitionSchema,
+  saveAgentWorkflowSchema,
   updateAgentDefinitionSchema,
   uuidSchema
 } from "@devhub/contracts";
@@ -21,8 +23,11 @@ import type {
   AgentDefinition,
   AgentDefinitionList,
   AgentTemplateList,
+  AgentWorkflowResponse,
+  AgentWorkflowValidationResponse,
   CreateAgentDefinition,
   InstallAgentTemplatesResponse,
+  SaveAgentWorkflow,
   UpdateAgentDefinition
 } from "@devhub/contracts";
 
@@ -84,6 +89,37 @@ export class AgentsController {
     @Param("agentId", new ZodValidationPipe(uuidSchema)) agentId: string
   ): Promise<AgentDefinition> {
     return this.agents.findById(principal, agentId);
+  }
+
+  @Get(":agentId/workflow")
+  @Roles("OWNER", "ADMIN", "MEMBER")
+  public getWorkflow(
+    @CurrentUser() principal: RequestPrincipal,
+    @Param("agentId", new ZodValidationPipe(uuidSchema)) agentId: string
+  ): Promise<AgentWorkflowResponse> {
+    return this.agents.getWorkflow(principal, agentId);
+  }
+
+  @Post(":agentId/workflow/validate")
+  @Roles("OWNER", "ADMIN")
+  @HttpCode(HttpStatus.OK)
+  public validateWorkflow(
+    @CurrentUser() principal: RequestPrincipal,
+    @Param("agentId", new ZodValidationPipe(uuidSchema)) agentId: string,
+    @Body() input: unknown
+  ): Promise<AgentWorkflowValidationResponse> {
+    return this.agents.validateWorkflow(principal, agentId, input);
+  }
+
+  @Put(":agentId/workflow")
+  @Roles("OWNER", "ADMIN")
+  public saveWorkflow(
+    @CurrentUser() principal: RequestPrincipal,
+    @Param("agentId", new ZodValidationPipe(uuidSchema)) agentId: string,
+    @Body(new ZodValidationPipe(saveAgentWorkflowSchema))
+    input: SaveAgentWorkflow
+  ): Promise<AgentWorkflowResponse> {
+    return this.agents.saveWorkflow(principal, agentId, input.definition);
   }
 
   @Post()

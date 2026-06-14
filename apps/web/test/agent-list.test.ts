@@ -15,6 +15,7 @@ const agent: AgentDefinition = {
   description: null,
   templateKey: null,
   templateSetup: [],
+  workflowVersion: null,
   provider: "ollama",
   model: "qwen3:8b",
   systemPrompt: "Use authorized knowledge.",

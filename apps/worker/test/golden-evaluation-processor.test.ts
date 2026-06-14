@@ -214,6 +214,8 @@ function goldenCase(id: string): GoldenCaseWithAgentRecord {
       timeoutMs: 120_000,
       enabledToolIds: [],
       knowledgeBaseIds: [],
+      workflowDefinition: null,
+      workflowVersion: null,
       createdAt: now,
       updatedAt: now
     }

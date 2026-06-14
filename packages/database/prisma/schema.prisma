@@ -179,6 +179,8 @@ model AgentDefinition {
   timeoutMs        Int            @default(120000)
   enabledToolIds   String[]       @default([])
   knowledgeBaseIds String[]       @default([])
+  workflowDefinition Json?
+  workflowVersion Int?
   tenant           Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   conversations    Conversation[]
   runs             AgentRun[]

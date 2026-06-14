@@ -108,6 +108,7 @@ function agent(
     description: null,
     templateKey,
     templateSetup: [],
+    workflowVersion: null,
     provider: "ollama",
     model: "qwen3:8b",
     systemPrompt: "Use authorized context.",
