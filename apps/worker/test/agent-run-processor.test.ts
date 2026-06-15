@@ -4,6 +4,7 @@ import { FakeLlmProvider, type LlmProviderPort } from "@devhub/ai";
 import type {
   AgentRunConfigSnapshot,
   AgentRunJob,
+  AgentWorkflowDefinition,
   CreateAgentRun,
   McpToolId,
   RealtimeEvent
@@ -117,6 +118,171 @@ describe("AgentRunProcessor", () => {
     await new AgentRunProcessor({ llmProvider, runs, tools }).process(job());
 
     expect(runs.completed).toBe(true);
+    expect(tools.calls).toHaveLength(0);
+    expect(llmProvider.requests).toHaveLength(0);
+  });
+
+  it("uses a saved workflow definition instead of the default graph", async () => {
+    const input: CreateAgentRun = {
+      message: "Use the custom usage workflow.",
+      retrievalLimit: 3
+    };
+    const config = configSnapshot({
+      enabledToolIds: ["usage.summary"],
+      workflowDefinition: usageWorkflow(),
+      workflowVersion: 2
+    });
+    const runs = new FakeRunRepository(input, config);
+    const tools = new FakeToolRegistry();
+    const llmProvider = new FakeLlmProvider({ chunks: ["Custom answer"] });
+
+    await new AgentRunProcessor({ llmProvider, runs, tools }).process(job());
+
+    expect(runs.completed).toBe(true);
+    expect(config.configVersion).toContain("workflow:2");
+    expect(runs.steps.map((step) => step.kind)).toEqual([
+      "usage.summary",
+      "llm.generate"
+    ]);
+    expect(tools.calls.map((call) => call.toolId)).toEqual(["usage.summary"]);
+  });
+
+  it("fails safely when a saved workflow snapshot is invalid", async () => {
+    const input: CreateAgentRun = {
+      message: "Invalid workflow should not run.",
+      retrievalLimit: 3
+    };
+    const config = {
+      ...configSnapshot({ enabledToolIds: [] }),
+      workflowDefinition: {
+        version: 1,
+        nodes: [{ id: "start", type: "start", config: {} }],
+        edges: []
+      }
+    } as AgentRunConfigSnapshot;
+    const runs = new FakeRunRepository(input, config);
+
+    await expect(
+      new AgentRunProcessor({
+        llmProvider: new FakeLlmProvider({ chunks: ["Should not run"] }),
+        runs,
+        tools: new FakeToolRegistry()
+      }).process(job())
+    ).rejects.toThrow(
+      "Workflow must contain at least one complete or fail node"
+    );
+
+    expect(runs.steps).toHaveLength(0);
+    expect(runs.failed?.code).toBe("AGENT_RUN_FAILED");
+    expect(runs.completed).toBe(false);
+  });
+
+  it("denies disabled tools referenced by a saved workflow", async () => {
+    const input: CreateAgentRun = {
+      message: "Try knowledge without allowlist.",
+      retrievalLimit: 3
+    };
+    const runs = new FakeRunRepository(
+      input,
+      configSnapshot({
+        enabledToolIds: [],
+        workflowDefinition: knowledgeWorkflow(),
+        workflowVersion: 3
+      })
+    );
+
+    await expect(
+      new AgentRunProcessor({
+        llmProvider: new FakeLlmProvider({ chunks: ["Should not run"] }),
+        runs,
+        tools: new FakeToolRegistry()
+      }).process(job())
+    ).rejects.toThrow('Workflow tool "knowledge.search" is not enabled');
+
+    expect(runs.failed?.code).toBe("DISABLED_TOOL");
+    expect(runs.completed).toBe(false);
+    expect(runs.steps).toHaveLength(0);
+  });
+
+  it("routes saved workflow conditions through the expected branch", async () => {
+    const input: CreateAgentRun = {
+      message: "Conditionally summarize usage.",
+      retrievalLimit: 3
+    };
+    const config = configSnapshot({
+      enabledToolIds: ["usage.summary"],
+      workflowDefinition: conditionalUsageWorkflow(),
+      workflowVersion: 4
+    });
+    const runs = new FakeRunRepository(input, config);
+    const tools = new FakeToolRegistry();
+
+    await new AgentRunProcessor({
+      llmProvider: new FakeLlmProvider({ chunks: ["Conditional answer"] }),
+      runs,
+      tools
+    }).process(job());
+
+    expect(runs.steps.map((step) => step.kind)).toEqual([
+      "usage.summary",
+      "llm.generate"
+    ]);
+    expect(tools.calls.map((call) => call.toolId)).toEqual(["usage.summary"]);
+  });
+
+  it("persists terminal failure state from a saved workflow", async () => {
+    const input: CreateAgentRun = {
+      message: "Fail this workflow.",
+      retrievalLimit: 3
+    };
+    const runs = new FakeRunRepository(
+      input,
+      configSnapshot({
+        enabledToolIds: [],
+        workflowDefinition: terminalFailWorkflow(),
+        workflowVersion: 5
+      })
+    );
+
+    await expect(
+      new AgentRunProcessor({
+        llmProvider: new FakeLlmProvider({ chunks: ["Should not run"] }),
+        runs,
+        tools: new FakeToolRegistry()
+      }).process(job())
+    ).rejects.toThrow("Forced workflow failure.");
+
+    expect(runs.failed).toEqual({
+      code: "UNROUTABLE_WORKFLOW",
+      message: "Forced workflow failure."
+    });
+    expect(runs.completed).toBe(false);
+  });
+
+  it("does not duplicate completed saved workflow steps during retry", async () => {
+    const input: CreateAgentRun = {
+      message: "Retry custom workflow safely.",
+      retrievalLimit: 5
+    };
+    const runs = new FakeRunRepository(
+      input,
+      configSnapshot({
+        enabledToolIds: ["knowledge.search"],
+        workflowDefinition: knowledgeWorkflow(),
+        workflowVersion: 6
+      })
+    );
+    runs.seedCompletedSavedWorkflowSteps();
+    const tools = new FakeToolRegistry();
+    const llmProvider = new FakeLlmProvider({ chunks: ["Should not run"] });
+
+    await new AgentRunProcessor({ llmProvider, runs, tools }).process(job());
+
+    expect(runs.completed).toBe(true);
+    expect(runs.steps.map((step) => step.kind)).toEqual([
+      "rag.retrieve",
+      "llm.generate"
+    ]);
     expect(tools.calls).toHaveLength(0);
     expect(llmProvider.requests).toHaveLength(0);
   });
@@ -604,6 +770,23 @@ class FakeRunRepository {
     );
   }
 
+  public seedCompletedSavedWorkflowSteps(): void {
+    this.steps.push(
+      stepRecord(
+        1,
+        "rag.retrieve",
+        "COMPLETED",
+        "Retry custom workflow safely."
+      ),
+      stepRecord(
+        3,
+        "llm.generate",
+        "COMPLETED",
+        "Retry custom workflow safely."
+      )
+    );
+  }
+
   private findStep(stepId: string): AgentRunStepRecord {
     const step = this.steps.find((item) => item.id === stepId);
     if (!step) {
@@ -873,7 +1056,10 @@ function configSnapshot(input: {
   maxToolCalls?: number;
   maxTokens?: number | null;
   templateKey?: AgentRunConfigSnapshot["templateKey"];
+  workflowDefinition?: AgentWorkflowDefinition | null;
+  workflowVersion?: number | null;
 }): AgentRunConfigSnapshot {
+  const workflowVersion = input.workflowVersion ?? null;
   return {
     agentId: "00000000-0000-4000-8000-000000000004",
     provider: "ollama",
@@ -885,7 +1071,163 @@ function configSnapshot(input: {
     maxTokens: input.maxTokens ?? null,
     timeoutMs: 120_000,
     enabledToolIds: [...input.enabledToolIds],
-    knowledgeBaseIds: []
+    knowledgeBaseIds: [],
+    configVersion: `agent:2026-06-15T00:00:00.000Z:workflow:${workflowVersion ?? "default"}`,
+    workflowVersion,
+    workflowDefinition: input.workflowDefinition ?? null
+  };
+}
+
+function knowledgeWorkflow(): AgentWorkflowDefinition {
+  return {
+    version: 1,
+    nodes: [
+      { id: "start", type: "start", label: "Start", config: {} },
+      {
+        id: "retrieve",
+        type: "knowledge.search",
+        label: "Retrieve knowledge",
+        config: { documentIds: [], limit: 5, query: "run.message" }
+      },
+      {
+        id: "generate",
+        type: "llm.generate",
+        label: "Generate",
+        config: { includePreviousOutputs: true, prompt: "agent.systemPrompt" }
+      },
+      {
+        id: "complete",
+        type: "complete",
+        label: "Complete",
+        config: { output: "previous.output" }
+      }
+    ],
+    edges: [
+      { id: "start-retrieve", sourceNodeId: "start", targetNodeId: "retrieve" },
+      {
+        id: "retrieve-generate",
+        sourceNodeId: "retrieve",
+        targetNodeId: "generate"
+      },
+      {
+        id: "generate-complete",
+        sourceNodeId: "generate",
+        targetNodeId: "complete"
+      }
+    ]
+  };
+}
+
+function usageWorkflow(): AgentWorkflowDefinition {
+  return {
+    version: 1,
+    nodes: [
+      { id: "start", type: "start", label: "Start", config: {} },
+      {
+        id: "usage",
+        type: "usage.summary",
+        label: "Usage",
+        config: { period: "30d" }
+      },
+      {
+        id: "generate",
+        type: "llm.generate",
+        label: "Generate",
+        config: { includePreviousOutputs: true, prompt: "agent.systemPrompt" }
+      },
+      {
+        id: "complete",
+        type: "complete",
+        label: "Complete",
+        config: { output: "previous.output" }
+      }
+    ],
+    edges: [
+      { id: "start-usage", sourceNodeId: "start", targetNodeId: "usage" },
+      { id: "usage-generate", sourceNodeId: "usage", targetNodeId: "generate" },
+      {
+        id: "generate-complete",
+        sourceNodeId: "generate",
+        targetNodeId: "complete"
+      }
+    ]
+  };
+}
+
+function conditionalUsageWorkflow(): AgentWorkflowDefinition {
+  return {
+    version: 1,
+    nodes: [
+      { id: "start", type: "start", label: "Start", config: {} },
+      {
+        id: "condition",
+        type: "condition",
+        label: "Usage enabled?",
+        config: { condition: { type: "tool.enabled", toolId: "usage.summary" } }
+      },
+      {
+        id: "usage",
+        type: "usage.summary",
+        label: "Usage",
+        config: { period: "30d" }
+      },
+      {
+        id: "generate",
+        type: "llm.generate",
+        label: "Generate",
+        config: { includePreviousOutputs: true, prompt: "agent.systemPrompt" }
+      },
+      {
+        id: "complete",
+        type: "complete",
+        label: "Complete",
+        config: { output: "previous.output" }
+      }
+    ],
+    edges: [
+      {
+        id: "start-condition",
+        sourceNodeId: "start",
+        targetNodeId: "condition"
+      },
+      {
+        id: "condition-usage",
+        sourceNodeId: "condition",
+        targetNodeId: "usage",
+        condition: { type: "tool.enabled", toolId: "usage.summary" }
+      },
+      {
+        id: "condition-generate",
+        sourceNodeId: "condition",
+        targetNodeId: "generate",
+        condition: { type: "always" }
+      },
+      { id: "usage-generate", sourceNodeId: "usage", targetNodeId: "generate" },
+      {
+        id: "generate-complete",
+        sourceNodeId: "generate",
+        targetNodeId: "complete"
+      }
+    ]
+  };
+}
+
+function terminalFailWorkflow(): AgentWorkflowDefinition {
+  return {
+    version: 1,
+    nodes: [
+      { id: "start", type: "start", label: "Start", config: {} },
+      {
+        id: "fail",
+        type: "fail",
+        label: "Fail",
+        config: {
+          errorCode: "WORKFLOW_FAILED",
+          message: "Forced workflow failure."
+        }
+      }
+    ],
+    edges: [{ id: "start-fail", sourceNodeId: "start", targetNodeId: "fail" }]
   };
 }
 

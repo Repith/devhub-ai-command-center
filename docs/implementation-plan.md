@@ -558,7 +558,7 @@ Acceptance: workflow definitions can be validated and compiled safely in tests, 
 ## PR 32: Editable Workflow Persistence and Visual Editor
 
 - [x] Add optional workflow definition persistence to `AgentDefinition`, using a JSON column plus a workflow version field.
-- [ ] Add API endpoints:
+- [x] Add API endpoints:
   - [x] `GET /api/v1/agents/:agentId/workflow`,
   - [x] `PUT /api/v1/agents/:agentId/workflow`,
   - [x] `POST /api/v1/agents/:agentId/workflow/validate`.
@@ -589,25 +589,25 @@ Acceptance: owners/admins can visually configure an agent workflow using safe bl
 
 ## PR 33: Runtime Execution from Saved Workflows
 
-- [ ] If an agent has a saved workflow definition, validate and compile it at run start.
-- [ ] If no saved workflow exists, use the code-owned default graph.
-- [ ] Keep the existing default template behavior stable.
-- [ ] Preserve all runtime boundaries:
+- [x] If an agent has a saved workflow definition, validate and compile it at run start.
+- [x] If no saved workflow exists, use the code-owned default graph.
+- [x] Keep the existing default template behavior stable.
+- [x] Preserve all runtime boundaries:
   - PostgreSQL is source of truth,
   - BullMQ is the durable job boundary,
   - `AgentRunStep` records every operation,
   - tool calls go through allowlists,
   - usage is persisted,
   - realtime events remain compatible.
-- [ ] Add workflow version/config version to `AgentRun.configSnapshot`.
-- [ ] Add tests for:
-  - default agent uses default graph,
-  - custom workflow uses compiled graph,
-  - invalid saved workflow fails safely,
-  - disabled tool cannot be executed even if graph references it,
-  - conditional path chooses expected branch,
-  - terminal failure persists run status,
-  - retry does not duplicate completed workflow nodes.
+- [x] Add workflow version/config version to `AgentRun.configSnapshot`.
+- [x] Add tests for:
+  - [x] default agent uses default graph,
+  - [x] custom workflow uses compiled graph,
+  - [x] invalid saved workflow fails safely,
+  - [x] disabled tool cannot be executed even if graph references it,
+  - [x] conditional path chooses expected branch,
+  - [x] terminal failure persists run status,
+  - [x] retry does not duplicate completed workflow nodes.
 
 Acceptance: saved visual workflows can safely control agent execution without bypassing existing tenant, tool, budget, persistence, and realtime safeguards.
 

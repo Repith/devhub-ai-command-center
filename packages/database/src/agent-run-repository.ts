@@ -483,8 +483,17 @@ function snapshotAgent(agent: AgentDefinitionRecord): AgentRunConfigSnapshot {
     maxTokens: agent.maxTokens,
     timeoutMs: agent.timeoutMs,
     enabledToolIds: [...agent.enabledToolIds],
-    knowledgeBaseIds: [...agent.knowledgeBaseIds]
+    knowledgeBaseIds: [...agent.knowledgeBaseIds],
+    configVersion: configVersion(agent),
+    workflowVersion: agent.workflowVersion,
+    workflowDefinition: (agent.workflowDefinition ??
+      null) as AgentRunConfigSnapshot["workflowDefinition"]
   };
+}
+
+function configVersion(agent: AgentDefinitionRecord): string {
+  const workflowVersion = agent.workflowVersion ?? "default";
+  return `agent:${agent.updatedAt.toISOString()}:workflow:${workflowVersion}`;
 }
 
 function templateKey(
