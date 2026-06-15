@@ -1,0 +1,16 @@
+{
+  "name": "@devhub/e2e",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "test:e2e": "vitest run",
+    "lint": "eslint test",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@devhub/contracts": "0.0.0"
+  },
+  "devDependencies": {
+    "@devhub/config": "0.0.0"
+  }
+}

@@ -16,9 +16,10 @@ conversation continuation, assistant message persistence after successful
 worker completion, no assistant message on failure or cancellation, and usage
 summaries derived from `TokenUsage` rows created by chat-triggered runs.
 
-End-to-end tests exercise the browser-visible workflow from registration through
-agent configuration, upload, indexing, cited answer, MCP call, timeline, usage,
-and evaluation.
+End-to-end tests exercise the release command-center path from registration
+through template-backed agents, upload, indexing, cited answers, MCP calls,
+Gmail draft review, RSS news, timeline, usage, saved workflows, and
+full-runtime evaluation.
 
 ## Required Security Scenarios
 
@@ -55,3 +56,22 @@ sources, pass/fail details, latency, token usage, and retrieval hit.
 Once introduced, CI runs formatting checks, lint, typecheck, unit tests,
 integration tests, migration validation, and build. E2E and live Ollama suites
 may run in a separate workflow but must pass before a release tag.
+
+## End-To-End Release Coverage
+
+`npm run test:e2e` executes the release command-center flow in `apps/e2e`.
+This suite is deterministic and validates the shared contracts used by the
+documented demo path: registration, template-backed durable runs, indexed
+knowledge, RSS briefing inputs, Gmail draft review, usage observability, run
+timeline snapshots, and full-runtime golden evaluation. It complements the
+database-backed integration suites; it does not replace a manual clean-checkout
+demo with PostgreSQL, Redis, Qdrant, Ollama, and optional Gmail OAuth running.
+
+Database-backed integration tests are skipped when `DATABASE_URL` is missing.
+Treat a skipped integration run as incomplete release evidence, not as proof
+that persistence, queues, or tenant isolation were exercised.
+
+`npm run eval:golden` is the release wrapper for the seeded full-runtime golden
+set. It requires `DEVHUB_ACCESS_TOKEN` and a running local API/worker stack,
+then posts `FULL_AGENT_RUNTIME` to the evaluation API and polls until the report
+reaches a terminal state.

@@ -85,6 +85,15 @@ Reapply migrations and seed data:
 npm run db:setup
 ```
 
+Run the deterministic release flow checks without starting the full stack:
+
+```bash
+npm run test:e2e
+```
+
+This command validates shared contracts for the documented command-center demo.
+It does not connect to PostgreSQL, Redis, Qdrant, Ollama, or Gmail.
+
 ## Usage Summary Limits
 
 The local MVP usage dashboard keeps aggregation in application memory so the
