@@ -277,6 +277,13 @@ describe("contracts", () => {
         {
           runId: "9a50ec3e-3ba9-4775-a57f-b7c88f34a10d",
           agentId: "64fe81ba-7faf-4b37-a2b8-347cd19b5550",
+          templateKey: "knowledge-researcher",
+          workflowVersion: 7,
+          toolCallsUsed: 1,
+          retrievalHit: true,
+          retrievalHitCount: 3,
+          finalAnswerTokens: 8,
+          modelLatencyMs: 42,
           status: "COMPLETED",
           startedAt: "2026-06-09T12:00:00.000Z",
           completedAt: "2026-06-09T12:01:00.000Z",

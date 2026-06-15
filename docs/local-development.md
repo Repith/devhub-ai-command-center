@@ -85,6 +85,15 @@ Reapply migrations and seed data:
 npm run db:setup
 ```
 
+## Usage Summary Limits
+
+The local MVP usage dashboard keeps aggregation in application memory so the
+runtime path stays easy to inspect. `PrismaUsageRepository` reads token usage in
+1000-record cursor windows and caps a single summary at the most recent 5000
+records for the requested period. Larger tenants should move the same grouping
+to database-level aggregation before this becomes a production reporting
+surface.
+
 ## Connections
 
 Default local endpoints:

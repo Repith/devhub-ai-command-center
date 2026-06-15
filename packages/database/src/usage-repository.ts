@@ -16,6 +16,7 @@ import type { TenantContext } from "@devhub/domain";
 import type { DatabaseClient } from "./client.js";
 
 interface UsageRecord {
+  id: string;
   agentRunId: string;
   provider: string;
   model: string;
@@ -32,8 +33,16 @@ interface UsageRecord {
     startedAt: Date | null;
     completedAt: Date | null;
     createdAt: Date;
+    steps: readonly {
+      kind: string;
+      status: string;
+      outputPreview: string | null;
+    }[];
   };
 }
+
+const usageSummaryPageSize = 1000;
+const usageSummaryRecordLimit = 5000;
 
 export class PrismaUsageRepository {
   public constructor(private readonly database: DatabaseClient) {}
@@ -44,26 +53,8 @@ export class PrismaUsageRepository {
   ): Promise<UsageSummary> {
     const period = query.period;
     const startedAt = periodStart(period);
-    const records = await this.database.tokenUsage.findMany({
-      where: {
-        tenantId: context.tenantId,
-        ...(startedAt ? { createdAt: { gte: startedAt } } : {})
-      },
-      include: {
-        agentRun: {
-          select: {
-            agentId: true,
-            status: true,
-            configSnapshot: true,
-            startedAt: true,
-            completedAt: true,
-            createdAt: true
-          }
-        }
-      },
-      orderBy: { createdAt: "desc" },
-      take: 5000
-    });
+    const records = await this.listUsageRecords(context, startedAt);
+    const runs = [...groupByRun(records).values()].sort(byTokensDesc);
 
     return {
       period,
@@ -71,15 +62,61 @@ export class PrismaUsageRepository {
       tenant: sum(records),
       periods: groupByPeriod(records, period),
       agents: [...groupByAgent(records).values()].sort(byTokensDesc),
-      runs: [...groupByRun(records).values()].sort(byTokensDesc),
+      runs,
       providerModels: [...groupByProviderModel(records).values()].sort(
         byTokensDesc
       ),
-      recentExpensiveRuns: [...groupByRun(records).values()]
+      recentExpensiveRuns: [...runs]
         .sort(byRunCreatedAtDescThenTokens)
         .slice(0, 10),
-      budgetWarnings: budgetWarnings([...groupByRun(records).values()], records)
+      budgetWarnings: budgetWarnings(runs, records)
     };
+  }
+
+  private async listUsageRecords(
+    context: TenantContext,
+    startedAt: Date | null
+  ): Promise<UsageRecord[]> {
+    const records: UsageRecord[] = [];
+    let cursor: { id: string } | undefined;
+    while (records.length < usageSummaryRecordLimit) {
+      const remaining = usageSummaryRecordLimit - records.length;
+      const page = await this.database.tokenUsage.findMany({
+        where: {
+          tenantId: context.tenantId,
+          ...(startedAt ? { createdAt: { gte: startedAt } } : {})
+        },
+        include: {
+          agentRun: {
+            select: {
+              agentId: true,
+              status: true,
+              configSnapshot: true,
+              startedAt: true,
+              completedAt: true,
+              createdAt: true,
+              steps: {
+                select: {
+                  kind: true,
+                  status: true,
+                  outputPreview: true
+                },
+                orderBy: { sequence: "asc" }
+              }
+            }
+          }
+        },
+        orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+        take: Math.min(usageSummaryPageSize, remaining),
+        ...(cursor ? { cursor, skip: 1 } : {})
+      });
+      records.push(...page);
+      if (page.length < Math.min(usageSummaryPageSize, remaining)) {
+        break;
+      }
+      cursor = { id: page[page.length - 1]!.id };
+    }
+    return records;
   }
 }
 
@@ -100,16 +137,29 @@ function groupByAgent(
 function groupByRun(records: readonly UsageRecord[]): Map<string, UsageByRun> {
   const map = new Map<string, UsageByRun>();
   for (const record of records) {
+    const observability = runObservability(record.agentRun.configSnapshot);
     const current = map.get(record.agentRunId) ?? {
       runId: record.agentRunId,
       agentId: record.agentRun.agentId,
+      templateKey: observability.templateKey,
+      workflowVersion: observability.workflowVersion,
+      toolCallsUsed: countToolCalls(record.agentRun.steps),
+      retrievalHit: countRetrievalHits(record.agentRun.steps) > 0,
+      retrievalHitCount: countRetrievalHits(record.agentRun.steps),
+      finalAnswerTokens: 0,
+      modelLatencyMs: 0,
       status: record.agentRun.status,
       startedAt: record.agentRun.startedAt?.toISOString() ?? null,
       completedAt: record.agentRun.completedAt?.toISOString() ?? null,
       createdAt: record.agentRun.createdAt.toISOString(),
       ...emptyTotals()
     };
-    map.set(record.agentRunId, addRecord(current, record));
+    const next = addRecord(current, record);
+    map.set(record.agentRunId, {
+      ...next,
+      finalAnswerTokens: next.outputTokens,
+      modelLatencyMs: next.latencyMs
+    });
   }
   return map;
 }
@@ -237,6 +287,99 @@ function warningForRun(
     percentUsed,
     createdAt: run.createdAt
   };
+}
+
+function runObservability(
+  configSnapshot: unknown
+): Pick<UsageByRun, "templateKey" | "workflowVersion"> {
+  const parsed = agentRunConfigSnapshotSchema.safeParse(configSnapshot);
+  if (!parsed.success) {
+    return fallbackRunObservability(configSnapshot);
+  }
+  return {
+    templateKey: parsed.data.templateKey ?? null,
+    workflowVersion: parsed.data.workflowVersion ?? null
+  };
+}
+
+function fallbackRunObservability(
+  configSnapshot: unknown
+): Pick<UsageByRun, "templateKey" | "workflowVersion"> {
+  if (!configSnapshot || typeof configSnapshot !== "object") {
+    return { templateKey: null, workflowVersion: null };
+  }
+  const snapshot = configSnapshot as {
+    templateKey?: unknown;
+    workflowVersion?: unknown;
+  };
+  return {
+    templateKey: isKnownTemplateKey(snapshot.templateKey)
+      ? snapshot.templateKey
+      : null,
+    workflowVersion:
+      typeof snapshot.workflowVersion === "number" &&
+      Number.isInteger(snapshot.workflowVersion) &&
+      snapshot.workflowVersion > 0
+        ? snapshot.workflowVersion
+        : null
+  };
+}
+
+function isKnownTemplateKey(
+  value: unknown
+): value is NonNullable<UsageByRun["templateKey"]> {
+  return (
+    value === "knowledge-researcher" ||
+    value === "daily-news-briefing" ||
+    value === "gmail-triage" ||
+    value === "gmail-reply-assistant" ||
+    value === "usage-analyst"
+  );
+}
+
+function countToolCalls(steps: UsageRecord["agentRun"]["steps"]): number {
+  return steps.filter(
+    (step) =>
+      step.status === "COMPLETED" &&
+      (step.kind === "rag.retrieve" ||
+        step.kind.startsWith("mcp.") ||
+        step.kind === "usage.summary" ||
+        step.kind === "gmail.draft_review")
+  ).length;
+}
+
+function countRetrievalHits(steps: UsageRecord["agentRun"]["steps"]): number {
+  return steps.reduce((count, step) => {
+    if (
+      step.kind !== "rag.retrieve" ||
+      step.status !== "COMPLETED" ||
+      !step.outputPreview
+    ) {
+      return count;
+    }
+    const parsed = parsePreviewJson(step.outputPreview);
+    if (parsed && Array.isArray(parsed.sources)) {
+      return count + parsed.sources.length;
+    }
+    if (parsed && Array.isArray(parsed.citations)) {
+      return count + parsed.citations.length;
+    }
+    if (parsed && Array.isArray(parsed.chunks)) {
+      return count + parsed.chunks.length;
+    }
+    return count + 1;
+  }, 0);
+}
+
+function parsePreviewJson(value: string): Record<string, unknown> | null {
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === "object"
+      ? (parsed as Record<string, unknown>)
+      : null;
+  } catch {
+    return null;
+  }
 }
 
 function periodStart(period: UsagePeriod): Date | null {

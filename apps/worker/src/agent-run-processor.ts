@@ -12,6 +12,7 @@ import {
   PrismaExternalConnectionRepository,
   PrismaGmailDraftReviewRepository,
   PrismaNewsFeedRepository,
+  PrismaAuditLogRepository,
   PrismaUsageRepository,
   type DatabaseClient
 } from "@devhub/database";
@@ -36,6 +37,7 @@ import {
 import { compileAgentWorkflowDefinition } from "./agent-graph/workflow-compiler.js";
 import { GmailAccessTokenProvider } from "./gmail-access-token-provider.js";
 import type { RealtimeEventPublisher } from "./realtime-event-publisher.js";
+import { PrismaToolAuditSink } from "./tool-audit-sink.js";
 
 export interface AgentRunGmailOptions {
   clientId?: string | undefined;
@@ -69,6 +71,9 @@ export async function processAgentRun(
   const newsFeeds = new PrismaNewsFeedRepository(options.database);
   const runs = new PrismaAgentRunRepository(options.database);
   const usage = new PrismaUsageRepository(options.database);
+  const toolAudit = new PrismaToolAuditSink(
+    new PrismaAuditLogRepository(options.database)
+  );
   const gmailAccessTokens = options.gmail
     ? new GmailAccessTokenProvider({
         clientId: options.gmail.clientId,
@@ -77,24 +82,27 @@ export async function processAgentRun(
         tokenEncryptionKey: options.gmail.tokenEncryptionKey
       })
     : null;
-  const tools = new StaticToolRegistry([
-    createKnowledgeSearchTool({
-      documents,
-      embeddingModel: options.embeddingModel,
-      embeddingProvider: options.embeddingProvider,
-      embeddingTimeoutMs: options.embeddingTimeoutMs,
-      vectorStore: options.vectorStore
-    }),
-    createNewsFetchRssTool({ timeoutMs: options.rssTimeoutMs }),
-    createUsageSummaryTool({ usage }),
-    ...(gmailAccessTokens
-      ? createGmailTools({
-          getAccessToken: (context) =>
-            gmailAccessTokens.getAccessToken(context),
-          timeoutMs: options.gmail!.timeoutMs
-        })
-      : [])
-  ]);
+  const tools = new StaticToolRegistry(
+    [
+      createKnowledgeSearchTool({
+        documents,
+        embeddingModel: options.embeddingModel,
+        embeddingProvider: options.embeddingProvider,
+        embeddingTimeoutMs: options.embeddingTimeoutMs,
+        vectorStore: options.vectorStore
+      }),
+      createNewsFetchRssTool({ timeoutMs: options.rssTimeoutMs }),
+      createUsageSummaryTool({ usage }),
+      ...(gmailAccessTokens
+        ? createGmailTools({
+            getAccessToken: (context) =>
+              gmailAccessTokens.getAccessToken(context),
+            timeoutMs: options.gmail!.timeoutMs
+          })
+        : [])
+    ],
+    toolAudit
+  );
   const processor = new AgentRunProcessor({
     llmProvider: options.llmProvider,
     ...(options.publisher ? { publisher: options.publisher } : {}),

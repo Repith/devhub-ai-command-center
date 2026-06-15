@@ -647,27 +647,27 @@ Acceptance: golden set evaluation can catch regressions in prompts, retrieval, t
 
 ## PR 35: Usage and Observability Optimization
 
-- [ ] Ensure every model generation path writes authoritative `TokenUsage`.
-- [ ] Remove or deprecate direct chat usage that only lives in `Message` rows.
-- [ ] Add a `ToolAuditSink` implementation for worker MCP calls so tool audits are persisted, not only defined in the registry abstraction.
-- [ ] Optimize `PrismaUsageRepository.summarize` for larger tenants:
+- [x] Ensure every model generation path writes authoritative `TokenUsage`.
+- [x] Remove or deprecate direct chat usage that only lives in `Message` rows.
+- [x] Add a `ToolAuditSink` implementation for worker MCP calls so tool audits are persisted, not only defined in the registry abstraction.
+- [x] Optimize `PrismaUsageRepository.summarize` for larger tenants:
   - keep current in-memory aggregation for local MVP,
   - add DB-level aggregation or cursor windows when records exceed the current 5000-row cap,
   - document local MVP limits.
-- [ ] Add run-level observability:
+- [x] Add run-level observability:
   - selected workflow version,
   - selected template key,
   - tool call count,
   - retrieval hit count,
   - final answer token count,
   - model latency.
-- [ ] Ensure previews remain bounded:
+- [x] Ensure previews remain bounded:
   - tool inputs,
   - tool outputs,
   - RSS entries,
   - Gmail message snippets,
   - document chunks.
-- [ ] Add tests for:
+- [x] Add tests for:
   - usage summary includes worker chat,
   - usage summary excludes foreign tenants,
   - tool audit records success/failure/denied,
