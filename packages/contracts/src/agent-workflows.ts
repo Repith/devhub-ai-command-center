@@ -340,6 +340,42 @@ export type AgentWorkflowDefinition = z.infer<
   typeof agentWorkflowDefinitionSchema
 >;
 
+export const saveAgentWorkflowSchema = z
+  .object({
+    definition: agentWorkflowDefinitionSchema
+  })
+  .strict();
+export type SaveAgentWorkflow = z.infer<typeof saveAgentWorkflowSchema>;
+
+export const agentWorkflowResponseSchema = z
+  .object({
+    definition: agentWorkflowDefinitionSchema.nullable(),
+    version: z.number().int().positive().nullable()
+  })
+  .strict();
+export type AgentWorkflowResponse = z.infer<typeof agentWorkflowResponseSchema>;
+
+export const agentWorkflowValidationIssueSchema = z
+  .object({
+    code: z.string().min(1),
+    message: z.string().min(1),
+    path: z.array(z.union([z.string(), z.number()]))
+  })
+  .strict();
+export type AgentWorkflowValidationIssue = z.infer<
+  typeof agentWorkflowValidationIssueSchema
+>;
+
+export const agentWorkflowValidationResponseSchema = z
+  .object({
+    valid: z.boolean(),
+    errors: z.array(agentWorkflowValidationIssueSchema)
+  })
+  .strict();
+export type AgentWorkflowValidationResponse = z.infer<
+  typeof agentWorkflowValidationResponseSchema
+>;
+
 export interface AgentWorkflowValidationError {
   code:
     | "DANGLING_EDGE"

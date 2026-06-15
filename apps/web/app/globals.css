@@ -1946,6 +1946,166 @@ button.nav-item {
   white-space: nowrap;
 }
 
+.workflow-editor {
+  display: grid;
+  gap: 0.9rem;
+  border-bottom: 1px solid #252936;
+  padding: 1.1rem 1.5rem 1.35rem;
+  background: #10131a;
+}
+
+.workflow-editor-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.workflow-editor-heading h3 {
+  margin: 0;
+  color: #f4f6fb;
+  font-size: 1rem;
+}
+
+.workflow-editor-heading span {
+  border: 1px solid #31543f;
+  border-radius: 999px;
+  padding: 0.35rem 0.55rem;
+  background: #132018;
+  color: #8fe3b0;
+  font-family: ui-monospace, monospace;
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.workflow-editor-layout {
+  display: grid;
+  grid-template-columns: minmax(9rem, 0.75fr) minmax(20rem, 2fr) minmax(
+      13rem,
+      1fr
+    );
+  gap: 0.75rem;
+}
+
+.workflow-palette,
+.workflow-config-panel,
+.workflow-validation-panel {
+  border: 1px solid #2d3240;
+  border-radius: 0.75rem;
+  background: #11141b;
+}
+
+.workflow-palette {
+  display: grid;
+  align-content: start;
+  gap: 0.45rem;
+  padding: 0.65rem;
+}
+
+.workflow-palette button {
+  overflow-wrap: anywhere;
+  border: 1px solid #303543;
+  border-radius: 0.45rem;
+  padding: 0.5rem 0.55rem;
+  background: #171a22;
+  color: #e7eaf1;
+  font-family: ui-monospace, monospace;
+  font-size: 0.72rem;
+  font-weight: 750;
+  text-align: left;
+}
+
+.workflow-editor-canvas {
+  height: 24rem;
+  overflow: hidden;
+  border: 1px solid #252936;
+  border-radius: 0.75rem;
+  background: #0d1016;
+}
+
+.workflow-editor-canvas .react-flow__node {
+  width: 11rem;
+  border: 1px solid #3b4152;
+  border-radius: 0.6rem;
+  padding: 0.62rem 0.72rem;
+  background: #171a22;
+  color: #f4f6fb;
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.workflow-editor-canvas .react-flow__node.selected {
+  border-color: #7c8cff;
+  box-shadow: 0 0 0 2px rgb(124 140 255 / 20%);
+}
+
+.workflow-editor-canvas .react-flow__edge-path {
+  stroke: #8b7cff;
+  stroke-width: 2;
+}
+
+.workflow-editor-canvas .workflow-edge-failure .react-flow__edge-path {
+  stroke: #ff9b9b;
+}
+
+.workflow-editor-canvas .react-flow__edge-textbg {
+  fill: #11141b;
+}
+
+.workflow-editor-canvas .react-flow__edge-text {
+  fill: #cbd1df;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.workflow-config-panel {
+  min-width: 0;
+  padding: 0.75rem;
+}
+
+.workflow-config-panel p {
+  margin: 0;
+  color: #aeb6c8;
+  font-size: 0.84rem;
+}
+
+.workflow-config-stack {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.workflow-config-stack > strong {
+  color: #f4f6fb;
+  font-family: ui-monospace, monospace;
+  font-size: 0.78rem;
+  overflow-wrap: anywhere;
+}
+
+.workflow-validation-panel {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.75rem;
+}
+
+.workflow-validation-panel p,
+.workflow-validation-panel ul {
+  margin: 0;
+  color: #cbd1df;
+  font-size: 0.84rem;
+}
+
+.workflow-validation-panel ul {
+  display: grid;
+  gap: 0.35rem;
+  padding-left: 1rem;
+}
+
+.success-text {
+  color: #8fe3b0 !important;
+  font-weight: 800;
+}
+
 .timeline-step span:not(.timeline-index) {
   color: #858da0;
   font-size: 0.74rem;
@@ -2131,6 +2291,14 @@ button.nav-item {
   .editor-panel {
     min-height: auto;
   }
+
+  .workflow-editor-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .workflow-palette {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 640px) {
@@ -2229,5 +2397,13 @@ button.nav-item {
 
   .chunk-pagination .secondary-button {
     width: 100%;
+  }
+
+  .workflow-palette {
+    grid-template-columns: 1fr;
+  }
+
+  .workflow-editor-canvas {
+    height: 20rem;
   }
 }

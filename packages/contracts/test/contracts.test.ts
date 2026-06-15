@@ -76,6 +76,7 @@ describe("contracts", () => {
       templateSetup: [
         { id: "knowledge.search", label: "Knowledge search", status: "READY" }
       ],
+      workflowVersion: null,
       provider: "ollama",
       model: "qwen3:8b",
       systemPrompt: "Use authorized knowledge.",
@@ -105,6 +106,7 @@ describe("contracts", () => {
           status: "MISCONFIGURED"
         }
       ],
+      workflowVersion: null,
       provider: "ollama",
       model: "qwen3:8b",
       systemPrompt: "Review Gmail.",

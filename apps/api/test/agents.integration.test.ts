@@ -8,6 +8,9 @@ import type {
   AgentDefinition,
   AgentDefinitionList,
   AgentTemplateList,
+  AgentWorkflowDefinition,
+  AgentWorkflowResponse,
+  AgentWorkflowValidationResponse,
   AuditLogList,
   AuthenticatedUser
 } from "@devhub/contracts";
@@ -19,6 +22,7 @@ import { DATABASE_CLIENT } from "../src/database/database.module";
 
 const ownerEmail = `agent-owner-${crypto.randomUUID()}@example.com`;
 const memberEmail = `agent-member-${crypto.randomUUID()}@example.com`;
+const foreignOwnerEmail = `agent-foreign-${crypto.randomUUID()}@example.com`;
 const password = "correct horse battery staple";
 const describeWithDatabase = process.env.DATABASE_URL
   ? describe
@@ -29,6 +33,7 @@ describeWithDatabase("agent configuration and tenant isolation", () => {
   let database: DatabaseClient | undefined;
   let ownerToken: string;
   let memberToken: string;
+  let foreignOwnerToken: string;
   let member: AuthenticatedUser;
   let agent: AgentDefinition;
 
@@ -46,21 +51,29 @@ describeWithDatabase("agent configuration and tenant isolation", () => {
     await app.init();
     database = app.get<DatabaseClient>(DATABASE_CLIENT);
 
-    const [ownerRegistration, memberRegistration] = await Promise.all([
-      request(app.getHttpServer()).post("/api/v1/auth/register").send({
-        email: ownerEmail,
-        password,
-        tenantName: "Agent Owner Workspace"
-      }),
-      request(app.getHttpServer()).post("/api/v1/auth/register").send({
-        email: memberEmail,
-        password,
-        tenantName: "Agent Member Workspace"
-      })
-    ]);
+    const [ownerRegistration, memberRegistration, foreignOwnerRegistration] =
+      await Promise.all([
+        request(app.getHttpServer()).post("/api/v1/auth/register").send({
+          email: ownerEmail,
+          password,
+          tenantName: "Agent Owner Workspace"
+        }),
+        request(app.getHttpServer()).post("/api/v1/auth/register").send({
+          email: memberEmail,
+          password,
+          tenantName: "Agent Member Workspace"
+        }),
+        request(app.getHttpServer()).post("/api/v1/auth/register").send({
+          email: foreignOwnerEmail,
+          password,
+          tenantName: "Foreign Agent Owner Workspace"
+        })
+      ]);
 
     ownerToken = (ownerRegistration.body as AccessTokenResponse).accessToken;
     memberToken = (memberRegistration.body as AccessTokenResponse).accessToken;
+    foreignOwnerToken = (foreignOwnerRegistration.body as AccessTokenResponse)
+      .accessToken;
 
     const memberResponse = await request(app.getHttpServer())
       .get("/api/v1/me")
@@ -81,7 +94,7 @@ describeWithDatabase("agent configuration and tenant isolation", () => {
   afterAll(async () => {
     if (database) {
       await database.user.deleteMany({
-        where: { email: { in: [ownerEmail, memberEmail] } }
+        where: { email: { in: [ownerEmail, memberEmail, foreignOwnerEmail] } }
       });
     }
     await app?.close();
@@ -243,6 +256,107 @@ describeWithDatabase("agent configuration and tenant isolation", () => {
       .expect(403);
   });
 
+  it("allows owners to save a valid tenant workflow", async () => {
+    const validateResponse = await request(app!.getHttpServer())
+      .post(`/api/v1/agents/${agent.id}/workflow/validate`)
+      .set("Authorization", `Bearer ${ownerToken}`)
+      .send(validWorkflow())
+      .expect(200);
+    expect(validateResponse.body).toEqual({
+      valid: true,
+      errors: []
+    } satisfies AgentWorkflowValidationResponse);
+
+    const saveResponse = await request(app!.getHttpServer())
+      .put(`/api/v1/agents/${agent.id}/workflow`)
+      .set("Authorization", `Bearer ${ownerToken}`)
+      .send({ definition: validWorkflow() })
+      .expect(200);
+    const saved = saveResponse.body as AgentWorkflowResponse;
+    expect(saved.version).toBe(1);
+    expect(saved.definition?.nodes.map((node) => node.id)).toEqual([
+      "start",
+      "retrieve-knowledge",
+      "generate-answer",
+      "complete"
+    ]);
+
+    const readResponse = await request(app!.getHttpServer())
+      .get(`/api/v1/agents/${agent.id}/workflow`)
+      .set("Authorization", `Bearer ${ownerToken}`)
+      .expect(200);
+    expect((readResponse.body as AgentWorkflowResponse).version).toBe(1);
+  });
+
+  it("rejects member workflow saves", async () => {
+    await request(app!.getHttpServer())
+      .put(`/api/v1/agents/${agent.id}/workflow`)
+      .set("Authorization", `Bearer ${memberToken}`)
+      .send({ definition: validWorkflow() })
+      .expect(403);
+  });
+
+  it("rejects invalid, unknown, and forbidden workflow definitions server-side", async () => {
+    const missingTerminal = {
+      ...validWorkflow(),
+      nodes: validWorkflow().nodes.filter((node) => node.type !== "complete"),
+      edges: validWorkflow().edges.filter(
+        (edge) => edge.targetNodeId !== "complete"
+      )
+    };
+    await request(app!.getHttpServer())
+      .put(`/api/v1/agents/${agent.id}/workflow`)
+      .set("Authorization", `Bearer ${ownerToken}`)
+      .send({ definition: missingTerminal })
+      .expect(400);
+
+    await request(app!.getHttpServer())
+      .put(`/api/v1/agents/${agent.id}/workflow`)
+      .set("Authorization", `Bearer ${ownerToken}`)
+      .send({
+        definition: {
+          ...validWorkflow(),
+          nodes: [
+            ...validWorkflow().nodes,
+            {
+              id: "execute-shell",
+              type: "shell.exec",
+              config: { command: "echo unsafe" }
+            }
+          ]
+        }
+      })
+      .expect(400);
+
+    await request(app!.getHttpServer())
+      .post(`/api/v1/agents/${agent.id}/workflow/validate`)
+      .set("Authorization", `Bearer ${ownerToken}`)
+      .send({
+        ...validWorkflow(),
+        edges: [
+          {
+            id: "start-to-complete",
+            sourceNodeId: "start",
+            targetNodeId: "complete",
+            condition: { type: "javascript", expression: "return true" }
+          }
+        ]
+      })
+      .expect(200)
+      .expect(({ body }: { body: AgentWorkflowValidationResponse }) => {
+        expect(body.valid).toBe(false);
+        expect(body.errors.length).toBeGreaterThan(0);
+      });
+  });
+
+  it("rejects cross-tenant workflow saves", async () => {
+    await request(app!.getHttpServer())
+      .put(`/api/v1/agents/${agent.id}/workflow`)
+      .set("Authorization", `Bearer ${foreignOwnerToken}`)
+      .send({ definition: validWorkflow() })
+      .expect(404);
+  });
+
   it("soft-deletes the agent and returns not found afterwards", async () => {
     await request(app!.getHttpServer())
       .delete(`/api/v1/agents/${agent.id}`)
@@ -254,3 +368,51 @@ describeWithDatabase("agent configuration and tenant isolation", () => {
       .expect(404);
   });
 });
+
+function validWorkflow(): AgentWorkflowDefinition {
+  return {
+    version: 1,
+    nodes: [
+      { id: "start", type: "start", label: "Start", config: {} },
+      {
+        id: "retrieve-knowledge",
+        type: "knowledge.search",
+        label: "Retrieve knowledge",
+        config: { documentIds: [], limit: 5, query: "run.message" }
+      },
+      {
+        id: "generate-answer",
+        type: "llm.generate",
+        label: "Generate answer",
+        config: {
+          includePreviousOutputs: true,
+          prompt: "agent.systemPrompt"
+        }
+      },
+      {
+        id: "complete",
+        type: "complete",
+        label: "Complete",
+        config: { output: "previous.output" }
+      }
+    ],
+    edges: [
+      {
+        id: "start-to-retrieve",
+        sourceNodeId: "start",
+        targetNodeId: "retrieve-knowledge",
+        condition: { type: "tool.enabled", toolId: "knowledge.search" }
+      },
+      {
+        id: "retrieve-to-generate",
+        sourceNodeId: "retrieve-knowledge",
+        targetNodeId: "generate-answer"
+      },
+      {
+        id: "generate-to-complete",
+        sourceNodeId: "generate-answer",
+        targetNodeId: "complete"
+      }
+    ]
+  };
+}

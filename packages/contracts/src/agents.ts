@@ -61,6 +61,7 @@ export const agentDefinitionSchema = createAgentDefinitionSchema.extend({
   description: z.string().nullable(),
   templateKey: agentTemplateKeySchema.nullable(),
   templateSetup: z.array(agentTemplateRequirementSchema),
+  workflowVersion: z.number().int().positive().nullable(),
   maxTokens: z.number().int().positive().nullable(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime()

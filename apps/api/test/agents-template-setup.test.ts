@@ -176,6 +176,8 @@ function agentRecord(
     timeoutMs: 120_000,
     enabledToolIds: ["usage.summary"],
     knowledgeBaseIds: [],
+    workflowDefinition: null,
+    workflowVersion: null,
     createdAt: now,
     updatedAt: now,
     ...input
