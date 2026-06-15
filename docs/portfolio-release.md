@@ -8,9 +8,10 @@ depending on cloud model APIs.
 
 The release includes tenant registration, JWT and refresh-token rotation, agent
 configuration, Ollama chat, document ingestion, embeddings, Qdrant retrieval,
-MCP tools, durable BullMQ runs, Socket.IO timelines, usage budgets, golden-set
-evaluation, structured request logs, rate limits, upload hardening, and tenant
-audit views.
+MCP tools, Gmail draft review, RSS news briefings, durable BullMQ runs,
+Socket.IO timelines, saved workflow execution, usage budgets, full-runtime
+golden-set evaluation, structured request logs, rate limits, upload hardening,
+and tenant audit views.
 
 ```mermaid
 flowchart LR
@@ -21,14 +22,15 @@ flowchart LR
   Redis --> Worker[BullMQ worker]
   Worker --> Ollama[Ollama]
   Worker --> MCP[MCP tools]
+  Worker --> Gmail[Gmail API]
   Worker --> Postgres
   Worker --> Qdrant
   Worker --> Redis
 ```
 
 The demo runs locally through Docker Compose for PostgreSQL, Redis, and Qdrant.
-Next.js, the API, the worker, MCP servers, and Ollama run on the host to keep
-iteration fast and GPU access simple.
+Next.js, the API, the worker, MCP servers, Gmail OAuth callbacks, and Ollama run
+on the host to keep iteration fast and GPU access simple.
 
 ## Hardening Notes
 
@@ -42,27 +44,32 @@ status, and duration. They deliberately avoid request bodies, cookies,
 authorization headers, refresh tokens, prompts, uploaded document text, and tool
 outputs.
 
-The audit view stores tenant-scoped security events for resource mutations and
-search actions. It records action, resource type, resource ID, metadata, and
-timestamp. Browser-supplied tenant IDs are never accepted.
+The audit view stores tenant-scoped security events for resource mutations,
+search actions, and worker MCP tool calls. It records action, resource type,
+resource ID, metadata, and timestamp. Browser-supplied tenant IDs are never
+accepted, and Gmail tool payloads are redacted before audit persistence.
 
-Upload hardening keeps the allowlist narrow: Markdown, text, and PDF only.
-Filenames are display metadata, storage keys are generated, PDF files need the
-`%PDF-` signature, and text files must be valid UTF-8 without binary NUL bytes.
+Upload hardening keeps the allowlist narrow: Markdown, text, PDF, JPEG, PNG,
+and WebP. Filenames are display metadata, storage keys are generated, PDF files
+need the `%PDF-` signature, text files must be valid UTF-8 without binary NUL
+bytes, and images route through the OCR provider before indexing.
 
 ## Trade-Offs
 
 Deployment, SSO, organization invitations, billing, hosted observability,
-distributed rate limiting, full RBAC policy editing, and LangGraph-style agent
-graphs are intentionally left outside `v0.1.0`. The release favors explicit
-ports, queues, DTOs, and repositories so a reader can trace every behavior from
-browser request to database record.
+distributed rate limiting, full RBAC policy editing, arbitrary user code in
+workflows, and arbitrary external tool execution are intentionally left outside
+`v0.1.0`. The release favors explicit ports, queues, DTOs, and repositories so a
+reader can trace every behavior from browser request to database record.
 
-The golden evaluator is intentionally rule-based. It is repeatable and easy to
-audit, but it cannot judge writing quality or nuanced semantic equivalence. A
-future release can add model-graded evaluation as a separate evaluator type
-without replacing the deterministic baseline.
+The golden evaluator keeps a fast rule-based mode and adds a full-runtime mode.
+The fast mode is repeatable and easy to audit, while full-runtime evaluation
+executes the same durable LangGraph path used by the command center. A future
+release can add model-graded evaluation as a separate evaluator type without
+replacing the deterministic baseline.
 
-Screenshots should be captured from a local run after PR #14 is merged: Agents,
-Chat, Document upload, Runs timeline, Usage, Audit log, and Evaluation report.
-The demo script in [demo-script.md](demo-script.md) defines the capture path.
+Screenshots should be captured from a local run before tagging: Home command
+center, Agents setup state, Knowledge upload and retrieval, Runs timeline,
+Usage, Gmail review queue, News feeds, Workflow editor, Audit log, and
+Evaluation report. The demo script in [demo-script.md](demo-script.md) defines
+the capture path.

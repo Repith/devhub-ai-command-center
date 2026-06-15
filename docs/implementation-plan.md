@@ -678,7 +678,7 @@ Acceptance: usage and audit views reflect the actual agent runtime path and rema
 
 ## PR 36: Release Readiness and End-to-End Command Center Flow
 
-- [ ] Add E2E coverage for the complete command center:
+- [x] Add E2E coverage for the complete command center:
   - register/login,
   - install templates,
   - upload/index knowledge,
@@ -690,14 +690,14 @@ Acceptance: usage and audit views reflect the actual agent runtime path and rema
   - inspect run timeline,
   - inspect usage summary,
   - run full-runtime golden evaluation.
-- [ ] Add accessibility pass for:
+- [x] Add accessibility pass for:
   - home dashboard,
   - agent workspace,
   - run timeline,
   - Gmail review queue,
   - news workspace,
   - workflow visualizer/editor.
-- [ ] Update docs:
+- [x] Update docs:
   - architecture,
   - local development,
   - API contracts,
@@ -706,7 +706,7 @@ Acceptance: usage and audit views reflect the actual agent runtime path and rema
   - testing,
   - demo script,
   - portfolio release notes.
-- [ ] Remove stale claims from docs where implementation differs.
+- [x] Remove stale claims from docs where implementation differs.
 - [ ] Verify the documented demo from a clean checkout.
 - [ ] Run and record:
   - `npm run format:check`,
@@ -714,6 +714,7 @@ Acceptance: usage and audit views reflect the actual agent runtime path and rema
   - `npm run typecheck`,
   - `npm run test`,
   - `npm run build`,
+  - `npm run eval:golden`,
   - integration/E2E suites where available.
 - [ ] Tag `v0.1.0` only after owner review.
 

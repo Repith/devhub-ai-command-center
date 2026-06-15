@@ -15,6 +15,7 @@
     "db:setup": "npm run db:migrate --workspace @devhub/database && npm run db:seed --workspace @devhub/database",
     "dev": "node scripts/run-dev.mjs",
     "env:init": "node scripts/init-env.mjs",
+    "eval:golden": "node scripts/eval-golden.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "generate": "turbo run generate",
