@@ -1208,10 +1208,22 @@ function errorCode(error: unknown): string {
   if (error instanceof ToolRegistryError) {
     return error.code;
   }
+  const workflowCode = workflowRuntimeErrorCode(error);
+  if (workflowCode) {
+    return workflowCode;
+  }
   if (isTimeout(error)) {
     return "RUN_TIMED_OUT";
   }
   return "AGENT_RUN_FAILED";
+}
+
+function workflowRuntimeErrorCode(error: unknown): string | null {
+  if (!(error instanceof Error) || !("code" in error)) {
+    return null;
+  }
+  const code = error.code;
+  return typeof code === "string" && code.length > 0 ? code : null;
 }
 
 function errorMessage(error: unknown): string {

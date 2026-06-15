@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   API_PREFIX,
   agentDefinitionSchema,
+  agentRunConfigSnapshotSchema,
   apiErrorSchema,
   chatStreamEventSchema,
   createChatMessageSchema,
@@ -139,6 +140,44 @@ describe("contracts", () => {
       version: 1,
       type: "chat.delta",
       text: "Hello"
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it("validates run config snapshots with saved workflow metadata", () => {
+    const result = agentRunConfigSnapshotSchema.safeParse({
+      agentId: "64fe81ba-7faf-4b37-a2b8-347cd19b5550",
+      provider: "ollama",
+      model: "qwen3:8b",
+      systemPrompt: "Use authorized knowledge.",
+      templateKey: null,
+      maxSteps: 8,
+      maxToolCalls: 4,
+      maxTokens: null,
+      timeoutMs: 120_000,
+      enabledToolIds: [],
+      knowledgeBaseIds: [],
+      configVersion: "agent:2026-06-15T00:00:00.000Z:workflow:7",
+      workflowVersion: 7,
+      workflowDefinition: {
+        version: 1,
+        nodes: [
+          { id: "start", type: "start", config: {} },
+          {
+            id: "complete",
+            type: "complete",
+            config: { output: "previous.output" }
+          }
+        ],
+        edges: [
+          {
+            id: "start-complete",
+            sourceNodeId: "start",
+            targetNodeId: "complete"
+          }
+        ]
+      }
     });
 
     expect(result.success).toBe(true);

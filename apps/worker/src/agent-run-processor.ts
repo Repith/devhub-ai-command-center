@@ -3,6 +3,7 @@ import type {
   AgentRunConfigSnapshot,
   CreateAgentRun
 } from "@devhub/contracts";
+import { agentRunConfigSnapshotSchema } from "@devhub/contracts";
 import type { EmbeddingProviderPort, LlmProviderPort } from "@devhub/ai";
 import {
   PrismaAgentRunRepository,
@@ -32,6 +33,7 @@ import {
   AgentStepRunner,
   type AgentStepRunnerDependencies
 } from "./agent-graph/agent-step-runner.js";
+import { compileAgentWorkflowDefinition } from "./agent-graph/workflow-compiler.js";
 import { GmailAccessTokenProvider } from "./gmail-access-token-provider.js";
 import type { RealtimeEventPublisher } from "./realtime-event-publisher.js";
 
@@ -108,10 +110,12 @@ export async function processAgentRun(
 }
 
 export class AgentRunProcessor {
+  private readonly deps: AgentRunProcessorDependencies;
   private readonly runner: AgentStepRunner;
   private readonly graph: ReturnType<typeof createAgentRunGraph>;
 
   public constructor(deps: AgentRunProcessorDependencies) {
+    this.deps = deps;
     this.runner = new AgentStepRunner(deps);
     this.graph = createAgentRunGraph(this.runner);
   }
@@ -121,7 +125,8 @@ export class AgentRunProcessor {
     const startedAt = performance.now();
 
     try {
-      await this.graph.invoke(
+      const graph = await this.graphForRun(context, job.runId);
+      await graph.invoke(
         initialGraphState({
           context,
           runId: job.runId
@@ -131,6 +136,24 @@ export class AgentRunProcessor {
       await this.runner.handleError(context, job.runId, error, startedAt);
       throw error;
     }
+  }
+
+  private async graphForRun(
+    context: TenantContext,
+    runId: string
+  ): Promise<ReturnType<typeof createAgentRunGraph>> {
+    const run = await this.deps.runs.findById(context, runId);
+    if (!run) {
+      return this.graph;
+    }
+    const config = agentRunConfigSnapshotSchema.parse(run.configSnapshot);
+    if (!config.workflowDefinition) {
+      return this.graph;
+    }
+    return compileAgentWorkflowDefinition(
+      config.workflowDefinition,
+      this.runner
+    ) as ReturnType<typeof createAgentRunGraph>;
   }
 }
 

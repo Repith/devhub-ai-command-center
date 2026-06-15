@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { uuidSchema } from "./api.js";
 import { agentTemplateKeySchema } from "./agents.js";
+import { agentWorkflowDefinitionSchema } from "./agent-workflows.js";
 import { mcpToolIdSchema } from "./mcp.js";
 import { agentRunStatusSchema, runStepStatusSchema } from "./statuses.js";
 
@@ -32,7 +33,10 @@ export const agentRunConfigSnapshotSchema = z
     maxTokens: z.number().int().positive().nullable(),
     timeoutMs: z.number().int().min(1),
     enabledToolIds: z.array(z.string().min(1)),
-    knowledgeBaseIds: z.array(uuidSchema)
+    knowledgeBaseIds: z.array(uuidSchema),
+    configVersion: z.string().min(1).optional(),
+    workflowVersion: z.number().int().positive().nullable().optional(),
+    workflowDefinition: agentWorkflowDefinitionSchema.nullable().optional()
   })
   .strict();
 export type AgentRunConfigSnapshot = z.infer<
