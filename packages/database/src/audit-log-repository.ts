@@ -4,6 +4,10 @@ import type { TenantContext } from "@devhub/domain";
 import type { DatabaseClient } from "./client.js";
 import type { Prisma } from "./generated/prisma/client.js";
 
+type AuditContext = Pick<TenantContext, "tenantId" | "correlationId"> & {
+  userId?: string | null;
+};
+
 export interface AuditLogRecord {
   id: string;
   tenantId: string;
@@ -36,13 +40,13 @@ export class PrismaAuditLogRepository {
   }
 
   public async record(
-    context: TenantContext,
+    context: AuditContext,
     input: CreateAuditLogInput
   ): Promise<void> {
     await this.database.auditLog.create({
       data: {
         tenantId: context.tenantId,
-        userId: context.userId,
+        userId: context.userId ?? null,
         action: input.action,
         resourceType: input.resourceType,
         resourceId: input.resourceId ?? null,

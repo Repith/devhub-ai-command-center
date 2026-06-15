@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { uuidSchema } from "./api.js";
+import { agentTemplateKeySchema } from "./agents.js";
 
 export const usagePeriodSchema = z.enum(["24h", "7d", "30d", "all"]);
 export type UsagePeriod = z.infer<typeof usagePeriodSchema>;
@@ -30,6 +31,12 @@ export type UsageByAgent = z.infer<typeof usageByAgentSchema>;
 export const usageByRunSchema = usageTotalsSchema.extend({
   runId: uuidSchema,
   agentId: uuidSchema,
+  templateKey: agentTemplateKeySchema.nullable(),
+  workflowVersion: z.number().int().positive().nullable(),
+  toolCallsUsed: z.number().int().nonnegative(),
+  retrievalHit: z.boolean(),
+  finalAnswerTokens: z.number().int().nonnegative(),
+  modelLatencyMs: z.number().int().nonnegative(),
   status: z.string().min(1),
   startedAt: z.iso.datetime().nullable(),
   completedAt: z.iso.datetime().nullable(),
