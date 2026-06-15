@@ -281,6 +281,7 @@ describe("contracts", () => {
           workflowVersion: 7,
           toolCallsUsed: 1,
           retrievalHit: true,
+          retrievalHitCount: 3,
           finalAnswerTokens: 8,
           modelLatencyMs: 42,
           status: "COMPLETED",

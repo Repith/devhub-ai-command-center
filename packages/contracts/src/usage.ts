@@ -35,6 +35,7 @@ export const usageByRunSchema = usageTotalsSchema.extend({
   workflowVersion: z.number().int().positive().nullable(),
   toolCallsUsed: z.number().int().nonnegative(),
   retrievalHit: z.boolean(),
+  retrievalHitCount: z.number().int().nonnegative(),
   finalAnswerTokens: z.number().int().nonnegative(),
   modelLatencyMs: z.number().int().nonnegative(),
   status: z.string().min(1),

@@ -144,7 +144,8 @@ function groupByRun(records: readonly UsageRecord[]): Map<string, UsageByRun> {
       templateKey: observability.templateKey,
       workflowVersion: observability.workflowVersion,
       toolCallsUsed: countToolCalls(record.agentRun.steps),
-      retrievalHit: hasRetrievalHit(record.agentRun.steps),
+      retrievalHit: countRetrievalHits(record.agentRun.steps) > 0,
+      retrievalHitCount: countRetrievalHits(record.agentRun.steps),
       finalAnswerTokens: 0,
       modelLatencyMs: 0,
       status: record.agentRun.status,
@@ -347,13 +348,38 @@ function countToolCalls(steps: UsageRecord["agentRun"]["steps"]): number {
   ).length;
 }
 
-function hasRetrievalHit(steps: UsageRecord["agentRun"]["steps"]): boolean {
-  return steps.some(
-    (step) =>
-      step.kind === "rag.retrieve" &&
-      step.status === "COMPLETED" &&
-      Boolean(step.outputPreview)
-  );
+function countRetrievalHits(steps: UsageRecord["agentRun"]["steps"]): number {
+  return steps.reduce((count, step) => {
+    if (
+      step.kind !== "rag.retrieve" ||
+      step.status !== "COMPLETED" ||
+      !step.outputPreview
+    ) {
+      return count;
+    }
+    const parsed = parsePreviewJson(step.outputPreview);
+    if (parsed && Array.isArray(parsed.sources)) {
+      return count + parsed.sources.length;
+    }
+    if (parsed && Array.isArray(parsed.citations)) {
+      return count + parsed.citations.length;
+    }
+    if (parsed && Array.isArray(parsed.chunks)) {
+      return count + parsed.chunks.length;
+    }
+    return count + 1;
+  }, 0);
+}
+
+function parsePreviewJson(value: string): Record<string, unknown> | null {
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === "object"
+      ? (parsed as Record<string, unknown>)
+      : null;
+  } catch {
+    return null;
+  }
 }
 
 function periodStart(period: UsagePeriod): Date | null {

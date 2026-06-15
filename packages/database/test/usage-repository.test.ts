@@ -55,10 +55,37 @@ describe("PrismaUsageRepository", () => {
         workflowVersion: 3,
         toolCallsUsed: 2,
         retrievalHit: true,
+        retrievalHitCount: 1,
         finalAnswerTokens: 2010,
         modelLatencyMs: 1005
       })
     ]);
+  });
+
+  it("always scopes summary pages to the current tenant", async () => {
+    const tenantId = "00000000-0000-0000-0000-000000000010";
+    const calls: { where: { tenantId?: string } }[] = [];
+    const database = {
+      tokenUsage: {
+        findMany: (input: { where: { tenantId?: string } }) => {
+          calls.push(input);
+          return Promise.resolve([]);
+        }
+      }
+    } as unknown as DatabaseClient;
+    const repository = new PrismaUsageRepository(database);
+
+    await repository.summarize(
+      {
+        tenantId,
+        userId: "00000000-0000-0000-0000-000000000011",
+        correlationId: "usage-tenant-test"
+      },
+      { period: "30d" }
+    );
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.where.tenantId).toBe(tenantId);
   });
 });
 
