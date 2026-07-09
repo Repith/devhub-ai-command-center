@@ -261,20 +261,7 @@ describeWithDatabase("agent configuration and tenant isolation", () => {
   });
 
   it("allows owners to save a valid tenant workflow", async () => {
-    const workflowAgentResponse = await request(app!.getHttpServer())
-      .post("/api/v1/agents")
-      .set("Authorization", `Bearer ${ownerToken}`)
-      .send({
-        name: "Workflow Validation Assistant",
-        description: "Owns the allowlist used by workflow validation tests.",
-        provider: "ollama",
-        model: "qwen3:8b",
-        systemPrompt: "Validate workflow persistence.",
-        enabledToolIds: ["knowledge.search"],
-        knowledgeBaseIds: []
-      })
-      .expect(201);
-    const workflowAgent = workflowAgentResponse.body as AgentDefinition;
+    const workflowAgent = await createWorkflowAgent();
 
     const validateResponse = await request(app!.getHttpServer())
       .post(`/api/v1/agents/${workflowAgent.id}/workflow/validate`)
@@ -316,6 +303,7 @@ describeWithDatabase("agent configuration and tenant isolation", () => {
   });
 
   it("rejects invalid, unknown, and forbidden workflow definitions server-side", async () => {
+    const workflowAgent = await createWorkflowAgent();
     const missingTerminal = {
       ...validWorkflow(),
       nodes: validWorkflow().nodes.filter((node) => node.type !== "complete"),
@@ -324,13 +312,13 @@ describeWithDatabase("agent configuration and tenant isolation", () => {
       )
     };
     await request(app!.getHttpServer())
-      .put(`/api/v1/agents/${agent.id}/workflow`)
+      .put(`/api/v1/agents/${workflowAgent.id}/workflow`)
       .set("Authorization", `Bearer ${ownerToken}`)
       .send({ definition: missingTerminal })
       .expect(400);
 
     await request(app!.getHttpServer())
-      .put(`/api/v1/agents/${agent.id}/workflow`)
+      .put(`/api/v1/agents/${workflowAgent.id}/workflow`)
       .set("Authorization", `Bearer ${ownerToken}`)
       .send({
         definition: {
@@ -348,7 +336,7 @@ describeWithDatabase("agent configuration and tenant isolation", () => {
       .expect(400);
 
     await request(app!.getHttpServer())
-      .post(`/api/v1/agents/${agent.id}/workflow/validate`)
+      .post(`/api/v1/agents/${workflowAgent.id}/workflow/validate`)
       .set("Authorization", `Bearer ${ownerToken}`)
       .send({
         ...validWorkflow(),
@@ -386,6 +374,23 @@ describeWithDatabase("agent configuration and tenant isolation", () => {
       .set("Authorization", `Bearer ${ownerToken}`)
       .expect(404);
   });
+
+  async function createWorkflowAgent(): Promise<AgentDefinition> {
+    const response = await request(app!.getHttpServer())
+      .post("/api/v1/agents")
+      .set("Authorization", `Bearer ${ownerToken}`)
+      .send({
+        name: `Workflow Validation Assistant ${crypto.randomUUID()}`,
+        description: "Owns the allowlist used by workflow validation tests.",
+        provider: "ollama",
+        model: "qwen3:8b",
+        systemPrompt: "Validate workflow persistence.",
+        enabledToolIds: ["knowledge.search"],
+        knowledgeBaseIds: []
+      })
+      .expect(201);
+    return response.body as AgentDefinition;
+  }
 });
 
 function validWorkflow(): AgentWorkflowDefinition {
