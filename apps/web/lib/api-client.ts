@@ -12,6 +12,13 @@ export class ApiClientError extends Error {
   }
 }
 
+export function formatApiClientError(error: unknown): string {
+  if (error instanceof ApiClientError) {
+    return `${error.response.code}: ${error.response.message} (${error.response.correlationId})`;
+  }
+  return error instanceof Error ? error.message : "Request failed.";
+}
+
 interface ApiRequestOptions extends Omit<RequestInit, "body"> {
   accessToken?: string;
   body?: unknown;

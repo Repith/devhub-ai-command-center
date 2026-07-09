@@ -3,7 +3,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
-import type { AgentDefinition, CreateAgentDefinition } from "@devhub/contracts";
+import type {
+  AgentDefinition,
+  CreateAgentDefinition,
+  InstallAgentTemplatesResponse
+} from "@devhub/contracts";
 
 import { AgentForm } from "./agent-form";
 import { AgentList } from "./agent-list";
@@ -16,6 +20,7 @@ import {
   resetAgentTemplates,
   updateAgent
 } from "@/lib/agents-api";
+import { formatApiClientError } from "@/lib/api-client";
 
 interface AgentWorkspaceProps {
   accessToken: string;
@@ -29,6 +34,8 @@ export function AgentWorkspace({
   const queryClient = useQueryClient();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [templateResult, setTemplateResult] =
+    useState<InstallAgentTemplatesResponse | null>(null);
   const agentsQuery = useQuery({
     queryKey: ["agents"],
     queryFn: () => listAgents(accessToken)
@@ -72,21 +79,25 @@ export function AgentWorkspace({
 
   const installTemplatesMutation = useMutation({
     mutationFn: () => installAgentTemplates(accessToken),
-    onSuccess: async () => {
+    onSuccess: async (result) => {
+      setTemplateResult(result);
+      setSelectedId(result.installedAgentIds[0] ?? null);
       await queryClient.invalidateQueries({ queryKey: ["agents"] });
     }
   });
 
   const resetTemplatesMutation = useMutation({
     mutationFn: () => resetAgentTemplates(accessToken),
-    onSuccess: async () => {
+    onSuccess: async (result) => {
+      setTemplateResult(result);
+      setSelectedId(result.installedAgentIds[0] ?? null);
       await queryClient.invalidateQueries({ queryKey: ["agents"] });
     }
   });
 
   return (
     <section
-      className="workspace"
+      className="workspace agents-workspace"
       id="agents"
       aria-labelledby="workspace-title"
     >
@@ -143,11 +154,18 @@ export function AgentWorkspace({
 
       {installTemplatesMutation.error || resetTemplatesMutation.error ? (
         <p className="workspace-alert" role="alert">
-          {installTemplatesMutation.error instanceof Error
-            ? installTemplatesMutation.error.message
-            : resetTemplatesMutation.error instanceof Error
-              ? resetTemplatesMutation.error.message
-              : "Template action failed."}
+          {formatApiClientError(
+            installTemplatesMutation.error ?? resetTemplatesMutation.error
+          )}
+        </p>
+      ) : null}
+
+      {templateResult ? (
+        <p className="workspace-alert success" role="status">
+          Templates: {templateResult.actionCounts.created} created,{" "}
+          {templateResult.actionCounts.revived} revived,{" "}
+          {templateResult.actionCounts.unchanged} unchanged,{" "}
+          {templateResult.actionCounts.reset} reset.
         </p>
       ) : null}
 
@@ -184,7 +202,7 @@ export function AgentWorkspace({
           isDeleting={deleteMutation.isPending}
           saveError={
             saveMutation.error instanceof Error
-              ? saveMutation.error.message
+              ? formatApiClientError(saveMutation.error)
               : null
           }
           onSave={(input) =>

@@ -1,4 +1,9 @@
-import { Inject, Injectable, NotFoundException } from "@nestjs/common";
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  NotFoundException
+} from "@nestjs/common";
 
 import type {
   AgentDefinition,
@@ -6,7 +11,9 @@ import type {
   AgentTemplateKey,
   AgentTemplateRequirement,
   AgentWorkflowDefinition,
+  AgentWorkflowNode,
   AgentWorkflowResponse,
+  AgentWorkflowValidationIssue,
   AgentWorkflowValidationResponse,
   CreateAgentDefinition,
   InstallAgentTemplatesResponse,
@@ -147,27 +154,28 @@ export class AgentsService {
     agentId: string,
     input: unknown
   ): Promise<AgentWorkflowValidationResponse> {
-    const workflow = await this.agents.findWorkflow(
-      this.context(principal),
-      agentId
-    );
-    if (!workflow) {
+    const record = await this.agents.findById(this.context(principal), agentId);
+    if (!record) {
       throw new NotFoundException("Agent definition was not found.");
     }
     const result = agentWorkflowDefinitionSchema.safeParse(input);
-    if (result.success) {
-      return { valid: true, errors: [] };
+    if (!result.success) {
+      return {
+        valid: false,
+        errors: result.error.issues.map((issue) => ({
+          code: issue.code,
+          message: issue.message,
+          path: issue.path.filter(
+            (part): part is string | number =>
+              typeof part === "string" || typeof part === "number"
+          )
+        }))
+      };
     }
+    const errors = workflowToolIssues(result.data, record.enabledToolIds);
     return {
-      valid: false,
-      errors: result.error.issues.map((issue) => ({
-        code: issue.code,
-        message: issue.message,
-        path: issue.path.filter(
-          (part): part is string | number =>
-            typeof part === "string" || typeof part === "number"
-        )
-      }))
+      valid: errors.length === 0,
+      errors
     };
   }
 
@@ -176,6 +184,17 @@ export class AgentsService {
     agentId: string,
     definition: AgentWorkflowDefinition
   ): Promise<AgentWorkflowResponse> {
+    const record = await this.agents.findById(this.context(principal), agentId);
+    if (!record) {
+      throw new NotFoundException("Agent definition was not found.");
+    }
+    const errors = workflowToolIssues(definition, record.enabledToolIds);
+    if (errors.length > 0) {
+      throw new BadRequestException({
+        code: "WORKFLOW_VALIDATION_ERROR",
+        issues: errors
+      });
+    }
     const workflow = await this.agents.saveWorkflow(
       this.context(principal),
       agentId,
@@ -209,10 +228,11 @@ export class AgentsService {
     await this.audit.record(principal, {
       action: "agent.templates_installed",
       resourceType: "agent_template",
-      metadata: { count: records.length }
+      metadata: { ...records.actionCounts, count: records.records.length }
     });
     return this.templateResponse(
-      records,
+      records.records,
+      records.actionCounts,
       await this.templateSetupState(principal)
     );
   }
@@ -227,10 +247,11 @@ export class AgentsService {
     await this.audit.record(principal, {
       action: "agent.templates_reset",
       resourceType: "agent_template",
-      metadata: { count: records.length }
+      metadata: { ...records.actionCounts, count: records.records.length }
     });
     return this.templateResponse(
-      records,
+      records.records,
+      records.actionCounts,
       await this.templateSetupState(principal)
     );
   }
@@ -270,11 +291,13 @@ export class AgentsService {
 
   private templateResponse(
     records: readonly AgentDefinitionRecord[],
+    actionCounts: InstallAgentTemplatesResponse["actionCounts"],
     setup: TemplateSetupState
   ): InstallAgentTemplatesResponse {
     return {
       data: this.templates(setup),
-      installedAgentIds: records.map((record) => record.id)
+      installedAgentIds: records.map((record) => record.id),
+      actionCounts
     };
   }
 
@@ -394,6 +417,41 @@ function isToolRequirement(id: string): id is McpToolId {
   return AVAILABLE_TOOL_IDS.has(id as McpToolId);
 }
 
+function workflowToolIssues(
+  definition: AgentWorkflowDefinition,
+  enabledToolIds: readonly string[]
+): AgentWorkflowValidationIssue[] {
+  const enabledTools = new Set(enabledToolIds);
+  return definition.nodes.flatMap((node, index) => {
+    const toolId = workflowToolIdForNode(node);
+    if (!toolId || enabledTools.has(toolId)) {
+      return [];
+    }
+    return [
+      {
+        code: "TOOL_NOT_ENABLED",
+        message: `Workflow tool "${toolId}" is not enabled for this agent.`,
+        path: ["nodes", index, "type"]
+      }
+    ];
+  });
+}
+
+function workflowToolIdForNode(node: AgentWorkflowNode): McpToolId | null {
+  if (
+    node.type === "knowledge.search" ||
+    node.type === "news.fetch_rss" ||
+    node.type === "usage.summary" ||
+    node.type === "gmail.search_threads" ||
+    node.type === "gmail.get_thread" ||
+    node.type === "gmail.create_draft" ||
+    node.type === "gmail.update_draft"
+  ) {
+    return node.type;
+  }
+  return null;
+}
+
 function gmailSetupStatus(
   connection: {
     encryptedRefreshToken: string | null;
@@ -414,9 +472,15 @@ function gmailSetupStatus(
 }
 
 function isGmailRuntimeConfigured(): boolean {
-  return Boolean(
+  const oauthConfigured = Boolean(
     process.env.GMAIL_CLIENT_ID &&
     process.env.GMAIL_CLIENT_SECRET &&
+    process.env.GMAIL_REDIRECT_URI &&
     process.env.GMAIL_TOKEN_ENCRYPTION_KEY
   );
+  const devMockConfigured = Boolean(
+    process.env.GMAIL_DEV_MOCK_ENABLED === "true" &&
+    process.env.GMAIL_TOKEN_ENCRYPTION_KEY
+  );
+  return oauthConfigured || devMockConfigured;
 }

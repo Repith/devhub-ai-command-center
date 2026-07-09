@@ -68,6 +68,14 @@ export class GoldenController {
     return this.golden.createCase(principal, input);
   }
 
+  @Post("golden-cases/samples")
+  @Roles("OWNER", "ADMIN")
+  public installSampleCases(
+    @CurrentUser() principal: RequestPrincipal
+  ): Promise<GoldenCaseList> {
+    return this.golden.installSampleCases(principal);
+  }
+
   @Patch("golden-cases/:caseId")
   @Roles("OWNER", "ADMIN")
   public updateCase(

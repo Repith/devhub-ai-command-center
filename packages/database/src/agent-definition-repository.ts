@@ -36,6 +36,23 @@ export interface AgentWorkflowRecord {
   version: number | null;
 }
 
+export interface AgentTemplateActionCounts {
+  created: number;
+  revived: number;
+  unchanged: number;
+  reset: number;
+}
+
+export interface AgentTemplateInstallResult {
+  actionCounts: AgentTemplateActionCounts;
+  records: readonly AgentDefinitionRecord[];
+}
+
+interface AgentTemplateOperationResult {
+  action: keyof AgentTemplateActionCounts;
+  record: AgentDefinitionRecord;
+}
+
 export class PrismaAgentDefinitionRepository implements TenantMutableRepository<
   AgentDefinitionRecord,
   CreateAgentDefinition,
@@ -181,51 +198,59 @@ export class PrismaAgentDefinitionRepository implements TenantMutableRepository<
   public async installTemplates(
     context: TenantContext,
     templates: readonly AgentTemplate[]
-  ): Promise<readonly AgentDefinitionRecord[]> {
+  ): Promise<AgentTemplateInstallResult> {
+    const actionCounts = emptyActionCounts();
     const records: AgentDefinitionRecord[] = [];
     for (const template of templates) {
-      records.push(await this.installTemplate(context, template));
+      const result = await this.installTemplate(context, template);
+      actionCounts[result.action] += 1;
+      records.push(result.record);
     }
-    return records;
+    return { actionCounts, records };
   }
 
   public async resetTemplates(
     context: TenantContext,
     templates: readonly AgentTemplate[]
-  ): Promise<readonly AgentDefinitionRecord[]> {
+  ): Promise<AgentTemplateInstallResult> {
+    const actionCounts = emptyActionCounts();
     const records: AgentDefinitionRecord[] = [];
     for (const template of templates) {
-      records.push(await this.resetTemplate(context, template));
+      const record = await this.resetTemplate(context, template);
+      actionCounts.reset += 1;
+      records.push(record);
     }
-    return records;
+    return { actionCounts, records };
   }
 
   private async installTemplate(
     context: TenantContext,
     template: AgentTemplate
-  ): Promise<AgentDefinitionRecord> {
+  ): Promise<AgentTemplateOperationResult> {
     const existing = await this.database.agentDefinition.findFirst({
       where: { tenantId: context.tenantId, templateKey: template.key }
     });
     if (existing && existing.deletedAt === null) {
-      return existing;
+      return { action: "unchanged", record: existing };
     }
     if (existing) {
-      return this.database.agentDefinition.update({
+      const record = await this.database.agentDefinition.update({
         where: { id: existing.id },
         data: {
           ...this.templateData(template),
           deletedAt: null
         }
       });
+      return { action: "revived", record };
     }
-    return this.database.agentDefinition.create({
+    const record = await this.database.agentDefinition.create({
       data: {
         tenantId: context.tenantId,
         templateKey: template.key,
         ...this.templateData(template)
       }
     });
+    return { action: "created", record };
   }
 
   private resetTemplate(
@@ -282,6 +307,10 @@ export class PrismaAgentDefinitionRepository implements TenantMutableRepository<
       workflowVersion: null
     };
   }
+}
+
+function emptyActionCounts(): AgentTemplateActionCounts {
+  return { created: 0, revived: 0, unchanged: 0, reset: 0 };
 }
 
 function parseStoredWorkflow(value: unknown): AgentWorkflowDefinition | null {

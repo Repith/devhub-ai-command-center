@@ -87,6 +87,7 @@ if (require.main === module) {
               gmail: {
                 clientId: config.gmailClientId,
                 clientSecret: config.gmailClientSecret,
+                devMockEnabled: config.gmailDevMockEnabled,
                 timeoutMs: config.gmailToolTimeoutMs,
                 tokenEncryptionKey: config.gmailTokenEncryptionKey
               }
@@ -120,6 +121,7 @@ if (require.main === module) {
                 gmail: {
                   clientId: config.gmailClientId,
                   clientSecret: config.gmailClientSecret,
+                  devMockEnabled: config.gmailDevMockEnabled,
                   timeoutMs: config.gmailToolTimeoutMs,
                   tokenEncryptionKey: config.gmailTokenEncryptionKey
                 }
@@ -141,17 +143,13 @@ if (require.main === module) {
     console.log(`Document ingestion completed: ${job.id}`);
   });
   documentWorker.on("failed", (job, error) => {
-    console.error(
-      `Document ingestion failed: ${job?.id ?? "unknown"} ${error.message}`
-    );
+    logWorkerFailure("document_ingestion_failed", job?.id, error, job?.data);
   });
   agentWorker.on("failed", (job, error) => {
-    console.error(`Agent run failed: ${job?.id ?? "unknown"} ${error.message}`);
+    logWorkerFailure("agent_run_failed", job?.id, error, job?.data);
   });
   goldenEvaluationWorker.on("failed", (job, error) => {
-    console.error(
-      `Golden evaluation failed: ${job?.id ?? "unknown"} ${error.message}`
-    );
+    logWorkerFailure("golden_evaluation_failed", job?.id, error, job?.data);
   });
 
   const shutdown = async (): Promise<void> => {
@@ -166,4 +164,34 @@ if (require.main === module) {
   process.once("SIGINT", () => void shutdown().then(() => process.exit(0)));
   process.once("SIGTERM", () => void shutdown().then(() => process.exit(0)));
   console.log(`${getWorkerName()} is processing queues.`);
+}
+
+function logWorkerFailure(
+  event: string,
+  jobId: string | undefined,
+  error: Error,
+  data: unknown
+): void {
+  const payload =
+    data && typeof data === "object" ? (data as Record<string, unknown>) : {};
+  console.error(
+    JSON.stringify({
+      level: "error",
+      event,
+      jobId: jobId ?? "unknown",
+      tenantId: payload.tenantId ?? null,
+      runId: payload.runId ?? null,
+      evaluationRunId: payload.evaluationRunId ?? null,
+      documentId: payload.documentId ?? null,
+      correlationId: payload.correlationId ?? null,
+      errorCode: stableErrorCode(error),
+      message: error.message,
+      stack: error.stack
+    })
+  );
+}
+
+function stableErrorCode(error: Error): string {
+  const coded = error as Error & { code?: unknown };
+  return typeof coded.code === "string" ? coded.code : error.name;
 }

@@ -26,10 +26,14 @@ import { getUsageSummary } from "@/lib/usage-api";
 
 interface RunsWorkspaceProps {
   accessToken: string;
+  embedded?: boolean;
+  showUsage?: boolean;
 }
 
 export function RunsWorkspace({
-  accessToken
+  accessToken,
+  embedded = false,
+  showUsage = true
 }: RunsWorkspaceProps): React.JSX.Element {
   const queryClient = useQueryClient();
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
@@ -52,7 +56,8 @@ export function RunsWorkspace({
   });
   const usageQuery = useQuery({
     queryKey: ["usage", usagePeriod],
-    queryFn: () => getUsageSummary(accessToken, usagePeriod)
+    queryFn: () => getUsageSummary(accessToken, usagePeriod),
+    enabled: showUsage
   });
   const newsFeedsQuery = useQuery({
     queryKey: ["news-feeds"],
@@ -135,20 +140,22 @@ export function RunsWorkspace({
 
   return (
     <section className="workspace" id="runs" aria-labelledby="runs-title">
-      <div className="workspace-heading">
-        <div>
-          <p className="section-kicker">Live timeline</p>
-          <h1 id="runs-title">Watch the runtime think out loud.</h1>
-          <p>
-            Start a durable agent run, recover its snapshot over REST, and
-            follow live step and token events over Socket.IO.
-          </p>
+      {embedded ? null : (
+        <div className="workspace-heading">
+          <div>
+            <p className="section-kicker">Activity timeline</p>
+            <h1 id="runs-title">Watch durable runtime activity.</h1>
+            <p>
+              Start a durable agent run, recover its snapshot over REST, and
+              follow live step and token events over Socket.IO.
+            </p>
+          </div>
+          <div className="environment-badge">
+            <span className="status-dot" aria-hidden="true" />
+            Reconnect safe
+          </div>
         </div>
-        <div className="environment-badge">
-          <span className="status-dot" aria-hidden="true" />
-          Reconnect safe
-        </div>
-      </div>
+      )}
 
       <div className="workspace-grid">
         <aside className="agent-list-panel">
@@ -243,12 +250,14 @@ export function RunsWorkspace({
             liveText={liveText}
             isLoading={snapshotQuery.isPending}
           />
-          <UsagePanel
-            usage={usageQuery.data ?? null}
-            isLoading={usageQuery.isPending}
-            period={usagePeriod}
-            onPeriodChange={setUsagePeriod}
-          />
+          {showUsage ? (
+            <UsagePanel
+              usage={usageQuery.data ?? null}
+              isLoading={usageQuery.isPending}
+              period={usagePeriod}
+              onPeriodChange={setUsagePeriod}
+            />
+          ) : null}
         </div>
       </div>
     </section>
@@ -385,7 +394,7 @@ function Timeline({
   );
 }
 
-function UsagePanel({
+export function UsagePanel({
   usage,
   isLoading,
   period,

@@ -594,6 +594,16 @@ button.nav-item {
   align-items: start;
 }
 
+.agents-workspace {
+  max-width: none;
+  padding-inline: clamp(1rem, 2vw, 2rem);
+}
+
+.agents-workspace .workspace-grid {
+  min-height: calc(100vh - 16rem);
+  grid-template-columns: minmax(17rem, 20rem) minmax(0, 1fr);
+}
+
 .agent-list-panel,
 .editor-panel {
   min-height: 38rem;
@@ -1981,7 +1991,7 @@ button.nav-item {
 
 .workflow-editor-layout {
   display: grid;
-  grid-template-columns: minmax(9rem, 0.75fr) minmax(20rem, 2fr) minmax(
+  grid-template-columns: minmax(9rem, 0.55fr) minmax(34rem, 2.6fr) minmax(
       13rem,
       1fr
     );
@@ -2017,7 +2027,8 @@ button.nav-item {
 }
 
 .workflow-editor-canvas {
-  height: 24rem;
+  height: min(42rem, calc(100vh - 22rem));
+  min-height: 32rem;
   overflow: hidden;
   border: 1px solid #252936;
   border-radius: 0.75rem;
@@ -2025,7 +2036,7 @@ button.nav-item {
 }
 
 .workflow-editor-canvas .react-flow__node {
-  width: 11rem;
+  width: 11.5rem;
   border: 1px solid #3b4152;
   border-radius: 0.6rem;
   padding: 0.62rem 0.72rem;
@@ -2042,7 +2053,7 @@ button.nav-item {
 
 .workflow-editor-canvas .react-flow__edge-path {
   stroke: #8b7cff;
-  stroke-width: 2;
+  stroke-width: 2.4;
 }
 
 .workflow-editor-canvas .workflow-edge-failure .react-flow__edge-path {
@@ -2080,6 +2091,26 @@ button.nav-item {
   font-family: ui-monospace, monospace;
   font-size: 0.78rem;
   overflow-wrap: anywhere;
+}
+
+.workflow-edge-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid #2d3240;
+  border-radius: 0.6rem;
+  padding: 0.55rem;
+  background: #0d1016;
+}
+
+.workflow-edge-summary span {
+  overflow: hidden;
+  color: #aeb6c8;
+  font-family: ui-monospace, monospace;
+  font-size: 0.7rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .workflow-validation-panel {
@@ -2271,6 +2302,11 @@ button.nav-item {
     grid-template-columns: 1fr;
   }
 
+  .agents-workspace .workspace-grid {
+    min-height: auto;
+    grid-template-columns: 1fr;
+  }
+
   .gmail-grid {
     grid-template-columns: 1fr;
   }
@@ -2405,5 +2441,6 @@ button.nav-item {
 
   .workflow-editor-canvas {
     height: 20rem;
+    min-height: 20rem;
   }
 }

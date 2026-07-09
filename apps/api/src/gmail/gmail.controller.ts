@@ -21,6 +21,7 @@ import type {
   CreateGmailDraftReview,
   GmailConnectResponse,
   GmailConnectionStatus,
+  GmailDevConnectResponse,
   GmailDraftReview,
   GmailDraftReviewList,
   GmailOAuthCallback,
@@ -56,6 +57,14 @@ export class GmailController {
     @CurrentUser() principal: RequestPrincipal
   ): GmailConnectResponse {
     return this.gmail.connect(principal);
+  }
+
+  @Post("dev/connect")
+  @Roles("OWNER", "ADMIN", "MEMBER")
+  public connectDevMock(
+    @CurrentUser() principal: RequestPrincipal
+  ): Promise<GmailDevConnectResponse> {
+    return this.gmail.connectDevMock(principal);
   }
 
   @Post("oauth/callback")

@@ -1,4 +1,9 @@
-import { Inject, Injectable, NotFoundException } from "@nestjs/common";
+import {
+  ConflictException,
+  Inject,
+  Injectable,
+  NotFoundException
+} from "@nestjs/common";
 
 import type {
   CreateNewsFeed,
@@ -6,7 +11,11 @@ import type {
   NewsFeedList,
   UpdateNewsFeed
 } from "@devhub/contracts";
-import type { PrismaNewsFeedRepository } from "@devhub/database";
+import {
+  NewsFeedAlreadyExistsError,
+  type NewsFeedRecord,
+  type PrismaNewsFeedRepository
+} from "@devhub/database";
 import type { TenantContext } from "@devhub/domain";
 
 import type { RequestPrincipal } from "../auth/auth.types";
@@ -33,7 +42,7 @@ export class NewsService {
     principal: RequestPrincipal,
     input: CreateNewsFeed
   ): Promise<NewsFeed> {
-    const record = await this.feeds.create(this.context(principal), input);
+    const record = await this.createFeed(principal, input);
     await this.audit.record(principal, {
       action: "news_feed.created",
       resourceType: "news_feed",
@@ -52,13 +61,9 @@ export class NewsService {
     feedId: string,
     input: UpdateNewsFeed
   ): Promise<NewsFeed> {
-    const record = await this.feeds.update(
-      this.context(principal),
-      feedId,
-      input
-    );
+    const record = await this.updateFeed(principal, feedId, input);
     if (!record) {
-      throw new NotFoundException("News feed was not found.");
+      throw newsFeedNotFound();
     }
     await this.audit.record(principal, {
       action: "news_feed.updated",
@@ -75,7 +80,7 @@ export class NewsService {
   ): Promise<void> {
     const deleted = await this.feeds.delete(this.context(principal), feedId);
     if (!deleted) {
-      throw new NotFoundException("News feed was not found.");
+      throw newsFeedNotFound();
     }
     await this.audit.record(principal, {
       action: "news_feed.deleted",
@@ -91,4 +96,46 @@ export class NewsService {
       correlationId: principal.sessionId
     };
   }
+
+  private async createFeed(
+    principal: RequestPrincipal,
+    input: CreateNewsFeed
+  ): Promise<NewsFeedRecord> {
+    try {
+      return await this.feeds.create(this.context(principal), input);
+    } catch (error) {
+      throw mapNewsFeedError(error);
+    }
+  }
+
+  private async updateFeed(
+    principal: RequestPrincipal,
+    feedId: string,
+    input: UpdateNewsFeed
+  ): Promise<NewsFeedRecord | null> {
+    try {
+      return await this.feeds.update(this.context(principal), feedId, input);
+    } catch (error) {
+      throw mapNewsFeedError(error);
+    }
+  }
+}
+
+function mapNewsFeedError(error: unknown): Error {
+  if (error instanceof NewsFeedAlreadyExistsError) {
+    return new ConflictException({
+      code: "NEWS_FEED_ALREADY_EXISTS",
+      message: "A news feed with this URL already exists."
+    });
+  }
+  return error instanceof Error
+    ? error
+    : new Error("News feed request failed.");
+}
+
+function newsFeedNotFound(): NotFoundException {
+  return new NotFoundException({
+    code: "NEWS_FEED_NOT_FOUND",
+    message: "News feed was not found."
+  });
 }

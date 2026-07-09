@@ -103,6 +103,20 @@ records for the requested period. Larger tenants should move the same grouping
 to database-level aggregation before this becomes a production reporting
 surface.
 
+## Gmail OAuth and Mock Mode
+
+Gmail is optional for local development. Real OAuth requires
+`GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_REDIRECT_URI`, and
+`GMAIL_TOKEN_ENCRYPTION_KEY`. The default redirect URI is
+`http://localhost:3000/gmail/oauth/callback`; configure the same value in the
+Google Cloud OAuth client.
+
+For a repeatable local demo without a Google account, set
+`GMAIL_DEV_MOCK_ENABLED=true` and provide `GMAIL_TOKEN_ENCRYPTION_KEY`. The
+Gmail workspace will offer a simulated connection, and worker-side Gmail tools
+will use deterministic mock threads and drafts. Sending still goes through the
+authenticated draft-review API path and never becomes a model-callable tool.
+
 ## Connections
 
 Default local endpoints:

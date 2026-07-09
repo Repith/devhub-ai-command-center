@@ -110,6 +110,7 @@ ranked chunks with document, page when available, score, and citation label.
 
 - `GET /gmail/status`
 - `POST /gmail/connect`
+- `POST /gmail/dev/connect`
 - `POST /gmail/oauth/callback`
 - `GET|POST /gmail/draft-reviews`
 - `PATCH /gmail/draft-reviews/:reviewId`
@@ -117,7 +118,9 @@ ranked chunks with document, page when available, score, and citation label.
 - `POST /gmail/draft-reviews/:reviewId/reject`
 
 Gmail OAuth responses expose connection state, account email, required scopes,
-and timestamps, but never access or refresh tokens. Draft review responses omit
+missing configuration key names, and timestamps, but never access or refresh
+tokens. `POST /gmail/dev/connect` is enabled only by local mock configuration
+and creates a simulated connection for demos. Draft review responses omit
 `tenantId` and include recipients, subject, body, and the closed status union
 `NEEDS_REVIEW | UPDATED | SENT | REJECTED` because those fields are explicitly
 shown to the authenticated user before sending. Sending mail is only available

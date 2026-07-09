@@ -2,9 +2,11 @@ import {
   evaluationReportSchema,
   evaluationRunListSchema,
   evaluationRunSchema,
+  goldenCaseListSchema,
   type EvaluationMode,
   type EvaluationReport,
-  type EvaluationRun
+  type EvaluationRun,
+  type GoldenCase
 } from "@devhub/contracts";
 
 import { apiRequest } from "./api-client";
@@ -36,4 +38,18 @@ export async function getEvaluationReport(
   return apiRequest(`/evaluations/${evaluationRunId}`, evaluationReportSchema, {
     accessToken
   });
+}
+
+export async function installSampleGoldenCases(
+  accessToken: string
+): Promise<readonly GoldenCase[]> {
+  const response = await apiRequest(
+    "/golden-cases/samples",
+    goldenCaseListSchema,
+    {
+      accessToken,
+      method: "POST"
+    }
+  );
+  return response.data;
 }

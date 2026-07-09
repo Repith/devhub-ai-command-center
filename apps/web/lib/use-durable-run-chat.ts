@@ -7,6 +7,7 @@ import type {
   AgentRun,
   ChatUsage,
   ConversationMessage,
+  CreateAgentRun,
   RealtimeEvent
 } from "@devhub/contracts";
 
@@ -38,7 +39,12 @@ export interface DurableRunChatState {
 export interface DurableRunChatController extends DurableRunChatState {
   cancel(): Promise<void>;
   reset(): void;
-  send(message: string): Promise<void>;
+  send(message: string, options?: DurableRunChatSendOptions): Promise<void>;
+}
+
+export interface DurableRunChatSendOptions {
+  agentId?: string;
+  input?: Partial<Omit<CreateAgentRun, "message" | "conversationId">>;
 }
 
 export function useDurableRunChat(input: {
@@ -171,9 +177,13 @@ export function useDurableRunChat(input: {
   }, [accessToken, recoverRun, subscribeToRun]);
 
   const send = useCallback(
-    async (message: string): Promise<void> => {
+    async (
+      message: string,
+      options: DurableRunChatSendOptions = {}
+    ): Promise<void> => {
       const trimmed = message.trim();
-      if (!agentId || !trimmed || isActiveRunStatus(runStatus)) {
+      const runAgentId = options.agentId ?? agentId;
+      if (!runAgentId || !trimmed || isActiveRunStatus(runStatus)) {
         return;
       }
       try {
@@ -181,10 +191,11 @@ export function useDurableRunChat(input: {
         setError("");
         setTerminalStatus(null);
         setUsage(undefined);
-        const run = await startRun(accessToken, agentId, {
+        const run = await startRun(accessToken, runAgentId, {
           message: trimmed,
           ...(conversationId ? { conversationId } : {}),
-          retrievalLimit: 5
+          retrievalLimit: 5,
+          ...options.input
         });
         runIdRef.current = run.id;
         setCurrentRunId(run.id);
@@ -206,8 +217,8 @@ export function useDurableRunChat(input: {
     },
     [
       accessToken,
-      agentId,
       conversationId,
+      agentId,
       queryClient,
       runStatus,
       subscribeToRun

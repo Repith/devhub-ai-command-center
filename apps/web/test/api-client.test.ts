@@ -1,7 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
-import { ApiClientError, apiRequest } from "../lib/api-client";
+import {
+  ApiClientError,
+  apiRequest,
+  formatApiClientError
+} from "../lib/api-client";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -57,5 +61,20 @@ describe("apiRequest", () => {
     await expect(request).rejects.toMatchObject({
       response: { code: "FORBIDDEN", correlationId: "test-correlation" }
     });
+  });
+
+  it("formats API errors with code and correlation id", () => {
+    expect(
+      formatApiClientError(
+        new ApiClientError({
+          code: "NEWS_FEED_ALREADY_EXISTS",
+          message: "A news feed with this URL already exists.",
+          details: {},
+          correlationId: "corr-1"
+        })
+      )
+    ).toBe(
+      "NEWS_FEED_ALREADY_EXISTS: A news feed with this URL already exists. (corr-1)"
+    );
   });
 });

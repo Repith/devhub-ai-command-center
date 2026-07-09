@@ -17,6 +17,22 @@ describe("agent workflow contracts", () => {
     ).toEqual(["start", "knowledge.search", "llm.generate", "complete"]);
   });
 
+  it("preserves optional visual node positions", () => {
+    const result = agentWorkflowDefinitionSchema.safeParse({
+      ...knowledgeWorkflow(),
+      nodes: knowledgeWorkflow().nodes.map((node, index) => ({
+        ...node,
+        position: { x: index * 220, y: index === 0 ? 0 : 120 }
+      }))
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.success ? result.data.nodes[1]?.position : null).toEqual({
+      x: 220,
+      y: 120
+    });
+  });
+
   it("rejects arbitrary JavaScript and expression-like conditions", () => {
     expect(
       agentWorkflowConditionSchema.safeParse({
@@ -121,6 +137,27 @@ describe("agent workflow contracts", () => {
         "UNREACHABLE_TERMINAL"
       ])
     );
+    expect(agentWorkflowDefinitionSchema.safeParse(definition).success).toBe(
+      false
+    );
+  });
+
+  it("rejects incoming edges to the start node", () => {
+    const definition = {
+      ...knowledgeWorkflow(),
+      edges: [
+        ...knowledgeWorkflow().edges,
+        {
+          id: "answer-start",
+          sourceNodeId: "answer",
+          targetNodeId: "start"
+        }
+      ]
+    } satisfies AgentWorkflowDefinition;
+
+    expect(
+      validateAgentWorkflowDefinition(definition).map((error) => error.code)
+    ).toContain("START_HAS_INCOMING_EDGE");
     expect(agentWorkflowDefinitionSchema.safeParse(definition).success).toBe(
       false
     );

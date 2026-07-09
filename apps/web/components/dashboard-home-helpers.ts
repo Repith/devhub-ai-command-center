@@ -30,3 +30,10 @@ export function pendingDraftReviews(
     ["NEEDS_REVIEW", "UPDATED"].includes(review.status)
   );
 }
+
+const NEWS_INTENT_PATTERN =
+  /\b(news|briefing|headlines|rss|feed|feeds|wiadomości|wiadomosci|newsy|prasówka|prasowka)\b/i;
+
+export function hasNewsIntent(message: string): boolean {
+  return NEWS_INTENT_PATTERN.test(message);
+}

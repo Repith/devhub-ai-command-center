@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { GmailDraftReview } from "@devhub/contracts";
 
 import {
+  connectGmailDevMock,
   connectGmail,
   getGmailStatus,
   listGmailDraftReviews,
@@ -13,6 +14,7 @@ import {
   sendGmailDraftReview,
   updateGmailDraftReview
 } from "@/lib/gmail-api";
+import { formatApiClientError } from "@/lib/api-client";
 
 interface GmailWorkspaceProps {
   accessToken: string;
@@ -45,6 +47,12 @@ export function GmailWorkspace({
     mutationFn: () => connectGmail(accessToken),
     onSuccess: (response) => {
       window.location.assign(response.authorizationUrl);
+    }
+  });
+  const devMockMutation = useMutation({
+    mutationFn: () => connectGmailDevMock(accessToken),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["gmail-status"] });
     }
   });
 
@@ -97,6 +105,7 @@ export function GmailWorkspace({
           <ConnectionStatus
             status={statusQuery.data?.status ?? "DISCONNECTED"}
             accountEmail={statusQuery.data?.accountEmail ?? null}
+            missingConfigKeys={statusQuery.data?.missingConfigKeys ?? []}
           />
           {statusQuery.data?.status === "DISCONNECTED" ||
           statusQuery.data?.status === "MISCONFIGURED" ? (
@@ -112,14 +121,22 @@ export function GmailWorkspace({
               Connect Gmail
             </button>
           ) : null}
+          {statusQuery.data?.status !== "CONNECTED" ? (
+            <button
+              className="text-button"
+              type="button"
+              disabled={devMockMutation.isPending}
+              onClick={() => void devMockMutation.mutateAsync()}
+            >
+              Simulate Gmail
+            </button>
+          ) : null}
         </div>
       </div>
 
-      {connectMutation.error ? (
+      {connectMutation.error || devMockMutation.error ? (
         <p className="workspace-alert" role="alert">
-          {connectMutation.error instanceof Error
-            ? connectMutation.error.message
-            : "Gmail connection failed."}
+          {formatApiClientError(connectMutation.error ?? devMockMutation.error)}
         </p>
       ) : null}
 
@@ -140,11 +157,11 @@ export function GmailWorkspace({
           isRejecting={rejectMutation.isPending}
           error={
             saveMutation.error instanceof Error
-              ? saveMutation.error.message
+              ? formatApiClientError(saveMutation.error)
               : sendMutation.error instanceof Error
-                ? sendMutation.error.message
+                ? formatApiClientError(sendMutation.error)
                 : rejectMutation.error instanceof Error
-                  ? rejectMutation.error.message
+                  ? formatApiClientError(rejectMutation.error)
                   : null
           }
           onSave={(input) => saveMutation.mutateAsync(input)}
@@ -159,11 +176,13 @@ export function GmailWorkspace({
 interface ConnectionStatusProps {
   status: string;
   accountEmail: string | null;
+  missingConfigKeys: readonly string[];
 }
 
 function ConnectionStatus({
   status,
-  accountEmail
+  accountEmail,
+  missingConfigKeys
 }: ConnectionStatusProps): React.JSX.Element {
   const tone = status === "CONNECTED" ? "connected" : "error";
   return (
@@ -171,7 +190,12 @@ function ConnectionStatus({
       <span className={`connection-indicator ${tone}`} aria-hidden="true" />
       <div>
         <strong>{status.replace("_", " ").toLowerCase()}</strong>
-        <span>{accountEmail ?? "Gmail OAuth"}</span>
+        <span>
+          {accountEmail ??
+            (missingConfigKeys.length
+              ? missingConfigKeys.join(", ")
+              : "Gmail OAuth")}
+        </span>
       </div>
     </div>
   );

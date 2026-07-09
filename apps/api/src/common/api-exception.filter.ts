@@ -35,6 +35,9 @@ export class ApiExceptionFilter implements ExceptionFilter {
         : HttpStatus.INTERNAL_SERVER_ERROR;
     const body = this.getBody(exception);
     const correlationId = getCorrelationId(request);
+    if (status >= 500) {
+      this.logUnhandledException(exception, request, status, correlationId);
+    }
 
     response.status(status).json({
       code: body.code ?? ERROR_CODES[status] ?? "INTERNAL_SERVER_ERROR",
@@ -59,5 +62,32 @@ export class ApiExceptionFilter implements ExceptionFilter {
     return status === HttpStatus.INTERNAL_SERVER_ERROR
       ? "An internal error occurred."
       : "The request could not be completed.";
+  }
+
+  private logUnhandledException(
+    exception: unknown,
+    request: Request,
+    status: number,
+    correlationId: string
+  ): void {
+    const error =
+      exception instanceof Error
+        ? exception
+        : new Error("Non-error exception was thrown.");
+    const coded = exception as { code?: unknown };
+    console.error(
+      JSON.stringify({
+        level: "error",
+        event: "http_unhandled_exception",
+        correlationId,
+        method: request.method,
+        path: request.path,
+        statusCode: status,
+        errorName: error.name,
+        errorCode: typeof coded.code === "string" ? coded.code : null,
+        message: error.message,
+        stack: error.stack
+      })
+    );
   }
 }
