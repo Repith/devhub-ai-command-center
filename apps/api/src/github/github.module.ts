@@ -2,7 +2,8 @@ import { Module } from "@nestjs/common";
 
 import {
   PrismaExternalConnectionRepository,
-  PrismaExternalInstallationRepository
+  PrismaExternalInstallationRepository,
+  PrismaGithubActionReviewRepository
 } from "@devhub/database";
 
 import { AuthModule } from "../auth/auth.module";
@@ -10,6 +11,7 @@ import { DATABASE_CLIENT } from "../database/database.module";
 import { GithubController } from "./github.controller";
 import { GithubService } from "./github.service";
 import {
+  GITHUB_ACTION_REVIEW_REPOSITORY,
   GITHUB_CONNECTION_REPOSITORY,
   GITHUB_INSTALLATION_REPOSITORY
 } from "./github.tokens";
@@ -39,6 +41,16 @@ import { GithubTokenCryptoService } from "./token-crypto.service";
         >[0]
       ): PrismaExternalInstallationRepository =>
         new PrismaExternalInstallationRepository(database)
+    },
+    {
+      provide: GITHUB_ACTION_REVIEW_REPOSITORY,
+      inject: [DATABASE_CLIENT],
+      useFactory: (
+        database: ConstructorParameters<
+          typeof PrismaGithubActionReviewRepository
+        >[0]
+      ): PrismaGithubActionReviewRepository =>
+        new PrismaGithubActionReviewRepository(database)
     },
     GithubOAuthStateService,
     GithubService,

@@ -5,6 +5,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type {
   ExternalConnectionRecord,
+  ExternalRepositoryRecord,
+  GithubActionReviewRecord,
   SyncExternalInstallationInput
 } from "@devhub/database";
 
@@ -237,6 +239,104 @@ describe("GithubService", () => {
       response: { code: "GITHUB_WEBHOOK_SIGNATURE_INVALID" }
     });
   });
+
+  it("submits reviewed issue comments through an authenticated API action", async () => {
+    configureGithubEnvironment();
+    const audit = { records: [] as unknown[] };
+    const submitted: unknown[] = [];
+    const service = githubService({
+      audit,
+      connection: githubConnection({
+        encryptedAccessToken: encrypted("github-access-token")
+      }),
+      actionReviews: {
+        findById: () => Promise.resolve(githubActionReview()),
+        markSent: (_context, _id, input) =>
+          Promise.resolve(
+            githubActionReview({
+              status: "SENT",
+              externalUrl: input.externalUrl,
+              sentAt: new Date("2026-07-09T12:05:00.000Z")
+            })
+          )
+      },
+      installations: {
+        findActiveRepositoryByFullName: () =>
+          Promise.resolve(githubRepository())
+      }
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        (
+          url: string | URL | Request,
+          init: RequestInit | undefined
+        ): Promise<Response> => {
+          submitted.push({ url: String(url), init });
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                html_url:
+                  "https://github.com/octo-org/hello-world/issues/7#comment-1"
+              }),
+              { status: 201, headers: { "Content-Type": "application/json" } }
+            )
+          );
+        }
+      )
+    );
+
+    await expect(
+      service.submitActionReview(principal(), githubActionReview().id)
+    ).resolves.toMatchObject({
+      status: "SENT",
+      externalUrl: "https://github.com/octo-org/hello-world/issues/7#comment-1"
+    });
+
+    expect(submitted).toHaveLength(1);
+    expect(JSON.stringify(submitted)).toContain(
+      "/repos/octo-org/hello-world/issues/7/comments"
+    );
+    expect(JSON.stringify(submitted)).toContain("github-access-token");
+    const serializedAudit = JSON.stringify(audit.records);
+    expect(serializedAudit).toContain("github.action_review.sent");
+    expect(serializedAudit).not.toContain("Approved body should stay secret");
+  });
+
+  it("rejects reviewed GitHub actions without leaking the body", async () => {
+    configureGithubEnvironment();
+    const audit = { records: [] as unknown[] };
+    const service = githubService({
+      audit,
+      actionReviews: {
+        reject: () =>
+          Promise.resolve(githubActionReview({ status: "REJECTED" }))
+      }
+    });
+
+    await expect(
+      service.rejectActionReview(principal(), githubActionReview().id)
+    ).resolves.toMatchObject({ status: "REJECTED" });
+    expect(JSON.stringify(audit.records)).not.toContain(
+      "Approved body should stay secret"
+    );
+  });
+
+  it("does not submit terminal GitHub action reviews", async () => {
+    configureGithubEnvironment();
+    const service = githubService({
+      actionReviews: {
+        findById: () =>
+          Promise.resolve(githubActionReview({ status: "REJECTED" }))
+      }
+    });
+
+    await expect(
+      service.submitActionReview(principal(), githubActionReview().id)
+    ).rejects.toMatchObject({
+      response: { message: "GitHub action review was not found." }
+    });
+  });
 });
 
 function githubService(options: {
@@ -251,6 +351,7 @@ function githubService(options: {
   };
   installations?: {
     countActive?(): Promise<{ installations: number; repositories: number }>;
+    findActiveRepositoryByFullName?(): Promise<ExternalRepositoryRecord | null>;
     syncGithubInstallations?(
       context: unknown,
       input: readonly SyncExternalInstallationInput[]
@@ -261,6 +362,18 @@ function githubService(options: {
       id: string,
       status: string
     ): Promise<{ count: number }>;
+  };
+  actionReviews?: {
+    list?(): Promise<GithubActionReviewRecord[]>;
+    findById?(): Promise<GithubActionReviewRecord | null>;
+    create?(): Promise<GithubActionReviewRecord>;
+    update?(): Promise<GithubActionReviewRecord | null>;
+    reject?(): Promise<GithubActionReviewRecord | null>;
+    markSent?(
+      context: unknown,
+      id: string,
+      input: { externalUrl: string }
+    ): Promise<GithubActionReviewRecord | null>;
   };
 }): GithubService {
   let currentConnection = options.connection ?? null;
@@ -288,12 +401,35 @@ function githubService(options: {
         (() => Promise.resolve({ installations: [], repositories: [] })),
       listRepositories:
         options.installations?.listRepositories ?? (() => Promise.resolve([])),
+      findActiveRepositoryByFullName:
+        options.installations?.findActiveRepositoryByFullName ??
+        (() => Promise.resolve(githubRepository())),
       disconnectGithub:
         options.installations?.disconnectGithub ??
         (() => Promise.resolve(null)),
       markGithubInstallation:
         options.installations?.markGithubInstallation ??
         (() => Promise.resolve({ count: 0 }))
+    } as never,
+    {
+      list:
+        options.actionReviews?.list ??
+        (() => Promise.resolve([githubActionReview()])),
+      findById:
+        options.actionReviews?.findById ??
+        (() => Promise.resolve(githubActionReview())),
+      create:
+        options.actionReviews?.create ??
+        (() => Promise.resolve(githubActionReview())),
+      update:
+        options.actionReviews?.update ??
+        (() => Promise.resolve(githubActionReview({ status: "UPDATED" }))),
+      reject:
+        options.actionReviews?.reject ??
+        (() => Promise.resolve(githubActionReview({ status: "REJECTED" }))),
+      markSent:
+        options.actionReviews?.markSent ??
+        (() => Promise.resolve(githubActionReview({ status: "SENT" })))
     } as never,
     {
       record: (_principal: unknown, entry: unknown) => {
@@ -396,6 +532,50 @@ function githubConnection(
     status: "CONNECTED",
     createdAt: now,
     updatedAt: now,
+    ...input
+  };
+}
+
+function githubRepository(): ExternalRepositoryRecord {
+  const now = new Date("2026-07-09T12:00:00.000Z");
+  return {
+    id: "00000000-0000-4000-8000-000000000501",
+    tenantId: principal().tenantId,
+    installationId: "00000000-0000-4000-8000-000000000502",
+    provider: "GITHUB",
+    providerRepositoryId: "456",
+    owner: "octo-org",
+    name: "hello-world",
+    fullName: "octo-org/hello-world",
+    private: false,
+    defaultBranch: "main",
+    htmlUrl: "https://github.com/octo-org/hello-world",
+    createdAt: now,
+    updatedAt: now,
+    deletedAt: null
+  };
+}
+
+function githubActionReview(
+  input: Partial<GithubActionReviewRecord> = {}
+): GithubActionReviewRecord {
+  const now = new Date("2026-07-09T12:00:00.000Z");
+  return {
+    id: "00000000-0000-4000-8000-000000000601",
+    tenantId: principal().tenantId,
+    userId: principal().userId,
+    repositoryId: githubRepository().id,
+    repositoryFullName: "octo-org/hello-world",
+    kind: "ISSUE_COMMENT",
+    issueNumber: 7,
+    pullRequestNumber: null,
+    title: null,
+    body: "Approved body should stay secret",
+    status: "NEEDS_REVIEW",
+    externalUrl: null,
+    createdAt: now,
+    updatedAt: now,
+    sentAt: null,
     ...input
   };
 }

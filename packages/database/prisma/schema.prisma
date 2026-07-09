@@ -81,6 +81,19 @@ enum GmailDraftReviewStatus {
   REJECTED
 }
 
+enum GithubActionReviewKind {
+  ISSUE_COMMENT
+  PULL_REQUEST_COMMENT
+  ISSUE_CREATION
+}
+
+enum GithubActionReviewStatus {
+  NEEDS_REVIEW
+  UPDATED
+  SENT
+  REJECTED
+}
+
 enum NewsFeedFetchStatus {
   NEVER
   COMPLETED
@@ -96,6 +109,7 @@ model User {
   refreshSessions       RefreshSession[]
   externalConnections   ExternalConnection[]
   externalInstallations ExternalInstallation[]
+  githubActionReviews   GithubActionReview[]
   gmailDraftReviews     GmailDraftReview[]
   newsFeeds             TenantNewsFeed[]
   createdAt             DateTime               @default(now()) @db.Timestamptz(3)
@@ -118,6 +132,7 @@ model Tenant {
   externalConnections   ExternalConnection[]
   externalInstallations ExternalInstallation[]
   externalRepositories  ExternalRepository[]
+  githubActionReviews   GithubActionReview[]
   gmailDraftReviews     GmailDraftReview[]
   newsFeeds             TenantNewsFeed[]
   createdAt             DateTime               @default(now()) @db.Timestamptz(3)
@@ -410,6 +425,7 @@ model ExternalRepository {
   htmlUrl              String
   tenant               Tenant                     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   installation         ExternalInstallation       @relation(fields: [tenantId, installationId], references: [tenantId, id], onDelete: Cascade)
+  actionReviews        GithubActionReview[]
   createdAt            DateTime                   @default(now()) @db.Timestamptz(3)
   updatedAt            DateTime                   @updatedAt @db.Timestamptz(3)
   deletedAt            DateTime?                  @db.Timestamptz(3)
@@ -418,6 +434,32 @@ model ExternalRepository {
   @@unique([tenantId, id])
   @@index([tenantId, installationId, deletedAt])
   @@index([tenantId, provider, fullName])
+}
+
+model GithubActionReview {
+  id                 String                   @id @default(uuid()) @db.Uuid
+  tenantId           String                   @db.Uuid
+  userId             String                   @db.Uuid
+  repositoryId       String                   @db.Uuid
+  repositoryFullName String
+  kind               GithubActionReviewKind
+  issueNumber        Int?
+  pullRequestNumber  Int?
+  title              String?
+  body               String                   @db.Text
+  status             GithubActionReviewStatus @default(NEEDS_REVIEW)
+  externalUrl        String?
+  tenant             Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user               User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  repository         ExternalRepository       @relation(fields: [tenantId, repositoryId], references: [tenantId, id], onDelete: Restrict)
+  createdAt          DateTime                 @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime                 @updatedAt @db.Timestamptz(3)
+  sentAt             DateTime?                @db.Timestamptz(3)
+
+  @@unique([tenantId, id])
+  @@index([tenantId, userId, status, createdAt(sort: Desc)])
+  @@index([tenantId, repositoryId])
+  @@index([tenantId, repositoryFullName])
 }
 
 model GmailDraftReview {

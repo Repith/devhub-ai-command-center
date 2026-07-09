@@ -7,16 +7,25 @@ import {
   HttpCode,
   HttpStatus,
   Inject,
+  Param,
+  Patch,
   Post,
   UseGuards
 } from "@nestjs/common";
 
 import {
+  createGithubActionReviewSchema,
+  updateGithubActionReviewSchema,
+  uuidSchema,
   githubOAuthCallbackSchema,
+  type CreateGithubActionReview,
+  type GithubActionReview,
+  type GithubActionReviewList,
   type GithubConnectResponse,
   type GithubConnectionStatus,
   type GithubOAuthCallback,
-  type GithubRepositoryList
+  type GithubRepositoryList,
+  type UpdateGithubActionReview
 } from "@devhub/contracts";
 
 import { AuthGuard } from "../auth/auth.guard";
@@ -79,6 +88,60 @@ export class GithubController {
     @CurrentUser() principal: RequestPrincipal
   ): Promise<GithubRepositoryList> {
     return this.github.listRepositories(principal);
+  }
+
+  @Get("action-reviews")
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles("OWNER", "ADMIN", "MEMBER")
+  public listActionReviews(
+    @CurrentUser() principal: RequestPrincipal
+  ): Promise<GithubActionReviewList> {
+    return this.github.listActionReviews(principal);
+  }
+
+  @Post("action-reviews")
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles("OWNER", "ADMIN", "MEMBER")
+  public createActionReview(
+    @CurrentUser() principal: RequestPrincipal,
+    @Body(new ZodValidationPipe(createGithubActionReviewSchema))
+    input: CreateGithubActionReview
+  ): Promise<GithubActionReview> {
+    return this.github.createActionReview(principal, input);
+  }
+
+  @Patch("action-reviews/:reviewId")
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles("OWNER", "ADMIN", "MEMBER")
+  public updateActionReview(
+    @CurrentUser() principal: RequestPrincipal,
+    @Param("reviewId", new ZodValidationPipe(uuidSchema)) reviewId: string,
+    @Body(new ZodValidationPipe(updateGithubActionReviewSchema))
+    input: UpdateGithubActionReview
+  ): Promise<GithubActionReview> {
+    return this.github.updateActionReview(principal, reviewId, input);
+  }
+
+  @Post("action-reviews/:reviewId/submit")
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles("OWNER", "ADMIN", "MEMBER")
+  public submitActionReview(
+    @CurrentUser() principal: RequestPrincipal,
+    @Param("reviewId", new ZodValidationPipe(uuidSchema)) reviewId: string
+  ): Promise<GithubActionReview> {
+    return this.github.submitActionReview(principal, reviewId);
+  }
+
+  @Post("action-reviews/:reviewId/reject")
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles("OWNER", "ADMIN", "MEMBER")
+  public rejectActionReview(
+    @CurrentUser() principal: RequestPrincipal,
+    @Param("reviewId", new ZodValidationPipe(uuidSchema)) reviewId: string
+  ): Promise<GithubActionReview> {
+    return this.github.rejectActionReview(principal, reviewId);
   }
 
   @Delete("disconnect")

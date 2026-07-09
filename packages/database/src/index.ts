@@ -6,6 +6,7 @@ export * from "./conversation-repository.js";
 export * from "./document-repository.js";
 export * from "./external-connection-repository.js";
 export * from "./external-installation-repository.js";
+export * from "./github-action-review-repository.js";
 export * from "./gmail-draft-review-repository.js";
 export * from "./golden-evaluation-repository.js";
 export * from "./news-feed-repository.js";

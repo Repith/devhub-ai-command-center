@@ -10,7 +10,9 @@ import {
   createChatMessageSchema,
   createAgentDefinitionSchema,
   createGmailDraftReviewSchema,
+  createGithubActionReviewSchema,
   documentStatusSchema,
+  githubActionReviewSchema,
   githubConnectionStatusSchema,
   githubRepositoryListSchema,
   gmailDraftReviewSchema,
@@ -292,6 +294,47 @@ describe("contracts", () => {
         ]
       }).success
     ).toBe(true);
+  });
+
+  it("validates reviewed GitHub write contracts", () => {
+    expect(
+      createGithubActionReviewSchema.safeParse({
+        repositoryFullName: "octo-org/hello-world",
+        kind: "ISSUE_COMMENT",
+        issueNumber: 7,
+        body: "Looks good to me."
+      }).success
+    ).toBe(true);
+    expect(
+      createGithubActionReviewSchema.safeParse({
+        repositoryFullName: "octo-org/hello-world",
+        kind: "ISSUE_CREATION",
+        body: "Missing title."
+      }).success
+    ).toBe(false);
+    expect(
+      githubActionReviewSchema.safeParse({
+        id: "64fe81ba-7faf-4b37-a2b8-347cd19b5550",
+        repositoryId: "9a50ec3e-3ba9-4775-a57f-b7c88f34a10d",
+        repositoryFullName: "octo-org/hello-world",
+        kind: "PULL_REQUEST_COMMENT",
+        issueNumber: null,
+        pullRequestNumber: 12,
+        title: null,
+        body: "Please consider extracting this helper.",
+        status: "NEEDS_REVIEW",
+        createdAt: "2026-06-09T12:00:00.000Z",
+        updatedAt: "2026-06-09T12:00:00.000Z",
+        sentAt: null,
+        externalUrl: null
+      }).success
+    ).toBe(true);
+    expect(mcpToolIdSchema.safeParse("github.create_issue").success).toBe(
+      false
+    );
+    expect(mcpToolIdSchema.safeParse("github.comment_issue").success).toBe(
+      false
+    );
   });
 
   it("validates Gmail thread search and draft review responses", () => {
