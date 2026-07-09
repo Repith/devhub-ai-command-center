@@ -71,12 +71,10 @@ record tool audit rows for the worker MCP calls.
 
 ## 6. Connect Or Simulate Gmail
 
-If Gmail OAuth is configured, connect Gmail from the Gmail workspace. The Google
-redirect should return to `/gmail/oauth/callback`, where the web app completes
-the API callback and stores only encrypted server-side tokens. If OAuth is not
-configured on the machine, set `GMAIL_DEV_MOCK_ENABLED=true` with
-`GMAIL_TOKEN_ENCRYPTION_KEY` and use **Simulate Gmail** in the Gmail workspace
-for the local demo.
+If Gmail OAuth is configured, connect Gmail from Settings or the Gmail setup
+prompt. If OAuth is not configured on the machine, keep the template in
+`MISCONFIGURED` setup state and use the API tests or a seeded local connection
+when validating the review path.
 
 Run Gmail Reply Assistant with an explicit thread ID. The worker may create or
 update a Gmail draft, but sending remains an authenticated API action. Open the
