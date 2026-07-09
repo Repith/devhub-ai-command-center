@@ -6,6 +6,7 @@ export interface WorkerConfig {
   embeddingTimeoutMs: number;
   gmailClientId?: string;
   gmailClientSecret?: string;
+  gmailDevMockEnabled: boolean;
   gmailTokenEncryptionKey?: string;
   gmailToolTimeoutMs: number;
   llmModel: string;
@@ -39,6 +40,7 @@ export function loadWorkerConfig(): WorkerConfig {
     ...(process.env.GMAIL_CLIENT_SECRET
       ? { gmailClientSecret: process.env.GMAIL_CLIENT_SECRET }
       : {}),
+    gmailDevMockEnabled: process.env.GMAIL_DEV_MOCK_ENABLED === "true",
     ...(process.env.GMAIL_TOKEN_ENCRYPTION_KEY
       ? { gmailTokenEncryptionKey: process.env.GMAIL_TOKEN_ENCRYPTION_KEY }
       : {}),

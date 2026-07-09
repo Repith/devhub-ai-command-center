@@ -185,6 +185,9 @@ describeWithDatabase("agent configuration and tenant isolation", () => {
       .set("Authorization", `Bearer ${ownerToken}`)
       .expect(201);
     expect(installResponse.body.installedAgentIds).toHaveLength(5);
+    expect(installResponse.body.actionCounts).toMatchObject({
+      unchanged: 5
+    });
 
     const afterInstall = await request(app!.getHttpServer())
       .get("/api/v1/agents")
@@ -207,6 +210,7 @@ describeWithDatabase("agent configuration and tenant isolation", () => {
       .set("Authorization", `Bearer ${ownerToken}`)
       .expect(201);
     expect(resetResponse.body.installedAgentIds).toHaveLength(5);
+    expect(resetResponse.body.actionCounts).toMatchObject({ reset: 5 });
   });
 
   it("rejects client-provided tenant context", async () => {

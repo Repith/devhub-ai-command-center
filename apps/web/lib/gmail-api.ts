@@ -4,9 +4,11 @@ import {
   gmailConnectionStatusSchema,
   gmailDraftReviewListSchema,
   gmailDraftReviewSchema,
+  gmailOAuthCallbackSchema,
   type CreateGmailDraftReview,
   type GmailConnectResponse,
   type GmailConnectionStatus,
+  type GmailOAuthCallback,
   type GmailDraftReview,
   type UpdateGmailDraftReview
 } from "@devhub/contracts";
@@ -25,6 +27,26 @@ export function connectGmail(
   accessToken: string
 ): Promise<GmailConnectResponse> {
   return apiRequest("/gmail/connect", gmailConnectResponseSchema, {
+    method: "POST",
+    accessToken
+  });
+}
+
+export function completeGmailOAuth(
+  accessToken: string,
+  input: GmailOAuthCallback
+): Promise<GmailConnectionStatus> {
+  return apiRequest("/gmail/oauth/callback", gmailConnectionStatusSchema, {
+    method: "POST",
+    accessToken,
+    body: gmailOAuthCallbackSchema.parse(input)
+  });
+}
+
+export function connectGmailDevMock(
+  accessToken: string
+): Promise<GmailConnectionStatus> {
+  return apiRequest("/gmail/dev/connect", gmailConnectionStatusSchema, {
     method: "POST",
     accessToken
   });

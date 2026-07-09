@@ -1,5 +1,8 @@
 import type { GmailDraftReviewRecord } from "@devhub/database";
-import { BadRequestException } from "@nestjs/common";
+import {
+  BadRequestException,
+  ServiceUnavailableException
+} from "@nestjs/common";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { GmailService } from "../src/gmail/gmail.service";
@@ -56,6 +59,80 @@ describe("Gmail security helpers", () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
+  it("reports missing OAuth config keys and supports local mock connection", async () => {
+    process.env.GMAIL_DEV_MOCK_ENABLED = "true";
+    process.env.GMAIL_TOKEN_ENCRYPTION_KEY = "local-test-encryption-key";
+    const upserts: unknown[] = [];
+    const service = gmailService({
+      connections: {
+        findGmail: () => Promise.resolve(null),
+        upsertGmail: (input: unknown) => {
+          upserts.push(input);
+          return Promise.resolve(null);
+        }
+      }
+    });
+
+    await expect(service.status(principal())).resolves.toMatchObject({
+      status: "DISCONNECTED",
+      missingConfigKeys: [
+        "GMAIL_CLIENT_ID",
+        "GMAIL_CLIENT_SECRET",
+        "GMAIL_REDIRECT_URI"
+      ]
+    });
+    await service.connectDevMock(principal());
+    expect(JSON.stringify(upserts)).not.toContain(
+      "devhub-gmail-mock-access-token"
+    );
+  });
+
+  it("builds an offline incremental OAuth authorization URL", () => {
+    process.env.GMAIL_CLIENT_ID = "client-id";
+    process.env.GMAIL_CLIENT_SECRET = "client-secret";
+    process.env.GMAIL_REDIRECT_URI =
+      "http://localhost:3000/gmail/oauth/callback";
+    process.env.GMAIL_TOKEN_ENCRYPTION_KEY = "local-test-encryption-key";
+    const service = gmailService({});
+
+    const response = service.connect(principal());
+    const url = new URL(response.authorizationUrl);
+
+    expect(url.searchParams.get("access_type")).toBe("offline");
+    expect(url.searchParams.get("include_granted_scopes")).toBe("true");
+    expect(url.searchParams.get("prompt")).toBe("consent");
+    expect(url.searchParams.get("redirect_uri")).toBe(
+      "http://localhost:3000/gmail/oauth/callback"
+    );
+  });
+
+  it("returns a stable misconfigured code for OAuth actions", () => {
+    delete process.env.GMAIL_CLIENT_ID;
+    delete process.env.GMAIL_CLIENT_SECRET;
+    delete process.env.GMAIL_REDIRECT_URI;
+    delete process.env.GMAIL_TOKEN_ENCRYPTION_KEY;
+    const service = gmailService({});
+
+    expect(() => service.connect(principal())).toThrow(
+      ServiceUnavailableException
+    );
+    try {
+      service.connect(principal());
+    } catch (error) {
+      expect(
+        (error as ServiceUnavailableException).getResponse()
+      ).toMatchObject({
+        code: "GMAIL_OAUTH_MISCONFIGURED",
+        missingConfigKeys: expect.arrayContaining([
+          "GMAIL_CLIENT_ID",
+          "GMAIL_CLIENT_SECRET",
+          "GMAIL_REDIRECT_URI",
+          "GMAIL_TOKEN_ENCRYPTION_KEY"
+        ])
+      });
+    }
+  });
+
   it("audits draft review metadata without message body content", async () => {
     const audit = { records: [] as unknown[] };
     const service = gmailService({
@@ -86,7 +163,10 @@ describe("Gmail security helpers", () => {
 
 function gmailService(options: {
   audit?: { records: unknown[] };
-  connections?: { findGmail(): Promise<null> };
+  connections?: {
+    findGmail(): Promise<null>;
+    upsertGmail?(input: unknown): Promise<unknown>;
+  };
   draftReviews?: {
     findById?(): Promise<GmailDraftReviewRecord | null>;
     reject?(): Promise<GmailDraftReviewRecord | null>;
@@ -95,7 +175,12 @@ function gmailService(options: {
   const audit = options.audit ?? { records: [] as unknown[] };
   return new GmailService(
     {
-      findGmail: options.connections?.findGmail ?? (() => Promise.resolve(null))
+      findGmail:
+        options.connections?.findGmail ?? (() => Promise.resolve(null)),
+      upsertGmail: (_context: unknown, input: unknown) =>
+        options.connections?.upsertGmail
+          ? options.connections.upsertGmail(input)
+          : Promise.resolve(input)
     } as never,
     {
       findById:

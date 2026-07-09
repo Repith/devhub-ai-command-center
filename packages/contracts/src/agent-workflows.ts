@@ -13,6 +13,13 @@ const nodeIdSchema = z
 
 const edgeIdSchema = nodeIdSchema;
 
+const workflowNodePositionSchema = z
+  .object({
+    x: z.number().finite().min(-100_000).max(100_000),
+    y: z.number().finite().min(-100_000).max(100_000)
+  })
+  .strict();
+
 export const agentWorkflowNodeTypeSchema = z.enum([
   "start",
   "knowledge.search",
@@ -193,6 +200,7 @@ export const agentWorkflowNodeSchema = z.discriminatedUnion("type", [
       id: nodeIdSchema,
       type: z.literal("start"),
       label: z.string().trim().min(1).max(160).optional(),
+      position: workflowNodePositionSchema.optional(),
       config: startConfigSchema.default({})
     })
     .strict(),
@@ -201,6 +209,7 @@ export const agentWorkflowNodeSchema = z.discriminatedUnion("type", [
       id: nodeIdSchema,
       type: z.literal("knowledge.search"),
       label: z.string().trim().min(1).max(160).optional(),
+      position: workflowNodePositionSchema.optional(),
       config: knowledgeSearchConfigSchema.default({
         documentIds: [],
         limit: 5,
@@ -213,6 +222,7 @@ export const agentWorkflowNodeSchema = z.discriminatedUnion("type", [
       id: nodeIdSchema,
       type: z.literal("news.fetch_rss"),
       label: z.string().trim().min(1).max(160).optional(),
+      position: workflowNodePositionSchema.optional(),
       config: newsFetchRssConfigSchema
     })
     .strict(),
@@ -221,6 +231,7 @@ export const agentWorkflowNodeSchema = z.discriminatedUnion("type", [
       id: nodeIdSchema,
       type: z.literal("usage.summary"),
       label: z.string().trim().min(1).max(160).optional(),
+      position: workflowNodePositionSchema.optional(),
       config: usageSummaryConfigSchema.default({ period: "30d" })
     })
     .strict(),
@@ -229,6 +240,7 @@ export const agentWorkflowNodeSchema = z.discriminatedUnion("type", [
       id: nodeIdSchema,
       type: z.literal("gmail.search_threads"),
       label: z.string().trim().min(1).max(160).optional(),
+      position: workflowNodePositionSchema.optional(),
       config: gmailSearchThreadsConfigSchema
     })
     .strict(),
@@ -237,6 +249,7 @@ export const agentWorkflowNodeSchema = z.discriminatedUnion("type", [
       id: nodeIdSchema,
       type: z.literal("gmail.get_thread"),
       label: z.string().trim().min(1).max(160).optional(),
+      position: workflowNodePositionSchema.optional(),
       config: gmailGetThreadConfigSchema
     })
     .strict(),
@@ -245,6 +258,7 @@ export const agentWorkflowNodeSchema = z.discriminatedUnion("type", [
       id: nodeIdSchema,
       type: z.literal("gmail.create_draft"),
       label: z.string().trim().min(1).max(160).optional(),
+      position: workflowNodePositionSchema.optional(),
       config: gmailCreateDraftConfigSchema
     })
     .strict(),
@@ -253,6 +267,7 @@ export const agentWorkflowNodeSchema = z.discriminatedUnion("type", [
       id: nodeIdSchema,
       type: z.literal("gmail.update_draft"),
       label: z.string().trim().min(1).max(160).optional(),
+      position: workflowNodePositionSchema.optional(),
       config: gmailUpdateDraftConfigSchema
     })
     .strict(),
@@ -261,6 +276,7 @@ export const agentWorkflowNodeSchema = z.discriminatedUnion("type", [
       id: nodeIdSchema,
       type: z.literal("llm.generate"),
       label: z.string().trim().min(1).max(160).optional(),
+      position: workflowNodePositionSchema.optional(),
       config: llmGenerateConfigSchema.default({
         includePreviousOutputs: true,
         prompt: "agent.systemPrompt"
@@ -272,6 +288,7 @@ export const agentWorkflowNodeSchema = z.discriminatedUnion("type", [
       id: nodeIdSchema,
       type: z.literal("condition"),
       label: z.string().trim().min(1).max(160).optional(),
+      position: workflowNodePositionSchema.optional(),
       config: conditionConfigSchema
     })
     .strict(),
@@ -280,6 +297,7 @@ export const agentWorkflowNodeSchema = z.discriminatedUnion("type", [
       id: nodeIdSchema,
       type: z.literal("human.review"),
       label: z.string().trim().min(1).max(160).optional(),
+      position: workflowNodePositionSchema.optional(),
       config: humanReviewConfigSchema
     })
     .strict(),
@@ -288,6 +306,7 @@ export const agentWorkflowNodeSchema = z.discriminatedUnion("type", [
       id: nodeIdSchema,
       type: z.literal("complete"),
       label: z.string().trim().min(1).max(160).optional(),
+      position: workflowNodePositionSchema.optional(),
       config: completeConfigSchema.default({ output: "previous.output" })
     })
     .strict(),
@@ -296,6 +315,7 @@ export const agentWorkflowNodeSchema = z.discriminatedUnion("type", [
       id: nodeIdSchema,
       type: z.literal("fail"),
       label: z.string().trim().min(1).max(160).optional(),
+      position: workflowNodePositionSchema.optional(),
       config: failConfigSchema.default({
         errorCode: "WORKFLOW_FAILED",
         message: "Workflow failed."
@@ -384,6 +404,7 @@ export interface AgentWorkflowValidationError {
     | "MISSING_START"
     | "MISSING_TERMINAL"
     | "ORPHANED_NODE"
+    | "START_HAS_INCOMING_EDGE"
     | "TERMINAL_HAS_OUTGOING_EDGE"
     | "UNREACHABLE_TERMINAL"
     | "UNSUPPORTED_CYCLE";
@@ -446,6 +467,17 @@ export function validateAgentWorkflowDefinition(
       path: ["nodes"]
     });
   }
+
+  const startNodeIds = new Set(startNodes.map((node) => node.id));
+  definition.edges.forEach((edge, index) => {
+    if (startNodeIds.has(edge.targetNodeId)) {
+      errors.push({
+        code: "START_HAS_INCOMING_EDGE",
+        message: `Start node "${edge.targetNodeId}" must not have incoming edges.`,
+        path: ["edges", index, "targetNodeId"]
+      });
+    }
+  });
 
   const terminalNodeIds = new Set(
     definition.nodes

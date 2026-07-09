@@ -719,3 +719,210 @@ Acceptance: usage and audit views reflect the actual agent runtime path and rema
 - [ ] Tag `v0.1.0` only after owner review.
 
 Acceptance: the application works as a coherent local-first AI command center where the default user flow, durable runtime, templates, tools, timeline, usage, and evaluation all exercise the same architecture.
+
+## PR 37: Integration Foundation
+
+- [ ] Add shared OAuth integration contracts:
+  - `IntegrationProvider = "GMAIL" | "GITHUB"`,
+  - `IntegrationStatus = CONNECTED | DISCONNECTED | EXPIRED | MISCONFIGURED`,
+  - shared `ExternalConnectionStatusResponse`,
+  - stable error codes:
+    - `EXTERNAL_CONNECTION_EXPIRED`,
+    - `EXTERNAL_CONNECTION_NOT_FOUND`,
+    - `OAUTH_STATE_INVALID`.
+- [ ] Extend `ExternalConnectionProvider` with `GITHUB`.
+- [ ] Extract token encryption/decryption into one server-side provider used by Gmail and future GitHub code.
+- [ ] Add generic repository methods for `ExternalConnection` by provider while preserving existing Gmail-specific methods.
+- [ ] Add `GET /api/v1/integrations`, returning Gmail and GitHub status in one place.
+- [ ] Update `.env.example`, local docs, and security notes with production OAuth requirements.
+- [ ] Add tests for:
+  - provider/status/error-code contracts,
+  - multi-provider external connection repository behavior,
+  - `GET /integrations`,
+  - tenant isolation,
+  - missing provider config.
+
+Acceptance: the app has one server-side, tenant-scoped integration foundation that can represent Gmail and GitHub without exposing tokens or requiring provider-specific UI guesses.
+
+## PR 38: Production Gmail OAuth Hardening
+
+- [ ] Preserve and harden the Gmail flow:
+  - `POST /api/v1/gmail/connect`,
+  - browser callback page at `/gmail/oauth/callback`,
+  - `POST /api/v1/gmail/oauth/callback`,
+  - `GET /api/v1/gmail/status`.
+- [ ] Require production Gmail config:
+  - `GMAIL_CLIENT_ID`,
+  - `GMAIL_CLIENT_SECRET`,
+  - `GMAIL_REDIRECT_URI=https://<domain>/gmail/oauth/callback`,
+  - `GMAIL_TOKEN_ENCRYPTION_KEY`.
+- [ ] Add `DELETE /api/v1/gmail/disconnect`.
+- [ ] Return explicit `MISCONFIGURED` status with `missingConfigKeys` containing key names only.
+- [ ] Keep scopes limited to:
+  - `https://www.googleapis.com/auth/gmail.readonly`,
+  - `https://www.googleapis.com/auth/gmail.compose`.
+- [ ] Keep email sending outside MCP: sending is only an authenticated review API action.
+- [ ] Make `apps/mcp-gmail` dev-diagnostic only unless it can use the server-side token provider without `GMAIL_ACCESS_TOKEN`.
+- [ ] Add tests for:
+  - OAuth URL redirect/state/offline access/incremental scopes,
+  - callback success and failure,
+  - bad state,
+  - missing refresh token,
+  - token refresh,
+  - disconnect,
+  - no token or mail body leakage in logs, audit rows, prompts, run previews, or WebSocket payloads.
+
+Acceptance: Gmail works as a public SaaS OAuth integration with server-held tokens, review-only writes, and clear setup/misconfiguration states.
+
+## PR 39: GitHub App Auth and Installation Sync
+
+- [ ] Add GitHub App config:
+  - `GITHUB_APP_ID`,
+  - `GITHUB_CLIENT_ID`,
+  - `GITHUB_CLIENT_SECRET`,
+  - `GITHUB_PRIVATE_KEY`,
+  - `GITHUB_WEBHOOK_SECRET`,
+  - `GITHUB_REDIRECT_URI=https://<domain>/github/oauth/callback`,
+  - `GITHUB_TOKEN_ENCRYPTION_KEY`.
+- [ ] Add persistence models:
+  - `ExternalInstallation`,
+  - `ExternalRepository`.
+- [ ] Add API:
+  - `POST /api/v1/github/connect`,
+  - `POST /api/v1/github/oauth/callback`,
+  - `GET /api/v1/github/status`,
+  - `POST /api/v1/github/installations/sync`,
+  - `GET /api/v1/github/repositories`,
+  - `DELETE /api/v1/github/disconnect`.
+- [ ] Add webhook receiver for installation events:
+  - created,
+  - updated,
+  - deleted,
+  - suspended.
+- [ ] Use GitHub App permissions:
+  - metadata read,
+  - contents read,
+  - issues read,
+  - pull requests read.
+- [ ] Use server-side token strategy:
+  - user token for authenticated user actions,
+  - installation token for repository read tools,
+  - short-lived tokens refreshed or generated on demand.
+- [ ] Add tests for:
+  - OAuth callback and state,
+  - installation sync create/update,
+  - webhook signature validation,
+  - tenant-owned installation enforcement,
+  - expired or revoked connection status.
+
+Acceptance: a tenant can connect a GitHub App installation and synchronize only repositories that belong to that tenant's installation.
+
+## PR 40: GitHub MCP Read Tools
+
+- [ ] Add `packages/mcp/src/github-client.ts`.
+- [ ] Add read-only GitHub tools:
+  - `github.list_repositories`,
+  - `github.get_file`,
+  - `github.search_code`,
+  - `github.list_issues`,
+  - `github.list_pull_requests`,
+  - `github.get_pull_request`.
+- [ ] Add `apps/mcp-github` or register GitHub read tools directly in the worker, following the Gmail pattern chosen in PR 38.
+- [ ] Add `GitHubAccessTokenProvider` using server-side user/installation tokens.
+- [ ] Enforce `enabledToolIds` allowlists before every tool call.
+- [ ] Bound and redact tool previews so repository content cannot leak secrets through logs, audit rows, run previews, or WebSocket payloads.
+- [ ] Add the default `Repository Researcher` agent template.
+- [ ] Add tests for:
+  - input/output schema validation,
+  - unauthorized repository blocked,
+  - disabled tool blocked,
+  - output limits,
+  - no token leakage,
+  - worker run MCP audit.
+
+Acceptance: agents can read authorized GitHub repositories through safe MCP-style tools, but cannot mutate GitHub state.
+
+## PR 41: Integrations Workspace and Agent Setup UX
+
+- [ ] Add an `Integrations` workspace.
+- [ ] Add Gmail card states:
+  - status,
+  - account,
+  - scopes,
+  - connect,
+  - reconnect,
+  - disconnect.
+- [ ] Add GitHub card states:
+  - status,
+  - account or installation,
+  - repository count,
+  - install/connect,
+  - sync,
+  - disconnect.
+- [ ] Add browser callback page for GitHub at `/github/oauth/callback`.
+- [ ] Show setup state in agent templates:
+  - Gmail templates show missing Gmail connection or misconfiguration,
+  - Repository Researcher shows missing GitHub installation or repositories.
+- [ ] Show available repositories and enabled tools in chat/agent UI.
+- [ ] Add tests for:
+  - Gmail card states,
+  - GitHub card states,
+  - callback success/failure UI,
+  - setup chips for `READY`, `NEEDS_SETUP`, and `MISCONFIGURED`,
+  - member read-only behavior.
+
+Acceptance: users can understand and operate Gmail and GitHub integrations from the UI without guessing environment or setup state.
+
+## PR 42: User-Reviewed External Writes
+
+- [ ] Keep Gmail draft review/send as the only Gmail write path.
+- [ ] Add GitHub action review records for planned write actions:
+  - issue comment draft,
+  - pull request comment draft,
+  - issue creation draft.
+- [ ] Add API:
+  - `GET /api/v1/github/action-reviews`,
+  - `POST /api/v1/github/action-reviews`,
+  - `PATCH /api/v1/github/action-reviews/:id`,
+  - `POST /api/v1/github/action-reviews/:id/submit`,
+  - `POST /api/v1/github/action-reviews/:id/reject`.
+- [ ] Allow GitHub MCP tools to prepare draft content, but never publish comments or create issues directly.
+- [ ] Re-check repository, installation, tenant, user, and permission state on submit.
+- [ ] Add tests for:
+  - model cannot execute write tools,
+  - submit requires authenticated user,
+  - foreign tenant/user review blocked,
+  - `SENT` and `REJECTED` immutable,
+  - audit rows contain metadata only, not bodies or secrets.
+
+Acceptance: external writes exist only as deliberate, authenticated user actions after review.
+
+## PR 43: OAuth Integrations Release Readiness
+
+- [ ] Add docs:
+  - Google Cloud OAuth setup,
+  - Google restricted Gmail scope verification and security assessment notes,
+  - GitHub App registration,
+  - GitHub callback and webhook setup,
+  - GitHub permissions,
+  - local development alternatives.
+- [ ] Add E2E coverage:
+  - Gmail mocked or simulated OAuth,
+  - GitHub mocked App installation,
+  - agent run with Gmail tools,
+  - agent run with GitHub tools,
+  - reviewed write flow.
+- [ ] Add observability:
+  - correlation IDs on OAuth callbacks,
+  - stable error codes in UI,
+  - audit rows for connect, disconnect, sync, tool calls, review submit, and review reject.
+- [ ] Run and record:
+  - `npm run format:check`,
+  - `npm run lint`,
+  - `npm run typecheck`,
+  - `npm test`,
+  - `npm run build`,
+  - `npm run test:integration`,
+  - `npm run test:e2e`.
+
+Acceptance: Gmail and GitHub are production-ready SaaS integrations with documented setup, observable failures, safe token handling, tenant isolation, read-only MCP tools, and user-reviewed writes.

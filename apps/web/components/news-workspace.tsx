@@ -11,6 +11,7 @@ import {
   listNewsFeeds,
   updateNewsFeed
 } from "@/lib/news-api";
+import { formatApiClientError } from "@/lib/api-client";
 
 interface NewsWorkspaceProps {
   accessToken: string;
@@ -118,9 +119,9 @@ export function NewsWorkspace({
           isDeleting={deleteMutation.isPending}
           error={
             saveMutation.error instanceof Error
-              ? saveMutation.error.message
+              ? formatApiClientError(saveMutation.error)
               : deleteMutation.error instanceof Error
-                ? deleteMutation.error.message
+                ? formatApiClientError(deleteMutation.error)
                 : null
           }
           onSave={(input) => saveMutation.mutateAsync(input)}

@@ -4,7 +4,9 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
 import { listAgents } from "../lib/agents-api";
+import { listNewsFeeds } from "../lib/news-api";
 import { useDurableRunChat } from "../lib/use-durable-run-chat";
+import { hasNewsIntent } from "./dashboard-home-helpers";
 
 interface ChatWorkspaceProps {
   accessToken: string;
@@ -17,9 +19,19 @@ export function ChatWorkspace({
     queryKey: ["agents", accessToken],
     queryFn: () => listAgents(accessToken)
   });
+  const newsFeeds = useQuery({
+    queryKey: ["news-feeds"],
+    queryFn: () => listNewsFeeds(accessToken)
+  });
   const [agentId, setAgentId] = useState("");
   const [draft, setDraft] = useState("");
   const chat = useDurableRunChat({ accessToken, agentId });
+  const dailyNewsAgent =
+    agents.data?.find((agent) => agent.templateKey === "daily-news-briefing") ??
+    null;
+  const enabledNewsFeeds = (newsFeeds.data ?? []).filter(
+    (feed) => feed.enabled
+  );
 
   useEffect(() => {
     if (!agentId && agents.data?.[0]) {
@@ -34,7 +46,18 @@ export function ChatWorkspace({
       return;
     }
     setDraft("");
-    await chat.send(message);
+    await chat.send(
+      message,
+      hasNewsIntent(message) && dailyNewsAgent && enabledNewsFeeds.length > 0
+        ? {
+            agentId: dailyNewsAgent.id,
+            input: {
+              newsFeedIds: enabledNewsFeeds.slice(0, 10).map((feed) => feed.id),
+              retrievalLimit: 5
+            }
+          }
+        : undefined
+    );
   };
 
   const startNewConversation = (): void => {

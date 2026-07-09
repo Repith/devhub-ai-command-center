@@ -10,6 +10,7 @@ import type {
   CreateGmailDraftReview,
   GmailConnectResponse,
   GmailConnectionStatus,
+  GmailDevConnectResponse,
   GmailDraftReview,
   GmailDraftReviewList,
   GmailOAuthCallback,
@@ -27,8 +28,10 @@ import { GmailRestClient } from "@devhub/mcp";
 import type { RequestPrincipal } from "../auth/auth.types";
 import { AuditService } from "../audit/audit.service";
 import {
+  canUseGmailDevMock,
   isGmailConfigured,
   loadGmailConfig,
+  missingGmailConfigKeys,
   type GmailConfig
 } from "./gmail.config";
 import {
@@ -41,6 +44,8 @@ import { TokenCryptoService } from "./token-crypto.service";
 const googleTokenUrl = "https://oauth2.googleapis.com/token";
 const gmailProfileUrl =
   "https://gmail.googleapis.com/gmail/v1/users/me/profile";
+const gmailDevMockAccountEmail = "devhub-gmail-mock@example.local";
+const gmailDevMockScope = "devhub:gmail-dev-mock";
 
 interface GoogleTokenResponse {
   access_token: string;
@@ -72,12 +77,18 @@ export class GmailService {
   public async status(
     principal: RequestPrincipal
   ): Promise<GmailConnectionStatus> {
-    if (!isGmailConfigured(this.config)) {
-      return this.statusResponse("MISCONFIGURED", null);
-    }
     const connection = await this.connections.findGmail(
       this.context(principal)
     );
+    if (!isGmailConfigured(this.config)) {
+      if (canUseGmailDevMock(this.config) && connection) {
+        return this.statusResponse("CONNECTED", connection);
+      }
+      if (canUseGmailDevMock(this.config)) {
+        return this.statusResponse("DISCONNECTED", null);
+      }
+      return this.statusResponse("MISCONFIGURED", connection);
+    }
     if (!connection) {
       return this.statusResponse("DISCONNECTED", null);
     }
@@ -86,6 +97,7 @@ export class GmailService {
       status: expired ? "EXPIRED" : connection.status,
       accountEmail: connection.accountEmail,
       scopes: [...connection.scopes],
+      missingConfigKeys: missingGmailConfigKeys(this.config),
       connectedAt: connection.createdAt.toISOString(),
       updatedAt: connection.updatedAt.toISOString(),
       requiredScopes: [...this.config.requiredScopes],
@@ -94,7 +106,7 @@ export class GmailService {
   }
 
   public connect(principal: RequestPrincipal): GmailConnectResponse {
-    this.requireConfigured();
+    this.requireOAuthConfigured();
     const secret = this.stateSecret();
     const state = this.oauthState.sign(
       secret,
@@ -109,6 +121,7 @@ export class GmailService {
       redirect_uri: this.config.redirectUri!,
       response_type: "code",
       access_type: "offline",
+      include_granted_scopes: "true",
       prompt: "consent",
       scope: this.config.requiredScopes.join(" "),
       state
@@ -119,11 +132,43 @@ export class GmailService {
     };
   }
 
+  public async connectDevMock(
+    principal: RequestPrincipal
+  ): Promise<GmailDevConnectResponse> {
+    if (!canUseGmailDevMock(this.config)) {
+      throw gmailMisconfigured(
+        "Gmail development mock is not configured.",
+        this.config
+      );
+    }
+    const context = this.context(principal);
+    await this.connections.upsertGmail(context, {
+      accountEmail: gmailDevMockAccountEmail,
+      scopes: [...this.config.requiredScopes, gmailDevMockScope],
+      encryptedAccessToken: this.tokenCrypto.encrypt(
+        this.config.tokenEncryptionKey!,
+        "devhub-gmail-mock-access-token"
+      ),
+      encryptedRefreshToken: this.tokenCrypto.encrypt(
+        this.config.tokenEncryptionKey!,
+        "devhub-gmail-mock-refresh-token"
+      ),
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      status: "CONNECTED"
+    });
+    await this.audit.record(principal, {
+      action: "gmail.dev_mock_connected",
+      resourceType: "external_connection",
+      metadata: { provider: "GMAIL", mode: "dev-mock" }
+    });
+    return this.status(principal);
+  }
+
   public async completeOAuth(
     principal: RequestPrincipal,
     input: GmailOAuthCallback
   ): Promise<GmailConnectionStatus> {
-    this.requireConfigured();
+    this.requireOAuthConfigured();
     this.verifyState(principal, input.state);
     const context = this.context(principal);
     const previous = await this.connections.findGmail(context);
@@ -229,6 +274,18 @@ export class GmailService {
     const record = await this.draftReviews.findById(context, reviewId);
     if (!record || !["NEEDS_REVIEW", "UPDATED"].includes(record.status)) {
       throw new NotFoundException("Gmail draft review was not found.");
+    }
+    const connection = await this.connections.findGmail(context);
+    if (connection && isDevMockConnection(connection)) {
+      const sentRecord = await this.draftReviews.markSent(context, reviewId, {
+        gmailDraftId: record.gmailDraftId ?? `mock-draft-${record.id}`,
+        threadId: record.threadId
+      });
+      if (!sentRecord) {
+        throw new NotFoundException("Gmail draft review was not found.");
+      }
+      await this.auditDraft(principal, "gmail.draft_review.sent", sentRecord);
+      return toDraftReview(sentRecord);
     }
     const accessToken = await this.accessToken(context);
     const client = new GmailRestClient({ accessToken });
@@ -341,8 +398,14 @@ export class GmailService {
   }
 
   private requireConfigured(): void {
+    if (!isGmailConfigured(this.config) && !canUseGmailDevMock(this.config)) {
+      throw gmailMisconfigured("Gmail OAuth is not configured.", this.config);
+    }
+  }
+
+  private requireOAuthConfigured(): void {
     if (!isGmailConfigured(this.config)) {
-      throw new ServiceUnavailableException("Gmail OAuth is not configured.");
+      throw gmailMisconfigured("Gmail OAuth is not configured.", this.config);
     }
   }
 
@@ -371,6 +434,7 @@ export class GmailService {
       status,
       accountEmail: connection?.accountEmail ?? null,
       scopes: connection ? [...connection.scopes] : [],
+      missingConfigKeys: missingGmailConfigKeys(this.config),
       connectedAt: connection?.createdAt.toISOString() ?? null,
       updatedAt: connection?.updatedAt.toISOString() ?? null,
       requiredScopes: [...this.config.requiredScopes],
@@ -434,4 +498,22 @@ function isExpired(connection: GmailConnectionRecord): boolean {
   return Boolean(
     connection.expiresAt && connection.expiresAt.getTime() <= Date.now()
   );
+}
+
+function isDevMockConnection(connection: GmailConnectionRecord): boolean {
+  return (
+    connection.accountEmail === gmailDevMockAccountEmail ||
+    connection.scopes.includes(gmailDevMockScope)
+  );
+}
+
+function gmailMisconfigured(
+  message: string,
+  config: GmailConfig
+): ServiceUnavailableException {
+  return new ServiceUnavailableException({
+    code: "GMAIL_OAUTH_MISCONFIGURED",
+    message,
+    missingConfigKeys: missingGmailConfigKeys(config)
+  });
 }

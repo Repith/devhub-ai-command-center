@@ -24,7 +24,15 @@ export type AgentTemplateList = z.infer<typeof agentTemplateListSchema>;
 
 export const installAgentTemplatesResponseSchema = z.object({
   data: z.array(agentTemplateSchema),
-  installedAgentIds: z.array(z.string().uuid())
+  installedAgentIds: z.array(z.string().uuid()),
+  actionCounts: z
+    .object({
+      created: z.number().int().nonnegative(),
+      revived: z.number().int().nonnegative(),
+      unchanged: z.number().int().nonnegative(),
+      reset: z.number().int().nonnegative()
+    })
+    .default({ created: 0, revived: 0, unchanged: 0, reset: 0 })
 });
 export type InstallAgentTemplatesResponse = z.infer<
   typeof installAgentTemplatesResponseSchema
@@ -135,7 +143,7 @@ export const DEFAULT_AGENT_TEMPLATES = [
     },
     requiredSetup: [
       { id: "gmail.oauth", label: "Gmail connection", status: "NEEDS_SETUP" },
-      { id: "gmail.review", label: "Draft review UI", status: "PLANNED" }
+      { id: "gmail.review", label: "Draft review UI", status: "READY" }
     ]
   },
   {

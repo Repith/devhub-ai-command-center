@@ -27,6 +27,7 @@ export const gmailConnectionStatusSchema = z
     status: gmailConnectionStateSchema,
     accountEmail: z.email().nullable(),
     scopes: z.array(z.string().min(1)),
+    missingConfigKeys: z.array(z.string().min(1)).default([]),
     connectedAt: z.iso.datetime().nullable(),
     updatedAt: z.iso.datetime().nullable(),
     requiredScopes: z.array(z.string().min(1)),
@@ -42,6 +43,11 @@ export const gmailConnectResponseSchema = z
   })
   .strict();
 export type GmailConnectResponse = z.infer<typeof gmailConnectResponseSchema>;
+
+export const gmailDevConnectResponseSchema = gmailConnectionStatusSchema;
+export type GmailDevConnectResponse = z.infer<
+  typeof gmailDevConnectResponseSchema
+>;
 
 export const gmailOAuthCallbackSchema = z
   .object({

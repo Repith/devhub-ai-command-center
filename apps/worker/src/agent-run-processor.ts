@@ -42,6 +42,7 @@ import { PrismaToolAuditSink } from "./tool-audit-sink.js";
 export interface AgentRunGmailOptions {
   clientId?: string | undefined;
   clientSecret?: string | undefined;
+  devMockEnabled?: boolean | undefined;
   timeoutMs: number;
   tokenEncryptionKey: string;
 }
@@ -74,14 +75,16 @@ export async function processAgentRun(
   const toolAudit = new PrismaToolAuditSink(
     new PrismaAuditLogRepository(options.database)
   );
-  const gmailAccessTokens = options.gmail
-    ? new GmailAccessTokenProvider({
-        clientId: options.gmail.clientId,
-        clientSecret: options.gmail.clientSecret,
-        connections,
-        tokenEncryptionKey: options.gmail.tokenEncryptionKey
-      })
-    : null;
+  const gmailAccessTokens = options.gmail?.devMockEnabled
+    ? null
+    : options.gmail
+      ? new GmailAccessTokenProvider({
+          clientId: options.gmail.clientId,
+          clientSecret: options.gmail.clientSecret,
+          connections,
+          tokenEncryptionKey: options.gmail.tokenEncryptionKey
+        })
+      : null;
   const tools = new StaticToolRegistry(
     [
       createKnowledgeSearchTool({
@@ -93,13 +96,19 @@ export async function processAgentRun(
       }),
       createNewsFetchRssTool({ timeoutMs: options.rssTimeoutMs }),
       createUsageSummaryTool({ usage }),
-      ...(gmailAccessTokens
+      ...(options.gmail?.devMockEnabled
         ? createGmailTools({
-            getAccessToken: (context) =>
-              gmailAccessTokens.getAccessToken(context),
-            timeoutMs: options.gmail!.timeoutMs
+            getAccessToken: () => Promise.resolve("devhub-gmail-mock-token"),
+            fetch: gmailDevMockFetch,
+            timeoutMs: options.gmail.timeoutMs
           })
-        : [])
+        : gmailAccessTokens
+          ? createGmailTools({
+              getAccessToken: (context) =>
+                gmailAccessTokens.getAccessToken(context),
+              timeoutMs: options.gmail!.timeoutMs
+            })
+          : [])
     ],
     toolAudit
   );
@@ -115,6 +124,75 @@ export async function processAgentRun(
     usage
   });
   await processor.process(options.input);
+}
+
+const gmailMockThreadId = "mock-thread-release";
+
+async function gmailDevMockFetch(
+  input: string | URL | Request,
+  init?: RequestInit
+): Promise<Response> {
+  const url = new URL(requestUrl(input));
+  const path = url.pathname;
+  const method = init?.method ?? "GET";
+  if (method === "GET" && path.endsWith("/threads")) {
+    return jsonResponse({ threads: [{ id: gmailMockThreadId }] });
+  }
+  if (method === "GET" && path.includes(`/threads/${gmailMockThreadId}`)) {
+    return jsonResponse({
+      id: gmailMockThreadId,
+      historyId: "mock-history-1",
+      messages: [
+        {
+          id: "mock-message-1",
+          threadId: gmailMockThreadId,
+          internalDate: String(Date.now()),
+          snippet: "Mock customer asks about the release stabilization plan.",
+          payload: {
+            headers: [
+              { name: "From", value: "customer@example.com" },
+              { name: "To", value: "owner@example.com" },
+              { name: "Subject", value: "Release stabilization" }
+            ],
+            mimeType: "text/plain",
+            body: {
+              data: Buffer.from(
+                "Can you summarize the release stabilization status?",
+                "utf8"
+              ).toString("base64url")
+            }
+          }
+        }
+      ]
+    });
+  }
+  if (method === "POST" && path.endsWith("/drafts")) {
+    return jsonResponse({
+      id: "mock-draft-1",
+      message: { id: "mock-draft-message-1", threadId: gmailMockThreadId }
+    });
+  }
+  if (method === "PUT" && path.includes("/drafts/")) {
+    return jsonResponse({
+      id: path.split("/").at(-1) ?? "mock-draft-1",
+      message: { id: "mock-draft-message-1", threadId: gmailMockThreadId }
+    });
+  }
+  return jsonResponse({ error: "Unsupported Gmail mock request." }, 404);
+}
+
+function requestUrl(input: string | URL | Request): string {
+  if (typeof input === "string") {
+    return input;
+  }
+  return input instanceof URL ? input.toString() : input.url;
+}
+
+function jsonResponse(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    headers: { "Content-Type": "application/json" },
+    status
+  });
 }
 
 export class AgentRunProcessor {

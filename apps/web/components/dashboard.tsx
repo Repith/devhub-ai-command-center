@@ -1,15 +1,15 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 
 import { AgentWorkspace } from "./agent-workspace";
+import { AnalyticsWorkspace } from "./analytics-workspace";
 import { ChatWorkspace } from "./chat-workspace";
 import { DashboardHome } from "./dashboard-home";
-import { EvaluationsWorkspace } from "./evaluations-workspace";
 import { GmailWorkspace } from "./gmail-workspace";
 import { KnowledgeWorkspace } from "./knowledge-workspace";
 import { NewsWorkspace } from "./news-workspace";
-import { RunsWorkspace } from "./runs-workspace";
 import type { AuthenticatedUser } from "@devhub/contracts";
 
 interface DashboardProps {
@@ -23,8 +23,7 @@ type DashboardSection =
   | "home"
   | "agents"
   | "chat"
-  | "runs"
-  | "evaluations"
+  | "analytics"
   | "knowledge"
   | "gmail"
   | "news";
@@ -34,7 +33,11 @@ export function Dashboard({
   user,
   onLogout
 }: DashboardProps): React.JSX.Element {
-  const [section, setSection] = useState<DashboardSection>("home");
+  const searchParams = useSearchParams();
+  const requestedSection = searchParams.get("section");
+  const [section, setSection] = useState<DashboardSection>(() =>
+    isDashboardSection(requestedSection) ? requestedSection : "home"
+  );
 
   return (
     <div className="dashboard-shell">
@@ -77,13 +80,13 @@ export function Dashboard({
             Agents
           </button>
           <button
-            className={`nav-item ${section === "runs" ? "active" : ""}`}
+            className={`nav-item ${section === "analytics" ? "active" : ""}`}
             type="button"
-            aria-current={section === "runs" ? "page" : undefined}
-            onClick={() => setSection("runs")}
+            aria-current={section === "analytics" ? "page" : undefined}
+            onClick={() => setSection("analytics")}
           >
             <span aria-hidden="true">04</span>
-            Runs
+            Analytics
           </button>
           <button
             className={`nav-item ${section === "gmail" ? "active" : ""}`}
@@ -95,21 +98,12 @@ export function Dashboard({
             Gmail
           </button>
           <button
-            className={`nav-item ${section === "evaluations" ? "active" : ""}`}
-            type="button"
-            aria-current={section === "evaluations" ? "page" : undefined}
-            onClick={() => setSection("evaluations")}
-          >
-            <span aria-hidden="true">06</span>
-            Evaluations
-          </button>
-          <button
             className={`nav-item ${section === "knowledge" ? "active" : ""}`}
             type="button"
             aria-current={section === "knowledge" ? "page" : undefined}
             onClick={() => setSection("knowledge")}
           >
-            <span aria-hidden="true">07</span>
+            <span aria-hidden="true">06</span>
             Knowledge
           </button>
           <button
@@ -118,12 +112,12 @@ export function Dashboard({
             aria-current={section === "news" ? "page" : undefined}
             onClick={() => setSection("news")}
           >
-            <span aria-hidden="true">08</span>
+            <span aria-hidden="true">07</span>
             News
           </button>
           {plannedSections.map((section, index) => (
             <span className="nav-item planned" key={section}>
-              <span aria-hidden="true">0{index + 9}</span>
+              <span aria-hidden="true">0{index + 8}</span>
               {section}
               <small>Planned</small>
             </span>
@@ -164,10 +158,8 @@ export function Dashboard({
           />
         ) : section === "chat" ? (
           <ChatWorkspace accessToken={accessToken} />
-        ) : section === "runs" ? (
-          <RunsWorkspace accessToken={accessToken} />
-        ) : section === "evaluations" ? (
-          <EvaluationsWorkspace accessToken={accessToken} />
+        ) : section === "analytics" ? (
+          <AnalyticsWorkspace accessToken={accessToken} />
         ) : section === "gmail" ? (
           <GmailWorkspace accessToken={accessToken} />
         ) : section === "news" ? (
@@ -183,5 +175,17 @@ export function Dashboard({
         )}
       </main>
     </div>
+  );
+}
+
+function isDashboardSection(value: string | null): value is DashboardSection {
+  return (
+    value === "home" ||
+    value === "agents" ||
+    value === "chat" ||
+    value === "analytics" ||
+    value === "knowledge" ||
+    value === "gmail" ||
+    value === "news"
   );
 }

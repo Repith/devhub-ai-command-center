@@ -19,9 +19,13 @@ import { listDocuments } from "@/lib/documents-api";
 import { getGmailStatus, listGmailDraftReviews } from "@/lib/gmail-api";
 import { listNewsFeeds } from "@/lib/news-api";
 import { listRuns, startRun } from "@/lib/runs-api";
-import { useDurableRunChat } from "@/lib/use-durable-run-chat";
+import {
+  useDurableRunChat,
+  type DurableRunChatSendOptions
+} from "@/lib/use-durable-run-chat";
 import { getUsageSummary } from "@/lib/usage-api";
 import {
+  hasNewsIntent,
   pendingDraftReviews,
   summarizeDocuments,
   type DocumentSummary
@@ -33,7 +37,7 @@ type DashboardHomeSection =
   | "knowledge"
   | "gmail"
   | "news"
-  | "runs";
+  | "analytics";
 
 interface DashboardHomeProps {
   accessToken: string;
@@ -130,7 +134,10 @@ export function DashboardHome({
       return;
     }
     setDraft("");
-    void chat.send(message);
+    void chat.send(
+      message,
+      newsRunOptions(message, dailyNewsAgent, enabledNewsFeeds)
+    );
   };
 
   return (
@@ -151,7 +158,7 @@ export function DashboardHome({
           <button
             className="secondary-button"
             type="button"
-            onClick={() => onNavigate("runs")}
+            onClick={() => onNavigate("analytics")}
           >
             Runs
           </button>
@@ -265,18 +272,39 @@ export function DashboardHome({
           isLoading={usageQuery.isPending}
           isError={usageQuery.isError}
           onRetry={() => void usageQuery.refetch()}
-          onOpen={() => onNavigate("runs")}
+          onOpen={() => onNavigate("analytics")}
         />
         <RunsHomeCard
           runs={recentRuns}
           isLoading={runsQuery.isPending}
           isError={runsQuery.isError}
           onRetry={() => void runsQuery.refetch()}
-          onOpen={() => onNavigate("runs")}
+          onOpen={() => onNavigate("analytics")}
         />
       </div>
     </section>
   );
+}
+
+function newsRunOptions(
+  message: string,
+  dailyNewsAgent: AgentDefinition | null,
+  enabledNewsFeeds: readonly NewsFeed[]
+): DurableRunChatSendOptions | undefined {
+  if (
+    !hasNewsIntent(message) ||
+    !dailyNewsAgent ||
+    enabledNewsFeeds.length === 0
+  ) {
+    return undefined;
+  }
+  return {
+    agentId: dailyNewsAgent.id,
+    input: {
+      newsFeedIds: enabledNewsFeeds.slice(0, 10).map((feed) => feed.id),
+      retrievalLimit: 5
+    }
+  };
 }
 
 function HomeChatBody({

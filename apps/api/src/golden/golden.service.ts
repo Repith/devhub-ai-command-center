@@ -1,4 +1,9 @@
-import { Inject, Injectable, NotFoundException } from "@nestjs/common";
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  NotFoundException
+} from "@nestjs/common";
 
 import type {
   CreateGoldenCase,
@@ -11,6 +16,7 @@ import type {
   UpdateGoldenCase
 } from "@devhub/contracts";
 import type {
+  AgentDefinitionRecord,
   PrismaAgentDefinitionRepository,
   PrismaGoldenEvaluationRepository
 } from "@devhub/database";
@@ -75,6 +81,28 @@ export class GoldenService {
     return this.evaluations.toCaseResponse(record);
   }
 
+  public async installSampleCases(
+    principal: RequestPrincipal
+  ): Promise<GoldenCaseList> {
+    const context = this.context(principal);
+    const [agents, existingCases] = await Promise.all([
+      this.agents.list(context),
+      this.evaluations.listCases(context)
+    ]);
+    const existingNames = new Set(existingCases.map((item) => item.name));
+    for (const sample of sampleGoldenCases(agents)) {
+      if (!existingNames.has(sample.name)) {
+        await this.evaluations.createCase(context, sample);
+      }
+    }
+    await this.audit.record(principal, {
+      action: "golden_case.samples_installed",
+      resourceType: "golden_case",
+      metadata: { count: sampleGoldenCases(agents).length }
+    });
+    return this.listCases(principal);
+  }
+
   public async updateCase(
     principal: RequestPrincipal,
     caseId: string,
@@ -121,6 +149,12 @@ export class GoldenService {
   ): Promise<EvaluationRun> {
     const context = this.context(principal);
     const cases = await this.evaluations.listCases(context);
+    if (cases.length === 0) {
+      throw new BadRequestException({
+        code: "NO_GOLDEN_CASES",
+        message: "Install or create at least one golden case before evaluating."
+      });
+    }
     const run = await this.evaluations.createEvaluationRun(
       context,
       configVersion(cases, input.mode),
@@ -194,6 +228,54 @@ export class GoldenService {
       correlationId: principal.sessionId
     };
   }
+}
+
+function sampleGoldenCases(
+  agents: readonly AgentDefinitionRecord[]
+): CreateGoldenCase[] {
+  const byTemplate = new Map(agents.map((agent) => [agent.templateKey, agent]));
+  const fallback = agents[0];
+  const knowledge = byTemplate.get("knowledge-researcher") ?? fallback;
+  const news = byTemplate.get("daily-news-briefing") ?? fallback;
+  const usage = byTemplate.get("usage-analyst") ?? fallback;
+  return [
+    ...(knowledge
+      ? [
+          {
+            agentId: knowledge.id,
+            name: "Sample RAG grounding",
+            input: "Answer from uploaded knowledge and cite the source.",
+            expectedFacts: ["source"],
+            forbiddenClaims: ["another tenant"],
+            expectedSources: []
+          }
+        ]
+      : []),
+    ...(news
+      ? [
+          {
+            agentId: news.id,
+            name: "Sample RSS briefing",
+            input: "Summarize configured RSS feeds with links.",
+            expectedFacts: ["link"],
+            forbiddenClaims: ["unverified"],
+            expectedSources: []
+          }
+        ]
+      : []),
+    ...(usage
+      ? [
+          {
+            agentId: usage.id,
+            name: "Sample usage analysis",
+            input: "Summarize token usage and budget pressure.",
+            expectedFacts: ["token"],
+            forbiddenClaims: ["estimated from prompt"],
+            expectedSources: []
+          }
+        ]
+      : [])
+  ];
 }
 
 function configVersion(

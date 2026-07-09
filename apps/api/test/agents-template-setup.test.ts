@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 
+import type { AgentWorkflowDefinition } from "@devhub/contracts";
 import type {
   AgentDefinitionRecord,
   PrismaAgentDefinitionRepository
@@ -50,6 +51,7 @@ describe("AgentsService template setup state", () => {
   it("marks Gmail templates from per-user connection and server config", async () => {
     process.env.GMAIL_CLIENT_ID = "client-id";
     process.env.GMAIL_CLIENT_SECRET = "client-secret";
+    process.env.GMAIL_REDIRECT_URI = "http://localhost/callback";
     process.env.GMAIL_TOKEN_ENCRYPTION_KEY = "token-secret";
 
     const disconnected = await service({ gmailConnection: null }).listTemplates(
@@ -71,12 +73,13 @@ describe("AgentsService template setup state", () => {
     );
     expect(
       setupStatus(connected.data, "gmail-reply-assistant", "gmail.review")
-    ).toBe("PLANNED");
+    ).toBe("READY");
   });
 
   it("marks connected Gmail templates as misconfigured when env is missing", async () => {
     delete process.env.GMAIL_CLIENT_ID;
     delete process.env.GMAIL_CLIENT_SECRET;
+    delete process.env.GMAIL_REDIRECT_URI;
     delete process.env.GMAIL_TOKEN_ENCRYPTION_KEY;
 
     const templates = await service({
@@ -101,6 +104,51 @@ describe("AgentsService template setup state", () => {
       { id: "usage.summary", label: "Usage summary API", status: "READY" }
     ]);
   });
+
+  it("reports workflow tools that are not enabled for the agent", async () => {
+    const result = await service({
+      records: [agentRecord({ enabledToolIds: [] })]
+    }).validateWorkflow(principal(), "00000000-0000-4000-8000-000000000101", {
+      version: 1,
+      nodes: [
+        { id: "start", type: "start", config: {} },
+        {
+          id: "fetch-news",
+          type: "news.fetch_rss",
+          config: { limit: 5, source: "tenant.enabledFeeds" }
+        },
+        {
+          id: "complete",
+          type: "complete",
+          config: { output: "previous.output" }
+        }
+      ],
+      edges: [
+        {
+          id: "start-fetch",
+          sourceNodeId: "start",
+          targetNodeId: "fetch-news"
+        },
+        {
+          id: "fetch-complete",
+          sourceNodeId: "fetch-news",
+          targetNodeId: "complete"
+        }
+      ]
+    } satisfies AgentWorkflowDefinition);
+
+    expect(result).toEqual({
+      valid: false,
+      errors: [
+        {
+          code: "TOOL_NOT_ENABLED",
+          message:
+            'Workflow tool "news.fetch_rss" is not enabled for this agent.',
+          path: ["nodes", 1, "type"]
+        }
+      ]
+    });
+  });
 });
 
 function service(input: {
@@ -115,8 +163,12 @@ function service(input: {
 }): AgentsService {
   return new AgentsService(
     {
+      findById: (_context: unknown, id: string) =>
+        Promise.resolve(
+          (input.records ?? []).find((record) => record.id === id) ?? null
+        ),
       list: () => Promise.resolve(input.records ?? [])
-    } as Pick<PrismaAgentDefinitionRepository, "list"> as never,
+    } as Pick<PrismaAgentDefinitionRepository, "findById" | "list"> as never,
     {
       document: {
         count: () => Promise.resolve(input.indexedDocuments ?? 0)

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { Document, GmailDraftReview } from "@devhub/contracts";
 
 import {
+  hasNewsIntent,
   pendingDraftReviews,
   summarizeDocuments
 } from "../components/dashboard-home-helpers";
@@ -33,6 +34,12 @@ describe("DashboardHome helpers", () => {
         review("REJECTED")
       ]).map((item) => item.status)
     ).toEqual(["NEEDS_REVIEW", "UPDATED"]);
+  });
+
+  it("detects news requests for RSS-backed chat routing", () => {
+    expect(hasNewsIntent("Podaj mi dzisiejsze wiadomości z feedów")).toBe(true);
+    expect(hasNewsIntent("summarize RSS headlines")).toBe(true);
+    expect(hasNewsIntent("explain indexed project notes")).toBe(false);
   });
 });
 

@@ -11,16 +11,20 @@ import type {
 
 import {
   getEvaluationReport,
+  installSampleGoldenCases,
   listEvaluationRuns,
   startGoldenEvaluation
 } from "@/lib/golden-api";
+import { formatApiClientError } from "@/lib/api-client";
 
 interface EvaluationsWorkspaceProps {
   accessToken: string;
+  embedded?: boolean;
 }
 
 export function EvaluationsWorkspace({
-  accessToken
+  accessToken,
+  embedded = false
 }: EvaluationsWorkspaceProps): React.JSX.Element {
   const queryClient = useQueryClient();
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
@@ -36,7 +40,11 @@ export function EvaluationsWorkspace({
   const reportQuery = useQuery({
     queryKey: ["evaluation-report", activeRunId],
     queryFn: () => getEvaluationReport(accessToken, activeRunId!),
-    enabled: Boolean(activeRunId)
+    enabled: Boolean(activeRunId),
+    refetchInterval: (query) => {
+      const status = query.state.data?.run.status;
+      return status === "QUEUED" || status === "RUNNING" ? 2000 : false;
+    }
   });
   const startMutation = useMutation({
     mutationFn: (mode: EvaluationMode) =>
@@ -49,6 +57,12 @@ export function EvaluationsWorkspace({
       });
     }
   });
+  const sampleMutation = useMutation({
+    mutationFn: () => installSampleGoldenCases(accessToken),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["evaluations"] });
+    }
+  });
   const report = reportQuery.data ?? null;
   const summary = useMemo(() => summarizeReport(report), [report]);
 
@@ -58,19 +72,21 @@ export function EvaluationsWorkspace({
       id="evaluations"
       aria-labelledby="evaluations-title"
     >
-      <div className="workspace-heading">
-        <div>
-          <p className="section-kicker">Golden set</p>
-          <h1 id="evaluations-title">Evaluate the runtime path.</h1>
-          <p>
-            Compare fast LLM-only scoring with the full durable agent runtime.
-          </p>
+      {embedded ? null : (
+        <div className="workspace-heading">
+          <div>
+            <p className="section-kicker">Golden set</p>
+            <h1 id="evaluations-title">Evaluate the runtime path.</h1>
+            <p>
+              Compare fast LLM-only scoring with the full durable agent runtime.
+            </p>
+          </div>
+          <div className="environment-badge">
+            <span className="status-dot" aria-hidden="true" />
+            Repeatable reports
+          </div>
         </div>
-        <div className="environment-badge">
-          <span className="status-dot" aria-hidden="true" />
-          Repeatable reports
-        </div>
-      </div>
+      )}
 
       <div className="workspace-grid">
         <aside className="agent-list-panel">
@@ -99,6 +115,7 @@ export function EvaluationsWorkspace({
                 type="button"
                 disabled={startMutation.isPending}
                 onClick={() => void startMutation.mutate("FAST_LLM_ONLY")}
+                title="Fast checks score the prompt and model without durable tools."
               >
                 Fast
               </button>
@@ -107,14 +124,27 @@ export function EvaluationsWorkspace({
                 type="button"
                 disabled={startMutation.isPending}
                 onClick={() => void startMutation.mutate("FULL_AGENT_RUNTIME")}
+                title="Full runtime creates durable agent runs, tools, usage, and terminal states."
               >
                 Full runtime
+              </button>
+              <button
+                className="text-button"
+                type="button"
+                disabled={sampleMutation.isPending}
+                onClick={() => void sampleMutation.mutateAsync()}
+              >
+                Install samples
               </button>
             </div>
           </div>
 
-          {startMutation.error instanceof Error ? (
-            <p role="alert">{startMutation.error.message}</p>
+          {startMutation.error || sampleMutation.error ? (
+            <p role="alert">
+              {formatApiClientError(
+                startMutation.error ?? sampleMutation.error
+              )}
+            </p>
           ) : null}
 
           <EvaluationSummary

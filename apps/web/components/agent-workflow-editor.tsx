@@ -2,8 +2,10 @@
 
 import {
   Background,
+  ConnectionMode,
   Controls,
   MarkerType,
+  Position,
   ReactFlow,
   useEdgesState,
   useNodesState,
@@ -60,6 +62,7 @@ const COLUMN_GAP = 220;
 const ROW_GAP = 116;
 
 type FlowNode = Node<{ label: string }>;
+type LayoutPoint = { x: number; y: number };
 
 export function AgentWorkflowEditor({
   accessToken,
@@ -142,6 +145,17 @@ export function AgentWorkflowEditor({
     setValidation(null);
   };
 
+  const setLocalValidationError = (
+    code: string,
+    message: string,
+    path: (string | number)[] = ["edges"]
+  ): void => {
+    setValidation({
+      valid: false,
+      errors: [{ code, message, path }]
+    });
+  };
+
   const addWorkflowNode = (type: AgentWorkflowNodeType): void => {
     const node = defaultNode(type, uniqueNodeId(type, definition.nodes));
     updateDefinition((current) => ({
@@ -153,19 +167,102 @@ export function AgentWorkflowEditor({
   };
 
   const connectNodes = (connection: Connection): void => {
-    if (!connection.source || !connection.target) {
+    const error = invalidConnectionMessage(definition, connection, agent);
+    if (error) {
+      setLocalValidationError("INVALID_CONNECTION", error);
+      return;
+    }
+    const source = connection.source!;
+    const target = connection.target!;
+    if (
+      definition.edges.some(
+        (edge) => edge.sourceNodeId === source && edge.targetNodeId === target
+      )
+    ) {
       return;
     }
     const edge: AgentWorkflowEdge = {
-      id: uniqueEdgeId(connection.source, connection.target, definition.edges),
-      sourceNodeId: connection.source,
-      targetNodeId: connection.target,
+      id: uniqueEdgeId(source, target, definition.edges),
+      sourceNodeId: source,
+      targetNodeId: target,
       condition: { type: "always" }
     };
     updateDefinition((current) => ({
       ...current,
-      edges: [...current.edges, edge]
+      edges: [
+        ...(connection.source === "start"
+          ? current.edges.filter((item) => item.sourceNodeId !== "start")
+          : current.edges),
+        edge
+      ]
     }));
+    setSelectedNodeId(null);
+    setSelectedEdgeId(edge.id);
+  };
+
+  const reconnectWorkflowEdge = (
+    oldEdge: Edge,
+    connection: Connection
+  ): void => {
+    const error = invalidConnectionMessage(
+      definition,
+      connection,
+      agent,
+      oldEdge.id
+    );
+    if (error) {
+      setLocalValidationError("INVALID_CONNECTION", error, [
+        "edges",
+        oldEdge.id
+      ]);
+      return;
+    }
+    const source = connection.source!;
+    const target = connection.target!;
+    updateDefinition((current) => ({
+      ...current,
+      edges: current.edges.map((edge) =>
+        edge.id === oldEdge.id
+          ? {
+              ...edge,
+              sourceNodeId: source,
+              targetNodeId: target
+            }
+          : edge
+      )
+    }));
+    setSelectedNodeId(null);
+    setSelectedEdgeId(oldEdge.id);
+  };
+
+  const updateNodePosition = (
+    nodeId: string,
+    position: LayoutPoint | undefined
+  ): void => {
+    if (!position) {
+      return;
+    }
+    updateDefinition((current) => ({
+      ...current,
+      nodes: current.nodes.map((node) =>
+        node.id === nodeId
+          ? { ...node, position: roundPosition(position) }
+          : node
+      )
+    }));
+  };
+
+  const formatWorkflow = (): void => {
+    updateDefinition((current) => {
+      const layout = workflowLayout(current);
+      return {
+        ...current,
+        nodes: current.nodes.map((node) => ({
+          ...node,
+          position: layout.get(node.id) ?? node.position
+        }))
+      };
+    });
   };
 
   const removeSelectedNode = (): void => {
@@ -182,6 +279,17 @@ export function AgentWorkflowEditor({
       )
     }));
     setSelectedNodeId(null);
+  };
+
+  const removeSelectedEdge = (): void => {
+    if (!selectedEdge) {
+      return;
+    }
+    updateDefinition((current) => ({
+      ...current,
+      edges: current.edges.filter((edge) => edge.id !== selectedEdge.id)
+    }));
+    setSelectedEdgeId(null);
   };
 
   const updateSelectedNodeLabel = (label: string): void => {
@@ -300,7 +408,49 @@ export function AgentWorkflowEditor({
             edges={edges}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
+            onNodesDelete={(deletedNodes) => {
+              if (readOnly) {
+                return;
+              }
+              const deletedIds = new Set(
+                deletedNodes
+                  .filter((node) => node.id !== "start")
+                  .map((node) => node.id)
+              );
+              if (deletedIds.size === 0) {
+                return;
+              }
+              updateDefinition((current) => ({
+                ...current,
+                nodes: current.nodes.filter((node) => !deletedIds.has(node.id)),
+                edges: current.edges.filter(
+                  (edge) =>
+                    !deletedIds.has(edge.sourceNodeId) &&
+                    !deletedIds.has(edge.targetNodeId)
+                )
+              }));
+              setSelectedNodeId(null);
+              setSelectedEdgeId(null);
+            }}
+            onEdgesDelete={(deletedEdges) => {
+              if (readOnly) {
+                return;
+              }
+              const deletedIds = new Set(deletedEdges.map((edge) => edge.id));
+              updateDefinition((current) => ({
+                ...current,
+                edges: current.edges.filter((edge) => !deletedIds.has(edge.id))
+              }));
+              setSelectedEdgeId(null);
+            }}
             onConnect={connectNodes}
+            onReconnect={reconnectWorkflowEdge}
+            onNodeDragStop={(_, node) =>
+              updateNodePosition(node.id, node.position)
+            }
+            isValidConnection={(connection) =>
+              !invalidConnectionMessage(definition, connection, agent)
+            }
             onNodeClick={(_, node) => {
               setSelectedNodeId(node.id);
               setSelectedEdgeId(null);
@@ -310,10 +460,15 @@ export function AgentWorkflowEditor({
               setSelectedNodeId(null);
             }}
             fitView
+            fitViewOptions={{ padding: 0.2 }}
             nodesDraggable={!readOnly}
             nodesConnectable={!readOnly}
+            edgesReconnectable={!readOnly}
+            reconnectRadius={18}
+            connectionMode={ConnectionMode.Loose}
             edgesFocusable
             elementsSelectable
+            deleteKeyCode={readOnly ? null : ["Backspace", "Delete"]}
             minZoom={0.45}
             maxZoom={1.35}
             proOptions={{ hideAttribution: true }}
@@ -361,6 +516,11 @@ export function AgentWorkflowEditor({
           ) : selectedEdge ? (
             <div className="workflow-config-stack">
               <strong>{selectedEdge.id}</strong>
+              <div className="workflow-edge-summary">
+                <span>{selectedEdge.sourceNodeId}</span>
+                <span aria-hidden="true">to</span>
+                <span>{selectedEdge.targetNodeId}</span>
+              </div>
               <label className="field">
                 <span>Condition</span>
                 <select
@@ -378,6 +538,14 @@ export function AgentWorkflowEditor({
                   <option value="failure">On source failure</option>
                 </select>
               </label>
+              <button
+                className="danger-button"
+                type="button"
+                disabled={readOnly}
+                onClick={removeSelectedEdge}
+              >
+                Delete edge
+              </button>
             </div>
           ) : (
             <p>Select a node or edge to edit its safe definition.</p>
@@ -413,6 +581,14 @@ export function AgentWorkflowEditor({
           <button
             className="secondary-button"
             type="button"
+            disabled={readOnly}
+            onClick={formatWorkflow}
+          >
+            Format graph
+          </button>
+          <button
+            className="secondary-button"
+            type="button"
             disabled={readOnly || validateMutation.isPending}
             onClick={() => void validateMutation.mutateAsync()}
           >
@@ -442,14 +618,14 @@ export function AgentWorkflowEditor({
 }
 
 function toFlowNodes(definition: AgentWorkflowDefinition): FlowNode[] {
-  return definition.nodes.map((node, index) => ({
+  const layout = workflowLayout(definition);
+  return definition.nodes.map((node) => ({
     id: node.id,
     data: { label: node.label ?? node.type },
-    position: {
-      x: (index % 4) * COLUMN_GAP,
-      y: Math.floor(index / 4) * ROW_GAP
-    },
+    position: node.position ?? layout.get(node.id) ?? { x: 0, y: 0 },
     type: "default",
+    sourcePosition: Position.Right,
+    targetPosition: Position.Left,
     deletable: node.type !== "start",
     className: `workflow-node workflow-node-${node.type.replace(".", "-")}`
   }));
@@ -462,12 +638,237 @@ function toFlowEdges(definition: AgentWorkflowDefinition): Edge[] {
     target: edge.targetNodeId,
     label: workflowConditionLabel(edge),
     animated: (edge.condition?.type ?? "always") !== "always",
+    type: "smoothstep",
     markerEnd: { type: MarkerType.ArrowClosed },
+    reconnectable: true,
     className:
       edge.condition?.type === "previousStep.failed"
         ? "workflow-edge-failure"
         : ""
   }));
+}
+
+function workflowLayout(
+  definition: AgentWorkflowDefinition
+): ReadonlyMap<string, LayoutPoint> {
+  const nodeIds = new Set(definition.nodes.map((node) => node.id));
+  const outgoing = new Map<string, string[]>();
+  for (const node of definition.nodes) {
+    outgoing.set(node.id, []);
+  }
+  for (const edge of definition.edges) {
+    if (!nodeIds.has(edge.sourceNodeId) || !nodeIds.has(edge.targetNodeId)) {
+      continue;
+    }
+    outgoing.get(edge.sourceNodeId)!.push(edge.targetNodeId);
+  }
+
+  const mainPath = mainWorkflowPath(definition, outgoing);
+  const mainPathIds = new Set(mainPath);
+  const columns = new Map<string, number>(
+    mainPath.map((nodeId, index) => [nodeId, index])
+  );
+  const queue = [mainPath[0] ?? "start"].filter((id) => nodeIds.has(id));
+  let relaxations = 0;
+  const relaxationLimit = Math.max(1, definition.nodes.length * 4);
+  while (queue.length > 0) {
+    relaxations += 1;
+    if (relaxations > relaxationLimit) {
+      break;
+    }
+    const source = queue.shift()!;
+    const nextColumn = (columns.get(source) ?? 0) + 1;
+    for (const target of outgoing.get(source) ?? []) {
+      if ((columns.get(target) ?? -1) < nextColumn) {
+        columns.set(target, nextColumn);
+        if (!queue.includes(target)) {
+          queue.push(target);
+        }
+      }
+    }
+  }
+
+  const rowsByColumn = new Map<number, number>();
+  return new Map(
+    definition.nodes.map((node) => {
+      const column =
+        columns.get(node.id) ??
+        (node.type === "complete" || node.type === "fail" ? 4 : 1);
+      const row = mainPathIds.has(node.id)
+        ? 0
+        : (rowsByColumn.get(column) ?? 1);
+      if (!mainPathIds.has(node.id)) {
+        rowsByColumn.set(column, row + 1);
+      }
+      return [
+        node.id,
+        {
+          x: column * COLUMN_GAP,
+          y: row * ROW_GAP
+        }
+      ];
+    })
+  );
+}
+
+function mainWorkflowPath(
+  definition: AgentWorkflowDefinition,
+  outgoing: ReadonlyMap<string, readonly string[]>
+): string[] {
+  const nodesById = new Map(definition.nodes.map((node) => [node.id, node]));
+  const edgesBySource = new Map<string, AgentWorkflowEdge[]>();
+  for (const edge of definition.edges) {
+    const edges = edgesBySource.get(edge.sourceNodeId) ?? [];
+    edges.push(edge);
+    edgesBySource.set(edge.sourceNodeId, edges);
+  }
+
+  const path: string[] = [];
+  const visited = new Set<string>();
+  let current = definition.nodes.find((node) => node.type === "start")?.id;
+  while (current && !visited.has(current) && nodesById.has(current)) {
+    path.push(current);
+    visited.add(current);
+    const node = nodesById.get(current)!;
+    if (node.type === "complete" || node.type === "fail") {
+      break;
+    }
+    const nextEdge = [...(edgesBySource.get(current) ?? [])]
+      .filter((edge) => !visited.has(edge.targetNodeId))
+      .sort((left, right) => edgePriority(left) - edgePriority(right))[0];
+    current = nextEdge?.targetNodeId ?? outgoing.get(current)?.[0];
+  }
+  return path;
+}
+
+function edgePriority(edge: AgentWorkflowEdge): number {
+  const condition = edge.condition ?? { type: "always" };
+  if (condition.type === "always") {
+    return 0;
+  }
+  if (
+    condition.type === "tool.enabled" ||
+    condition.type === "field.exists" ||
+    condition.type === "connection.exists" ||
+    condition.type === "previousStep.succeeded"
+  ) {
+    return 1;
+  }
+  if (condition.type === "previousStep.failed") {
+    return 10;
+  }
+  return 5;
+}
+
+function invalidConnectionMessage(
+  definition: AgentWorkflowDefinition,
+  connection: { source?: string | null; target?: string | null },
+  agent: AgentDefinition,
+  replacingEdgeId?: string
+): string | null {
+  if (!connection.source || !connection.target) {
+    return "Choose both a source and a target node.";
+  }
+  if (connection.source === connection.target) {
+    return "A node cannot connect to itself.";
+  }
+
+  const nodesById = new Map(definition.nodes.map((node) => [node.id, node]));
+  const sourceNode = nodesById.get(connection.source);
+  const targetNode = nodesById.get(connection.target);
+  if (!sourceNode || !targetNode) {
+    return "This connection references a missing node.";
+  }
+  if (targetNode.type === "start") {
+    return "Start cannot have incoming connections.";
+  }
+  if (sourceNode.type === "complete" || sourceNode.type === "fail") {
+    return "Complete and Fail are terminal nodes and cannot connect forward.";
+  }
+
+  const toolId = toolIdForNode(targetNode);
+  if (toolId && !agent.enabledToolIds.includes(toolId)) {
+    return `Enable ${toolId} for this agent before adding that workflow step.`;
+  }
+
+  const duplicate = definition.edges.some(
+    (edge) =>
+      edge.id !== replacingEdgeId &&
+      edge.sourceNodeId === connection.source &&
+      edge.targetNodeId === connection.target
+  );
+  if (duplicate) {
+    return "That connection already exists.";
+  }
+
+  const nextEdges = definition.edges
+    .filter((edge) => edge.id !== replacingEdgeId)
+    .concat({
+      id: replacingEdgeId ?? "draft-edge",
+      sourceNodeId: connection.source,
+      targetNodeId: connection.target,
+      condition: { type: "always" }
+    });
+  if (createsCycle(connection.source, nextEdges)) {
+    return "This connection would create a cycle, which is not supported.";
+  }
+
+  return null;
+}
+
+function createsCycle(
+  startNodeId: string,
+  edges: readonly AgentWorkflowEdge[]
+): boolean {
+  const outgoing = new Map<string, string[]>();
+  for (const edge of edges) {
+    const targets = outgoing.get(edge.sourceNodeId) ?? [];
+    targets.push(edge.targetNodeId);
+    outgoing.set(edge.sourceNodeId, targets);
+  }
+
+  const visiting = new Set<string>();
+  const visited = new Set<string>();
+  const visit = (nodeId: string): boolean => {
+    if (visiting.has(nodeId)) {
+      return true;
+    }
+    if (visited.has(nodeId)) {
+      return false;
+    }
+    visiting.add(nodeId);
+    for (const target of outgoing.get(nodeId) ?? []) {
+      if (visit(target)) {
+        return true;
+      }
+    }
+    visiting.delete(nodeId);
+    visited.add(nodeId);
+    return false;
+  };
+  return visit(startNodeId);
+}
+
+function toolIdForNode(node: AgentWorkflowNode): string | null {
+  if (
+    node.type === "knowledge.search" ||
+    node.type === "news.fetch_rss" ||
+    node.type === "usage.summary" ||
+    node.type === "gmail.search_threads" ||
+    node.type === "gmail.get_thread" ||
+    node.type === "gmail.create_draft" ||
+    node.type === "gmail.update_draft"
+  ) {
+    return node.type;
+  }
+  return null;
+}
+
+function roundPosition(position: LayoutPoint): LayoutPoint {
+  return {
+    x: Math.round(position.x),
+    y: Math.round(position.y)
+  };
 }
 
 function minimalWorkflow(): AgentWorkflowDefinition {
