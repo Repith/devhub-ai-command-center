@@ -587,6 +587,12 @@ button.nav-item {
   color: #ffb1b8;
 }
 
+.workspace-alert.neutral {
+  border-color: #343947;
+  background: #171a22;
+  color: #cbd1df;
+}
+
 .workspace-grid {
   display: grid;
   grid-template-columns: minmax(17rem, 0.34fr) minmax(0, 1fr);
@@ -793,6 +799,119 @@ button.nav-item {
   grid-template-columns: minmax(17rem, 0.34fr) minmax(0, 1fr);
   gap: 1rem;
   align-items: start;
+}
+
+.integrations-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  align-items: start;
+}
+
+.integration-card {
+  display: grid;
+  gap: 1rem;
+  border: 1px solid #252936;
+  border-radius: 1rem;
+  padding: 1.25rem;
+  background: rgb(14 16 22 / 86%);
+}
+
+.integration-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.integration-card-header h2 {
+  margin-bottom: 0.25rem;
+}
+
+.integration-card-header span:not(.setup-chip) {
+  color: #858da0;
+  font-size: 0.82rem;
+}
+
+.integration-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+  margin: 0;
+}
+
+.integration-facts div {
+  min-width: 0;
+  border: 1px solid #252936;
+  border-radius: 0.75rem;
+  padding: 0.75rem;
+  background: #10131a;
+}
+
+.integration-facts dt {
+  margin-bottom: 0.25rem;
+  color: #747d91;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.integration-facts dd {
+  margin: 0;
+  overflow: hidden;
+  color: #e6e9f1;
+  font-size: 0.86rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.integration-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.repository-list {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.repository-list li,
+.repository-list.empty {
+  display: grid;
+  gap: 0.18rem;
+  border: 1px solid #252936;
+  border-radius: 0.75rem;
+  padding: 0.75rem;
+  background: #10131a;
+}
+
+.repository-list strong,
+.repository-list span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.repository-list span {
+  color: #858da0;
+  font-size: 0.78rem;
+}
+
+.inline-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  border: 1px solid #62343b;
+  border-radius: 0.75rem;
+  padding: 0.7rem;
+  background: #2a171b;
+  color: #ffb1b8;
 }
 
 .gmail-review-list {
@@ -1072,6 +1191,30 @@ button.nav-item {
   gap: 1rem;
   border-bottom: 1px solid #252936;
   padding: 1rem 1.25rem;
+}
+
+.agent-runtime-context {
+  display: grid;
+  gap: 0.85rem;
+  border-bottom: 1px solid #252936;
+  padding: 1rem 1.25rem;
+  background: rgb(16 19 26 / 72%);
+}
+
+.agent-runtime-context > div {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.agent-runtime-context strong {
+  color: #cfd4df;
+  font-size: 0.78rem;
+}
+
+.agent-runtime-context div div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
 }
 
 .chat-toolbar .field {
@@ -2307,7 +2450,8 @@ button.nav-item {
     grid-template-columns: 1fr;
   }
 
-  .gmail-grid {
+  .gmail-grid,
+  .integrations-grid {
     grid-template-columns: 1fr;
   }
 
@@ -2386,6 +2530,16 @@ button.nav-item {
   .chat-toolbar {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .integration-card-header,
+  .inline-error {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .integration-facts {
+    grid-template-columns: 1fr;
   }
 
   .chat-composer {

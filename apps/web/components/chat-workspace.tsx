@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
 import { listAgents } from "../lib/agents-api";
+import { listGithubRepositories } from "../lib/github-api";
 import { listNewsFeeds } from "../lib/news-api";
 import { useDurableRunChat } from "../lib/use-durable-run-chat";
 import { hasNewsIntent } from "./dashboard-home-helpers";
@@ -32,6 +33,17 @@ export function ChatWorkspace({
   const enabledNewsFeeds = (newsFeeds.data ?? []).filter(
     (feed) => feed.enabled
   );
+  const selectedAgent =
+    agents.data?.find((agent) => agent.id === agentId) ?? null;
+  const selectedAgentHasGithubTools =
+    selectedAgent?.enabledToolIds.some((toolId) =>
+      toolId.startsWith("github.")
+    ) ?? false;
+  const githubRepositories = useQuery({
+    queryKey: ["github-repositories"],
+    queryFn: () => listGithubRepositories(accessToken),
+    enabled: selectedAgentHasGithubTools
+  });
 
   useEffect(() => {
     if (!agentId && agents.data?.[0]) {
@@ -145,6 +157,44 @@ export function ChatWorkspace({
             </span>
           ) : null}
         </div>
+
+        {selectedAgent ? (
+          <div className="agent-runtime-context">
+            <div>
+              <strong>Enabled tools</strong>
+              <div>
+                {selectedAgent.enabledToolIds.length ? (
+                  selectedAgent.enabledToolIds.map((toolId) => (
+                    <span className="setup-chip ready" key={toolId}>
+                      {toolId}
+                    </span>
+                  ))
+                ) : (
+                  <span className="setup-chip planned">no tools</span>
+                )}
+              </div>
+            </div>
+            {selectedAgentHasGithubTools ? (
+              <div>
+                <strong>Available repositories</strong>
+                <div>
+                  {(githubRepositories.data ?? []).slice(0, 6).map((repo) => (
+                    <span className="setup-chip ready" key={repo.id}>
+                      {repo.fullName}
+                    </span>
+                  ))}
+                  {githubRepositories.isPending ? (
+                    <span className="setup-chip planned">loading repos</span>
+                  ) : (githubRepositories.data ?? []).length === 0 ? (
+                    <span className="setup-chip needs-setup">
+                      no synced repos
+                    </span>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
 
         <div className="message-list" aria-live="polite">
           {chat.messages.length === 0 && !chat.assistantDraft ? (
