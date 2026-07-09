@@ -776,7 +776,7 @@ Acceptance: Gmail works as a public SaaS OAuth integration with server-held toke
 
 ## PR 39: GitHub App Auth and Installation Sync
 
-- [ ] Add GitHub App config:
+- [x] Add GitHub App config:
   - `GITHUB_APP_ID`,
   - `GITHUB_CLIENT_ID`,
   - `GITHUB_CLIENT_SECRET`,
@@ -784,22 +784,22 @@ Acceptance: Gmail works as a public SaaS OAuth integration with server-held toke
   - `GITHUB_WEBHOOK_SECRET`,
   - `GITHUB_REDIRECT_URI=https://<domain>/github/oauth/callback`,
   - `GITHUB_TOKEN_ENCRYPTION_KEY`.
-- [ ] Add persistence models:
+- [x] Add persistence models:
   - `ExternalInstallation`,
   - `ExternalRepository`.
-- [ ] Add API:
+- [x] Add API:
   - `POST /api/v1/github/connect`,
   - `POST /api/v1/github/oauth/callback`,
   - `GET /api/v1/github/status`,
   - `POST /api/v1/github/installations/sync`,
   - `GET /api/v1/github/repositories`,
   - `DELETE /api/v1/github/disconnect`.
-- [ ] Add webhook receiver for installation events:
+- [x] Add webhook receiver for installation events:
   - created,
   - updated,
   - deleted,
   - suspended.
-- [ ] Use GitHub App permissions:
+- [x] Use GitHub App permissions:
   - metadata read,
   - contents read,
   - issues read,
@@ -808,7 +808,7 @@ Acceptance: Gmail works as a public SaaS OAuth integration with server-held toke
   - user token for authenticated user actions,
   - installation token for repository read tools,
   - short-lived tokens refreshed or generated on demand.
-- [ ] Add tests for:
+- [x] Add tests for:
   - OAuth callback and state,
   - installation sync create/update,
   - webhook signature validation,

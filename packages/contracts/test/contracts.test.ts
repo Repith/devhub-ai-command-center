@@ -10,6 +10,8 @@ import {
   createAgentDefinitionSchema,
   createGmailDraftReviewSchema,
   documentStatusSchema,
+  githubConnectionStatusSchema,
+  githubRepositoryListSchema,
   gmailDraftReviewSchema,
   gmailSearchThreadsInputSchema,
   integrationsStatusResponseSchema,
@@ -213,6 +215,10 @@ describe("contracts", () => {
       integrationErrorCodeSchema.safeParse("OAUTH_STATE_INVALID").success
     ).toBe(true);
     expect(
+      integrationErrorCodeSchema.safeParse("GITHUB_WEBHOOK_SIGNATURE_INVALID")
+        .success
+    ).toBe(true);
+    expect(
       integrationsStatusResponseSchema.safeParse({
         data: [
           {
@@ -232,6 +238,40 @@ describe("contracts", () => {
             missingConfigKeys: ["GITHUB_APP_ID"],
             connectedAt: null,
             updatedAt: null
+          }
+        ]
+      }).success
+    ).toBe(true);
+  });
+
+  it("validates GitHub App connection and repository responses", () => {
+    expect(
+      githubConnectionStatusSchema.safeParse({
+        provider: "GITHUB",
+        status: "CONNECTED",
+        accountLogin: "octo-org",
+        scopes: [],
+        missingConfigKeys: [],
+        connectedAt: "2026-06-09T12:00:00.000Z",
+        updatedAt: "2026-06-09T12:00:00.000Z",
+        installationCount: 1,
+        repositoryCount: 1
+      }).success
+    ).toBe(true);
+    expect(
+      githubRepositoryListSchema.safeParse({
+        data: [
+          {
+            id: "64fe81ba-7faf-4b37-a2b8-347cd19b5550",
+            installationId: "9a50ec3e-3ba9-4775-a57f-b7c88f34a10d",
+            providerRepositoryId: "123",
+            owner: "octo-org",
+            name: "hello-world",
+            fullName: "octo-org/hello-world",
+            private: false,
+            defaultBranch: "main",
+            htmlUrl: "https://github.com/octo-org/hello-world",
+            updatedAt: "2026-06-09T12:00:00.000Z"
           }
         ]
       }).success

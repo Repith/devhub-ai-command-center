@@ -8,6 +8,7 @@ import { ChatModule } from "./chat/chat.module";
 import { DocumentsModule } from "./documents/documents.module";
 import { GmailModule } from "./gmail/gmail.module";
 import { GoldenModule } from "./golden/golden.module";
+import { GithubModule } from "./github/github.module";
 import { IntegrationsModule } from "./integrations/integrations.module";
 import { NewsModule } from "./news/news.module";
 import { RealtimeModule } from "./realtime/realtime.module";
@@ -23,6 +24,7 @@ import { UsageModule } from "./usage/usage.module";
     DocumentsModule,
     GmailModule,
     GoldenModule,
+    GithubModule,
     IntegrationsModule,
     NewsModule,
     RealtimeModule,

@@ -68,6 +68,12 @@ enum ExternalConnectionStatus {
   EXPIRED
 }
 
+enum ExternalInstallationStatus {
+  ACTIVE
+  SUSPENDED
+  DELETED
+}
+
 enum GmailDraftReviewStatus {
   NEEDS_REVIEW
   UPDATED
@@ -82,37 +88,40 @@ enum NewsFeedFetchStatus {
 }
 
 model User {
-  id                  String               @id @default(uuid()) @db.Uuid
-  email               String               @unique
-  passwordHash        String
-  displayName         String?
-  memberships         Membership[]
-  refreshSessions     RefreshSession[]
-  externalConnections ExternalConnection[]
-  gmailDraftReviews   GmailDraftReview[]
-  newsFeeds           TenantNewsFeed[]
-  createdAt           DateTime             @default(now()) @db.Timestamptz(3)
-  updatedAt           DateTime             @updatedAt @db.Timestamptz(3)
+  id                    String                 @id @default(uuid()) @db.Uuid
+  email                 String                 @unique
+  passwordHash          String
+  displayName           String?
+  memberships           Membership[]
+  refreshSessions       RefreshSession[]
+  externalConnections   ExternalConnection[]
+  externalInstallations ExternalInstallation[]
+  gmailDraftReviews     GmailDraftReview[]
+  newsFeeds             TenantNewsFeed[]
+  createdAt             DateTime               @default(now()) @db.Timestamptz(3)
+  updatedAt             DateTime               @updatedAt @db.Timestamptz(3)
 }
 
 model Tenant {
-  id                  String               @id @default(uuid()) @db.Uuid
-  name                String
-  slug                String               @unique
-  memberships         Membership[]
-  agents              AgentDefinition[]
-  conversations       Conversation[]
-  documents           Document[]
-  agentRuns           AgentRun[]
-  goldenCases         GoldenCase[]
-  evaluationRuns      EvaluationRun[]
-  auditLogs           AuditLog[]
-  refreshSessions     RefreshSession[]
-  externalConnections ExternalConnection[]
-  gmailDraftReviews   GmailDraftReview[]
-  newsFeeds           TenantNewsFeed[]
-  createdAt           DateTime             @default(now()) @db.Timestamptz(3)
-  updatedAt           DateTime             @updatedAt @db.Timestamptz(3)
+  id                    String                 @id @default(uuid()) @db.Uuid
+  name                  String
+  slug                  String                 @unique
+  memberships           Membership[]
+  agents                AgentDefinition[]
+  conversations         Conversation[]
+  documents             Document[]
+  agentRuns             AgentRun[]
+  goldenCases           GoldenCase[]
+  evaluationRuns        EvaluationRun[]
+  auditLogs             AuditLog[]
+  refreshSessions       RefreshSession[]
+  externalConnections   ExternalConnection[]
+  externalInstallations ExternalInstallation[]
+  externalRepositories  ExternalRepository[]
+  gmailDraftReviews     GmailDraftReview[]
+  newsFeeds             TenantNewsFeed[]
+  createdAt             DateTime               @default(now()) @db.Timestamptz(3)
+  updatedAt             DateTime               @updatedAt @db.Timestamptz(3)
 }
 
 model AuditLog {
@@ -361,6 +370,54 @@ model ExternalConnection {
   @@unique([tenantId, userId, provider])
   @@index([tenantId, provider, status])
   @@index([userId, provider])
+}
+
+model ExternalInstallation {
+  id                     String                     @id @default(uuid()) @db.Uuid
+  tenantId               String                     @db.Uuid
+  connectedByUserId      String                     @db.Uuid
+  provider               ExternalConnectionProvider
+  providerInstallationId String
+  accountLogin           String
+  accountType            String
+  repositorySelection    String?
+  permissions            Json                       @default("{}")
+  status                 ExternalInstallationStatus @default(ACTIVE)
+  tenant                 Tenant                     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  connectedBy            User                       @relation(fields: [connectedByUserId], references: [id], onDelete: Restrict)
+  repositories           ExternalRepository[]
+  createdAt              DateTime                   @default(now()) @db.Timestamptz(3)
+  updatedAt              DateTime                   @updatedAt @db.Timestamptz(3)
+  deletedAt              DateTime?                  @db.Timestamptz(3)
+
+  @@unique([tenantId, provider, providerInstallationId])
+  @@unique([tenantId, id])
+  @@index([tenantId, provider, status])
+  @@index([tenantId, connectedByUserId])
+}
+
+model ExternalRepository {
+  id                   String                     @id @default(uuid()) @db.Uuid
+  tenantId             String                     @db.Uuid
+  installationId       String                     @db.Uuid
+  provider             ExternalConnectionProvider
+  providerRepositoryId String
+  owner                String
+  name                 String
+  fullName             String
+  private              Boolean
+  defaultBranch        String?
+  htmlUrl              String
+  tenant               Tenant                     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  installation         ExternalInstallation       @relation(fields: [tenantId, installationId], references: [tenantId, id], onDelete: Cascade)
+  createdAt            DateTime                   @default(now()) @db.Timestamptz(3)
+  updatedAt            DateTime                   @updatedAt @db.Timestamptz(3)
+  deletedAt            DateTime?                  @db.Timestamptz(3)
+
+  @@unique([tenantId, provider, providerRepositoryId])
+  @@unique([tenantId, id])
+  @@index([tenantId, installationId, deletedAt])
+  @@index([tenantId, provider, fullName])
 }
 
 model GmailDraftReview {
