@@ -108,6 +108,7 @@ ranked chunks with document, page when available, score, and citation label.
 
 ## Gmail
 
+- `GET /integrations`
 - `GET /gmail/status`
 - `POST /gmail/connect`
 - `POST /gmail/dev/connect`
@@ -125,6 +126,36 @@ and creates a simulated connection for demos. Draft review responses omit
 `NEEDS_REVIEW | UPDATED | SENT | REJECTED` because those fields are explicitly
 shown to the authenticated user before sending. Sending mail is only available
 through the authenticated API review endpoint; it is not an MCP tool.
+
+`GET /integrations` returns a shared status list for Gmail and GitHub:
+
+```json
+{
+  "data": [
+    {
+      "provider": "GMAIL",
+      "status": "DISCONNECTED",
+      "accountLabel": null,
+      "scopes": [],
+      "missingConfigKeys": [],
+      "connectedAt": null,
+      "updatedAt": null
+    },
+    {
+      "provider": "GITHUB",
+      "status": "MISCONFIGURED",
+      "accountLabel": null,
+      "scopes": [],
+      "missingConfigKeys": ["GITHUB_APP_ID"],
+      "connectedAt": null,
+      "updatedAt": null
+    }
+  ]
+}
+```
+
+The response is additive and secret-safe: `missingConfigKeys` contains key
+names only, never values.
 
 ## News Feeds
 

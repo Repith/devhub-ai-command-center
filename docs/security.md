@@ -58,6 +58,13 @@ previews, or audit metadata. Gmail message bodies are treated like uploaded
 documents and RSS content: untrusted, bounded, and incapable of changing system
 policy or tool permissions.
 
+External integration status responses may include provider names, account
+labels, scopes, timestamps, and missing configuration key names. They must not
+include OAuth access tokens, refresh tokens, token encryption keys, GitHub App
+private keys, webhook secrets, or raw provider payloads. Shared token crypto is
+server-side only and is used for encrypted token storage before provider tools
+or workers can access external APIs.
+
 Tenant RSS feed URLs are owned server-side and selected by feed ID in agent
 runs. Browser requests cannot provide a tenant identifier for feeds, and the
 worker reloads configured feeds with tenant context before fetching. RSS titles,
@@ -71,6 +78,14 @@ requests `https://www.googleapis.com/auth/gmail.readonly` and
 scopes, so a public production deployment must complete Google's verification
 and security assessment process before broad use. Local development should use
 test users and never commit OAuth credentials.
+
+GitHub App production configuration requires `GITHUB_APP_ID`,
+`GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `GITHUB_PRIVATE_KEY`,
+`GITHUB_WEBHOOK_SECRET`, `GITHUB_REDIRECT_URI`, and
+`GITHUB_TOKEN_ENCRYPTION_KEY`. Repository access must be scoped to tenant-owned
+installations, and later read tools must use server-side user or installation
+tokens without exposing those tokens to prompts, logs, audit metadata, or
+browser responses.
 
 The model may prepare Gmail drafts but may not send mail through MCP in the
 first Gmail workflow. Sending requires an authenticated API request against a

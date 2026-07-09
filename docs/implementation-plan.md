@@ -722,7 +722,7 @@ Acceptance: the application works as a coherent local-first AI command center wh
 
 ## PR 37: Integration Foundation
 
-- [ ] Add shared OAuth integration contracts:
+- [x] Add shared OAuth integration contracts:
   - `IntegrationProvider = "GMAIL" | "GITHUB"`,
   - `IntegrationStatus = CONNECTED | DISCONNECTED | EXPIRED | MISCONFIGURED`,
   - shared `ExternalConnectionStatusResponse`,
@@ -730,12 +730,12 @@ Acceptance: the application works as a coherent local-first AI command center wh
     - `EXTERNAL_CONNECTION_EXPIRED`,
     - `EXTERNAL_CONNECTION_NOT_FOUND`,
     - `OAUTH_STATE_INVALID`.
-- [ ] Extend `ExternalConnectionProvider` with `GITHUB`.
-- [ ] Extract token encryption/decryption into one server-side provider used by Gmail and future GitHub code.
-- [ ] Add generic repository methods for `ExternalConnection` by provider while preserving existing Gmail-specific methods.
-- [ ] Add `GET /api/v1/integrations`, returning Gmail and GitHub status in one place.
-- [ ] Update `.env.example`, local docs, and security notes with production OAuth requirements.
-- [ ] Add tests for:
+- [x] Extend `ExternalConnectionProvider` with `GITHUB`.
+- [x] Extract token encryption/decryption into one server-side provider used by Gmail and future GitHub code.
+- [x] Add generic repository methods for `ExternalConnection` by provider while preserving existing Gmail-specific methods.
+- [x] Add `GET /api/v1/integrations`, returning Gmail and GitHub status in one place.
+- [x] Update `.env.example`, local docs, and security notes with production OAuth requirements.
+- [x] Add tests for:
   - provider/status/error-code contracts,
   - multi-provider external connection repository behavior,
   - `GET /integrations`,

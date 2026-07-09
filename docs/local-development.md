@@ -117,6 +117,21 @@ Gmail workspace will offer a simulated connection, and worker-side Gmail tools
 will use deterministic mock threads and drafts. Sending still goes through the
 authenticated draft-review API path and never becomes a model-callable tool.
 
+## Integration Status and GitHub App Config
+
+`GET /api/v1/integrations` returns tenant/user-scoped setup status for Gmail
+and GitHub in one response. The endpoint exposes provider names, setup state,
+account labels, scopes, timestamps, and missing environment key names only. It
+never returns OAuth tokens, private keys, webhook secrets, or decrypted values.
+
+GitHub App support starts with shared configuration and status reporting. A
+real GitHub App integration will require `GITHUB_APP_ID`, `GITHUB_CLIENT_ID`,
+`GITHUB_CLIENT_SECRET`, `GITHUB_PRIVATE_KEY`, `GITHUB_WEBHOOK_SECRET`,
+`GITHUB_REDIRECT_URI`, and `GITHUB_TOKEN_ENCRYPTION_KEY`. For local planning,
+the default callback value is
+`http://localhost:3000/github/oauth/callback`; configure the matching callback
+in the GitHub App before enabling the later connect flow.
+
 ## Connections
 
 Default local endpoints:
