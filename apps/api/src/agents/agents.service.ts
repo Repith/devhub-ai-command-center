@@ -43,6 +43,7 @@ interface TemplateSetupState {
     IntegrationSetupStatus,
     "READY" | "NEEDS_SETUP" | "MISCONFIGURED"
   >;
+  hasAuthorizedGithubRepositories: boolean;
   hasEnabledNewsFeeds: boolean;
   hasIndexedKnowledge: boolean;
 }
@@ -54,7 +55,13 @@ const AVAILABLE_TOOL_IDS: ReadonlySet<McpToolId> = new Set([
   "gmail.search_threads",
   "gmail.get_thread",
   "gmail.create_draft",
-  "gmail.update_draft"
+  "gmail.update_draft",
+  "github.list_repositories",
+  "github.get_file",
+  "github.search_code",
+  "github.list_issues",
+  "github.list_pull_requests",
+  "github.get_pull_request"
 ]);
 
 @Injectable()
@@ -340,40 +347,56 @@ export class AgentsService {
     principal: RequestPrincipal
   ): Promise<TemplateSetupState> {
     const context = this.context(principal);
-    const [indexedDocuments, enabledNewsFeeds, gmailConnection] =
-      await Promise.all([
-        this.database.document.count({
-          where: {
-            tenantId: context.tenantId,
-            status: "INDEXED",
+    const [
+      indexedDocuments,
+      enabledNewsFeeds,
+      githubRepositories,
+      gmailConnection
+    ] = await Promise.all([
+      this.database.document.count({
+        where: {
+          tenantId: context.tenantId,
+          status: "INDEXED",
+          deletedAt: null
+        }
+      }),
+      this.database.tenantNewsFeed.count({
+        where: {
+          tenantId: context.tenantId,
+          enabled: true,
+          deletedAt: null
+        }
+      }),
+      this.database.externalRepository.count({
+        where: {
+          tenantId: context.tenantId,
+          provider: "GITHUB",
+          deletedAt: null,
+          installation: {
+            status: "ACTIVE",
             deletedAt: null
           }
-        }),
-        this.database.tenantNewsFeed.count({
-          where: {
+        }
+      }),
+      this.database.externalConnection.findUnique({
+        where: {
+          tenantId_userId_provider: {
             tenantId: context.tenantId,
-            enabled: true,
-            deletedAt: null
+            userId: context.userId,
+            provider: "GMAIL"
           }
-        }),
-        this.database.externalConnection.findUnique({
-          where: {
-            tenantId_userId_provider: {
-              tenantId: context.tenantId,
-              userId: context.userId,
-              provider: "GMAIL"
-            }
-          },
-          select: {
-            encryptedRefreshToken: true,
-            status: true,
-            expiresAt: true
-          }
-        })
-      ]);
+        },
+        select: {
+          encryptedRefreshToken: true,
+          status: true,
+          expiresAt: true
+        }
+      })
+    ]);
     return {
       availableToolIds: AVAILABLE_TOOL_IDS,
       gmail: gmailSetupStatus(gmailConnection),
+      hasAuthorizedGithubRepositories: githubRepositories > 0,
       hasEnabledNewsFeeds: enabledNewsFeeds > 0,
       hasIndexedKnowledge: indexedDocuments > 0
     };
@@ -409,6 +432,9 @@ function requirementStatus(
   }
   if (requirement.id === "knowledge.documents") {
     return setup.hasIndexedKnowledge ? "READY" : "NEEDS_SETUP";
+  }
+  if (requirement.id === "github.installation") {
+    return setup.hasAuthorizedGithubRepositories ? "READY" : "NEEDS_SETUP";
   }
   return templateKey === "usage-analyst" ? "READY" : requirement.status;
 }

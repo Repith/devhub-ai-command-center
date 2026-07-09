@@ -7,7 +7,8 @@ export const agentTemplateKeySchema = z.enum([
   "daily-news-briefing",
   "gmail-triage",
   "gmail-reply-assistant",
-  "usage-analyst"
+  "usage-analyst",
+  "repository-researcher"
 ]);
 export type AgentTemplateKey = z.infer<typeof agentTemplateKeySchema>;
 

@@ -133,8 +133,9 @@ never returns OAuth tokens, private keys, webhook secrets, or decrypted values.
 GitHub App support starts with shared configuration and status reporting. A
 real GitHub App integration will require `GITHUB_APP_ID`, `GITHUB_CLIENT_ID`,
 `GITHUB_CLIENT_SECRET`, `GITHUB_PRIVATE_KEY`, `GITHUB_WEBHOOK_SECRET`,
-`GITHUB_REDIRECT_URI`, and `GITHUB_TOKEN_ENCRYPTION_KEY`. For local planning,
-the default callback value is
+`GITHUB_REDIRECT_URI`, and `GITHUB_TOKEN_ENCRYPTION_KEY`. GitHub read tools use
+`GITHUB_TOOL_TIMEOUT_MS`, which defaults to 15000 milliseconds. For local
+planning, the default callback value is
 `http://localhost:3000/github/oauth/callback`; configure the matching callback
 in the GitHub App before enabling the connect flow. The webhook receiver is
 `http://localhost:4000/api/v1/github/webhook` in local API development; expose

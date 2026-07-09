@@ -9,6 +9,12 @@ export interface WorkerConfig {
   gmailDevMockEnabled: boolean;
   gmailTokenEncryptionKey?: string;
   gmailToolTimeoutMs: number;
+  githubAppId?: string;
+  githubClientId?: string;
+  githubClientSecret?: string;
+  githubPrivateKey?: string;
+  githubTokenEncryptionKey?: string;
+  githubToolTimeoutMs: number;
   llmModel: string;
   llmTimeoutMs: number;
   ollamaApiKey: string;
@@ -45,6 +51,22 @@ export function loadWorkerConfig(): WorkerConfig {
       ? { gmailTokenEncryptionKey: process.env.GMAIL_TOKEN_ENCRYPTION_KEY }
       : {}),
     gmailToolTimeoutMs: Number(process.env.GMAIL_TOOL_TIMEOUT_MS ?? 15000),
+    ...(process.env.GITHUB_APP_ID
+      ? { githubAppId: process.env.GITHUB_APP_ID }
+      : {}),
+    ...(process.env.GITHUB_CLIENT_ID
+      ? { githubClientId: process.env.GITHUB_CLIENT_ID }
+      : {}),
+    ...(process.env.GITHUB_CLIENT_SECRET
+      ? { githubClientSecret: process.env.GITHUB_CLIENT_SECRET }
+      : {}),
+    ...(process.env.GITHUB_PRIVATE_KEY
+      ? { githubPrivateKey: process.env.GITHUB_PRIVATE_KEY }
+      : {}),
+    ...(process.env.GITHUB_TOKEN_ENCRYPTION_KEY
+      ? { githubTokenEncryptionKey: process.env.GITHUB_TOKEN_ENCRYPTION_KEY }
+      : {}),
+    githubToolTimeoutMs: Number(process.env.GITHUB_TOOL_TIMEOUT_MS ?? 15000),
     llmModel: process.env.OLLAMA_CHAT_MODEL ?? "qwen3:8b",
     llmTimeoutMs: Number(process.env.OLLAMA_CHAT_TIMEOUT_MS ?? 120000),
     ollamaApiKey: process.env.OLLAMA_API_KEY ?? "ollama",

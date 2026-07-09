@@ -20,6 +20,7 @@ import { generateAnswerNode } from "./nodes/generate-answer.node.js";
 import { loadRunNode } from "./nodes/load-run.node.js";
 import { retrieveKnowledgeNode } from "./nodes/retrieve-knowledge.node.js";
 import { runGmailNode } from "./nodes/run-gmail.node.js";
+import { runGithubNode } from "./nodes/run-github.node.js";
 import { summarizeUsageNode } from "./nodes/summarize-usage.node.js";
 
 type WorkflowNodeHandler = (
@@ -163,6 +164,11 @@ function workflowHandlerForNode(
   ) {
     return guardedToolHandler(node.type, (state) =>
       runGmailNode(runner, state)
+    );
+  }
+  if (node.type === "github.list_repositories") {
+    return guardedToolHandler("github.list_repositories", (state) =>
+      runGithubNode(runner, state)
     );
   }
   if (node.type === "llm.generate") {

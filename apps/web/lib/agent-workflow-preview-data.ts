@@ -36,6 +36,7 @@ const TEMPLATE_TITLES: Record<WorkflowPreviewTemplate, string> = {
   "gmail-triage": "Gmail Triage workflow",
   "gmail-reply-assistant": "Gmail Reply Assistant workflow",
   "usage-analyst": "Usage Analyst workflow",
+  "repository-researcher": "Repository Researcher workflow",
   "custom-knowledge": "Knowledge workflow"
 };
 
@@ -50,6 +51,8 @@ const TEMPLATE_DESCRIPTIONS: Record<WorkflowPreviewTemplate, string> = {
     "Reads an explicit Gmail thread, drafts a reply, creates a review item, and waits for user review.",
   "usage-analyst":
     "Reads persisted token usage and summarizes operational cost and latency.",
+  "repository-researcher":
+    "Lists tenant-authorized GitHub repositories and uses read-only repository context for the answer.",
   "custom-knowledge":
     "Falls back to the default knowledge path when a custom agent enables knowledge search."
 };
@@ -176,6 +179,29 @@ function workflowDefinitionForTemplate(
         edge("start-to-usage", "start", "summarize-usage"),
         edge("usage-to-generate", "summarize-usage", "generate-analysis"),
         edge("generate-to-complete", "generate-analysis", "complete")
+      ]
+    };
+  }
+  if (template === "repository-researcher") {
+    return {
+      version: 1,
+      nodes: [
+        startNode(),
+        githubListRepositoriesNode("list-repositories", "List repositories"),
+        llmNode("generate-research", "Generate repository summary"),
+        completeNode()
+      ],
+      edges: [
+        edge("start-to-list-repositories", "start", "list-repositories", {
+          type: "tool.enabled",
+          toolId: "github.list_repositories"
+        }),
+        edge(
+          "list-repositories-to-generate",
+          "list-repositories",
+          "generate-research"
+        ),
+        edge("generate-to-complete", "generate-research", "complete")
       ]
     };
   }
@@ -347,6 +373,18 @@ function gmailCreateDraftNode(id: string, label: string): AgentWorkflowNode {
     type: "gmail.create_draft",
     label,
     config: { draft: "llm.generatedDraft" }
+  };
+}
+
+function githubListRepositoriesNode(
+  id: string,
+  label: string
+): AgentWorkflowNode {
+  return {
+    id,
+    type: "github.list_repositories",
+    label,
+    config: { limit: 100 }
   };
 }
 

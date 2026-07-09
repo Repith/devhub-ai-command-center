@@ -178,6 +178,13 @@ repository identifiers, owner/name, privacy flag, default branch, and URL only.
 `POST /github/webhook` validates `X-Hub-Signature-256` before marking
 installations active, suspended, or deleted.
 
+GitHub read capabilities are exposed to agents as MCP-style worker tools, not
+browser endpoints: `github.list_repositories`, `github.get_file`,
+`github.search_code`, `github.list_issues`, `github.list_pull_requests`, and
+`github.get_pull_request`. Each call is validated against the agent
+`enabledToolIds`, tenant-owned synchronized repositories, bounded output
+schemas, and server-side token providers. No GitHub write tool is exposed.
+
 ## News Feeds
 
 - `GET|POST /news/feeds`

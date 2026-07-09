@@ -93,6 +93,18 @@ if (require.main === module) {
               }
             }
           : {}),
+        ...(config.githubTokenEncryptionKey
+          ? {
+              github: {
+                appId: config.githubAppId,
+                clientId: config.githubClientId,
+                clientSecret: config.githubClientSecret,
+                privateKey: config.githubPrivateKey,
+                timeoutMs: config.githubToolTimeoutMs,
+                tokenEncryptionKey: config.githubTokenEncryptionKey
+              }
+            }
+          : {}),
         vectorStore
       });
     },
@@ -124,6 +136,18 @@ if (require.main === module) {
                   devMockEnabled: config.gmailDevMockEnabled,
                   timeoutMs: config.gmailToolTimeoutMs,
                   tokenEncryptionKey: config.gmailTokenEncryptionKey
+                }
+              }
+            : {}),
+          ...(config.githubTokenEncryptionKey
+            ? {
+                github: {
+                  appId: config.githubAppId,
+                  clientId: config.githubClientId,
+                  clientSecret: config.githubClientSecret,
+                  privateKey: config.githubPrivateKey,
+                  timeoutMs: config.githubToolTimeoutMs,
+                  tokenEncryptionKey: config.githubTokenEncryptionKey
                 }
               }
             : {}),

@@ -819,20 +819,20 @@ Acceptance: a tenant can connect a GitHub App installation and synchronize only 
 
 ## PR 40: GitHub MCP Read Tools
 
-- [ ] Add `packages/mcp/src/github-client.ts`.
-- [ ] Add read-only GitHub tools:
+- [x] Add `packages/mcp/src/github-client.ts`.
+- [x] Add read-only GitHub tools:
   - `github.list_repositories`,
   - `github.get_file`,
   - `github.search_code`,
   - `github.list_issues`,
   - `github.list_pull_requests`,
   - `github.get_pull_request`.
-- [ ] Add `apps/mcp-github` or register GitHub read tools directly in the worker, following the Gmail pattern chosen in PR 38.
-- [ ] Add `GitHubAccessTokenProvider` using server-side user/installation tokens.
-- [ ] Enforce `enabledToolIds` allowlists before every tool call.
-- [ ] Bound and redact tool previews so repository content cannot leak secrets through logs, audit rows, run previews, or WebSocket payloads.
-- [ ] Add the default `Repository Researcher` agent template.
-- [ ] Add tests for:
+- [x] Register GitHub read tools directly in the worker, following the Gmail pattern chosen in PR 38.
+- [x] Add `GitHubAccessTokenProvider` using server-side user tokens and short-lived installation tokens for repository read tools.
+- [x] Enforce `enabledToolIds` allowlists before every tool call.
+- [x] Bound and redact tool previews so repository content cannot leak secrets through logs, audit rows, run previews, or WebSocket payloads.
+- [x] Add the default `Repository Researcher` agent template.
+- [x] Add tests for:
   - input/output schema validation,
   - unauthorized repository blocked,
   - disabled tool blocked,

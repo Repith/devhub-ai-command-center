@@ -76,6 +76,85 @@ describe("PrismaExternalInstallationRepository", () => {
     ]);
   });
 
+  it("finds an active GitHub repository by tenant and full name", async () => {
+    const calls: unknown[] = [];
+    const repository = new PrismaExternalInstallationRepository({
+      externalRepository: {
+        findFirst: (input: unknown) => {
+          calls.push(input);
+          return Promise.resolve(null);
+        }
+      }
+    } as never);
+
+    await repository.findActiveRepositoryByFullName(
+      context(),
+      "octo-org/hello-world"
+    );
+
+    expect(calls).toEqual([
+      {
+        where: {
+          tenantId: "tenant-1",
+          provider: "GITHUB",
+          deletedAt: null,
+          installation: {
+            status: "ACTIVE",
+            deletedAt: null
+          },
+          fullName: "octo-org/hello-world"
+        }
+      }
+    ]);
+  });
+
+  it("finds GitHub repository authorization metadata by tenant and full name", async () => {
+    const calls: unknown[] = [];
+    const repository = new PrismaExternalInstallationRepository({
+      externalRepository: {
+        findFirst: (input: unknown) => {
+          calls.push(input);
+          return Promise.resolve({
+            id: "repository-1",
+            installation: { providerInstallationId: "123" }
+          });
+        }
+      }
+    } as never);
+
+    await expect(
+      repository.findActiveRepositoryAuthorizationByFullName(
+        context(),
+        "octo-org/hello-world"
+      )
+    ).resolves.toMatchObject({
+      id: "repository-1",
+      providerInstallationId: "123"
+    });
+
+    expect(calls).toEqual([
+      {
+        where: {
+          tenantId: "tenant-1",
+          provider: "GITHUB",
+          deletedAt: null,
+          installation: {
+            status: "ACTIVE",
+            deletedAt: null
+          },
+          fullName: "octo-org/hello-world"
+        },
+        include: {
+          installation: {
+            select: {
+              providerInstallationId: true
+            }
+          }
+        }
+      }
+    ]);
+  });
+
   it("marks GitHub installations deleted without deleting rows", async () => {
     const calls: unknown[] = [];
     const repository = new PrismaExternalInstallationRepository({
