@@ -91,6 +91,16 @@ configuration only. Sending mail is deliberately outside the MCP tool surface in
 the first version; it is an authenticated API action tied to a review record
 that the user can inspect and edit.
 
+GitHub read tools are registered directly in the worker through the same
+`ToolRegistryPort` boundary. The `Repository Researcher` template may call
+`github.list_repositories`, `github.get_file`, `github.search_code`,
+`github.list_issues`, `github.list_pull_requests`, and
+`github.get_pull_request` only when the tool ID is explicitly enabled and the
+target repository exists in the current tenant's synchronized GitHub
+installation metadata. Tool previews are redacted or bounded so repository
+content and tokens do not leak through audit rows, logs, run-step previews, or
+WebSocket payloads.
+
 The `usage.summary` capability is an internal MCP tool for the Usage Analyst
 template. It reads persisted `TokenUsage` rows and run snapshots for the
 authenticated tenant only; it never estimates token counts from prompt text or

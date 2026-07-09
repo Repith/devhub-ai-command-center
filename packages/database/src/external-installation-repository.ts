@@ -38,6 +38,10 @@ export interface ExternalRepositoryRecord {
   deletedAt: Date | null;
 }
 
+export interface ExternalRepositoryAuthorizationRecord extends ExternalRepositoryRecord {
+  providerInstallationId: string;
+}
+
 export interface SyncExternalInstallationInput {
   providerInstallationId: string;
   accountLogin: string;
@@ -110,6 +114,45 @@ export class PrismaExternalInstallationRepository {
       orderBy: [{ fullName: "asc" }]
     });
     return records.map((record) => record as ExternalRepositoryRecord);
+  }
+
+  public async findActiveRepositoryByFullName(
+    context: TenantContext,
+    fullName: string
+  ): Promise<ExternalRepositoryRecord | null> {
+    const record = await this.database.externalRepository.findFirst({
+      where: {
+        ...githubActiveRepositoryWhere(context),
+        fullName
+      }
+    });
+    return record ? (record as ExternalRepositoryRecord) : null;
+  }
+
+  public async findActiveRepositoryAuthorizationByFullName(
+    context: TenantContext,
+    fullName: string
+  ): Promise<ExternalRepositoryAuthorizationRecord | null> {
+    const record = await this.database.externalRepository.findFirst({
+      where: {
+        ...githubActiveRepositoryWhere(context),
+        fullName
+      },
+      include: {
+        installation: {
+          select: {
+            providerInstallationId: true
+          }
+        }
+      }
+    });
+    if (!record) {
+      return null;
+    }
+    return {
+      ...(record as ExternalRepositoryRecord),
+      providerInstallationId: record.installation.providerInstallationId
+    };
   }
 
   public disconnectGithub(context: TenantContext): Promise<unknown> {

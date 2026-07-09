@@ -147,6 +147,36 @@ describe("AgentRunProcessor", () => {
     expect(tools.calls.map((call) => call.toolId)).toEqual(["usage.summary"]);
   });
 
+  it("adds authorized GitHub repository context for the repository researcher", async () => {
+    const input: CreateAgentRun = {
+      message: "What repositories can I inspect?",
+      retrievalLimit: 3
+    };
+    const config = configSnapshot({
+      enabledToolIds: ["github.list_repositories"],
+      templateKey: "repository-researcher"
+    });
+    const runs = new FakeRunRepository(input, config);
+    const tools = new FakeToolRegistry();
+    const llmProvider = new FakeLlmProvider({ chunks: ["Repository answer"] });
+
+    await new AgentRunProcessor({ llmProvider, runs, tools }).process(job());
+
+    expect(runs.completed).toBe(true);
+    expect(runs.steps.map((step) => step.kind)).toEqual([
+      "rag.retrieve",
+      "mcp.news",
+      "mcp.github",
+      "llm.generate"
+    ]);
+    expect(tools.calls.map((call) => call.toolId)).toContain(
+      "github.list_repositories"
+    );
+    expect(llmProvider.requests[0]?.messages.at(-1)?.content).toContain(
+      "octo-org/hello-world"
+    );
+  });
+
   it("fails safely when a saved workflow snapshot is invalid", async () => {
     const input: CreateAgentRun = {
       message: "Invalid workflow should not run.",
@@ -829,7 +859,13 @@ class FakeToolRegistry implements ToolRegistryPort {
       "gmail.search_threads",
       "gmail.get_thread",
       "gmail.create_draft",
-      "gmail.update_draft"
+      "gmail.update_draft",
+      "github.list_repositories",
+      "github.get_file",
+      "github.search_code",
+      "github.list_issues",
+      "github.list_pull_requests",
+      "github.get_pull_request"
     ];
     return agent.enabledToolIds.filter((toolId): toolId is McpToolId =>
       registered.includes(toolId as McpToolId)
@@ -898,6 +934,23 @@ class FakeToolRegistry implements ToolRegistryPort {
           threadId: "thread-1"
         } as TOutput,
         outputPreview: "gmail.update_draft output"
+      });
+    }
+    if (input.toolId === "github.list_repositories") {
+      return Promise.resolve({
+        output: {
+          repositories: [
+            {
+              fullName: "octo-org/hello-world",
+              owner: "octo-org",
+              name: "hello-world",
+              private: false,
+              defaultBranch: "main",
+              htmlUrl: "https://github.com/octo-org/hello-world"
+            }
+          ]
+        } as TOutput,
+        outputPreview: "github.list_repositories output"
       });
     }
     return Promise.resolve({

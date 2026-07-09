@@ -4,6 +4,7 @@ import type { ToolAuditSink } from "@devhub/mcp";
 
 const maxPersistedPreviewLength = 2000;
 const gmailRedactedPreview = "[redacted:gmail-tool-payload]";
+const githubRedactedPreview = "[redacted:github-tool-payload]";
 
 interface ToolAuditLogRepository {
   record(
@@ -52,6 +53,9 @@ function safePreview(
 ): string {
   if (toolId.startsWith("gmail.")) {
     return gmailRedactedPreview;
+  }
+  if (toolId.startsWith("github.")) {
+    return githubRedactedPreview;
   }
   return value.length > maxPersistedPreviewLength
     ? `${value.slice(0, maxPersistedPreviewLength)}...`

@@ -29,6 +29,7 @@ export const agentWorkflowNodeTypeSchema = z.enum([
   "gmail.get_thread",
   "gmail.create_draft",
   "gmail.update_draft",
+  "github.list_repositories",
   "llm.generate",
   "condition",
   "human.review",
@@ -162,6 +163,12 @@ const gmailUpdateDraftConfigSchema = z
   })
   .strict();
 
+const githubListRepositoriesConfigSchema = z
+  .object({
+    limit: z.number().int().min(1).max(100).default(100)
+  })
+  .strict();
+
 const llmGenerateConfigSchema = z
   .object({
     prompt: z.enum(["agent.systemPrompt"]).default("agent.systemPrompt"),
@@ -269,6 +276,15 @@ export const agentWorkflowNodeSchema = z.discriminatedUnion("type", [
       label: z.string().trim().min(1).max(160).optional(),
       position: workflowNodePositionSchema.optional(),
       config: gmailUpdateDraftConfigSchema
+    })
+    .strict(),
+  z
+    .object({
+      id: nodeIdSchema,
+      type: z.literal("github.list_repositories"),
+      label: z.string().trim().min(1).max(160).optional(),
+      position: workflowNodePositionSchema.optional(),
+      config: githubListRepositoriesConfigSchema.default({ limit: 100 })
     })
     .strict(),
   z

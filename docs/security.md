@@ -87,9 +87,12 @@ GitHub App production configuration requires `GITHUB_APP_ID`,
 `GITHUB_TOKEN_ENCRYPTION_KEY`. Repository access must be scoped to tenant-owned
 installations. OAuth user tokens are encrypted in `ExternalConnection`; GitHub
 installation and repository tables contain metadata only. Webhooks must verify
-the GitHub HMAC signature before changing installation status. Later read tools
-must use server-side user or installation tokens without exposing those tokens
-to prompts, logs, audit metadata, or browser responses.
+the GitHub HMAC signature before changing installation status. GitHub read
+tools use server-side token providers and tenant-owned repository metadata; the
+model receives only validated, bounded tool results and never receives OAuth
+tokens, installation tokens, private keys, or raw provider payloads. GitHub tool
+audit previews are redacted so repository content is not copied into logs or
+audit metadata.
 
 The model may prepare Gmail drafts but may not send mail through MCP in the
 first Gmail workflow. Sending requires an authenticated API request against a

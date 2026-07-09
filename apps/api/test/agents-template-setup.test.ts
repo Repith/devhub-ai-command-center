@@ -76,6 +76,22 @@ describe("AgentsService template setup state", () => {
     ).toBe("READY");
   });
 
+  it("marks Repository Researcher readiness from authorized GitHub repositories", async () => {
+    const pending = await service({
+      authorizedGithubRepositories: 0
+    }).listTemplates(principal());
+    expect(
+      setupStatus(pending.data, "repository-researcher", "github.installation")
+    ).toBe("NEEDS_SETUP");
+
+    const ready = await service({
+      authorizedGithubRepositories: 2
+    }).listTemplates(principal());
+    expect(
+      setupStatus(ready.data, "repository-researcher", "github.installation")
+    ).toBe("READY");
+  });
+
   it("marks connected Gmail templates as misconfigured when env is missing", async () => {
     delete process.env.GMAIL_CLIENT_ID;
     delete process.env.GMAIL_CLIENT_SECRET;
@@ -152,6 +168,7 @@ describe("AgentsService template setup state", () => {
 });
 
 function service(input: {
+  authorizedGithubRepositories?: number;
   enabledNewsFeeds?: number;
   gmailConnection?: {
     encryptedRefreshToken: string | null;
@@ -175,6 +192,9 @@ function service(input: {
       },
       tenantNewsFeed: {
         count: () => Promise.resolve(input.enabledNewsFeeds ?? 0)
+      },
+      externalRepository: {
+        count: () => Promise.resolve(input.authorizedGithubRepositories ?? 0)
       },
       externalConnection: {
         findUnique: () => Promise.resolve(input.gmailConnection ?? null)

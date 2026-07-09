@@ -49,7 +49,7 @@ describe("PrismaToolAuditSink", () => {
     );
   });
 
-  it("bounds persisted previews and redacts Gmail payloads", async () => {
+  it("bounds persisted previews and redacts Gmail and GitHub payloads", async () => {
     const records: CreateAuditLogInput[] = [];
     const sink = new PrismaToolAuditSink({
       record: (_context, input) => {
@@ -60,9 +60,11 @@ describe("PrismaToolAuditSink", () => {
 
     await sink.record(entry("COMPLETED", "news.fetch_rss", null, 2500));
     await sink.record(entry("COMPLETED", "gmail.get_thread"));
+    await sink.record(entry("COMPLETED", "github.get_file"));
 
     const newsMetadata = records[0]!.metadata as Record<string, unknown>;
     const gmailMetadata = records[1]!.metadata as Record<string, unknown>;
+    const githubMetadata = records[2]!.metadata as Record<string, unknown>;
     expect((newsMetadata.inputPreview as string).length).toBeLessThanOrEqual(
       2003
     );
@@ -70,6 +72,11 @@ describe("PrismaToolAuditSink", () => {
     expect(gmailMetadata).toMatchObject({
       inputPreview: "[redacted:gmail-tool-payload]",
       outputPreview: "[redacted:gmail-tool-payload]"
+    });
+    expect(JSON.stringify(githubMetadata)).not.toContain("SECRET_BODY");
+    expect(githubMetadata).toMatchObject({
+      inputPreview: "[redacted:github-tool-payload]",
+      outputPreview: "[redacted:github-tool-payload]"
     });
   });
 });
@@ -83,7 +90,8 @@ function entry(
     | "knowledge.search"
     | "news.fetch_rss"
     | "usage.summary"
-    | "gmail.get_thread",
+    | "gmail.get_thread"
+    | "github.get_file",
   errorCode: string | null = null,
   previewLength = 20
 ) {

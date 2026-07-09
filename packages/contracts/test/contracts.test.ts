@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   API_PREFIX,
+  DEFAULT_AGENT_TEMPLATES,
   agentDefinitionSchema,
   agentRunConfigSnapshotSchema,
   apiErrorSchema,
@@ -203,6 +204,21 @@ describe("contracts", () => {
     expect(mcpToolIdSchema.safeParse("gmail.create_draft").success).toBe(true);
     expect(mcpToolIdSchema.safeParse("gmail.update_draft").success).toBe(true);
     expect(mcpToolIdSchema.safeParse("gmail.send").success).toBe(false);
+  });
+
+  it("includes read-only GitHub tools and the repository researcher template", () => {
+    expect(mcpToolIdSchema.safeParse("github.list_repositories").success).toBe(
+      true
+    );
+    expect(mcpToolIdSchema.safeParse("github.get_file").success).toBe(true);
+    expect(mcpToolIdSchema.safeParse("github.create_issue").success).toBe(
+      false
+    );
+    expect(
+      DEFAULT_AGENT_TEMPLATES.some(
+        (template) => template.key === "repository-researcher"
+      )
+    ).toBe(true);
   });
 
   it("validates shared OAuth integration contracts", () => {

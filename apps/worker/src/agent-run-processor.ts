@@ -10,6 +10,7 @@ import {
   PrismaConversationRepository,
   PrismaDocumentRepository,
   PrismaExternalConnectionRepository,
+  PrismaExternalInstallationRepository,
   PrismaGmailDraftReviewRepository,
   PrismaNewsFeedRepository,
   PrismaAuditLogRepository,
@@ -19,6 +20,7 @@ import {
 import type { TenantContext } from "@devhub/domain";
 import {
   createGmailTools,
+  createGithubTools,
   createKnowledgeSearchTool,
   createNewsFetchRssTool,
   createUsageSummaryTool,
@@ -36,6 +38,7 @@ import {
 } from "./agent-graph/agent-step-runner.js";
 import { compileAgentWorkflowDefinition } from "./agent-graph/workflow-compiler.js";
 import { GmailAccessTokenProvider } from "./gmail-access-token-provider.js";
+import { GithubAccessTokenProvider } from "./github-access-token-provider.js";
 import type { RealtimeEventPublisher } from "./realtime-event-publisher.js";
 import { PrismaToolAuditSink } from "./tool-audit-sink.js";
 
@@ -47,6 +50,15 @@ export interface AgentRunGmailOptions {
   tokenEncryptionKey: string;
 }
 
+export interface AgentRunGithubOptions {
+  appId?: string | undefined;
+  clientId?: string | undefined;
+  clientSecret?: string | undefined;
+  privateKey?: string | undefined;
+  timeoutMs: number;
+  tokenEncryptionKey: string;
+}
+
 export interface AgentRunProcessorOptions {
   database: DatabaseClient;
   embeddingModel: string;
@@ -54,6 +66,7 @@ export interface AgentRunProcessorOptions {
   embeddingTimeoutMs: number;
   llmProvider: LlmProviderPort;
   gmail?: AgentRunGmailOptions;
+  github?: AgentRunGithubOptions;
   publisher?: RealtimeEventPublisher;
   retryCount?: number;
   vectorStore: VectorStorePort;
@@ -68,6 +81,9 @@ export async function processAgentRun(
   const documents = new PrismaDocumentRepository(options.database);
   const conversations = new PrismaConversationRepository(options.database);
   const connections = new PrismaExternalConnectionRepository(options.database);
+  const githubInstallations = new PrismaExternalInstallationRepository(
+    options.database
+  );
   const draftReviews = new PrismaGmailDraftReviewRepository(options.database);
   const newsFeeds = new PrismaNewsFeedRepository(options.database);
   const runs = new PrismaAgentRunRepository(options.database);
@@ -85,6 +101,16 @@ export async function processAgentRun(
           tokenEncryptionKey: options.gmail.tokenEncryptionKey
         })
       : null;
+  const githubAccessTokens = options.github
+    ? new GithubAccessTokenProvider({
+        appId: options.github.appId,
+        clientId: options.github.clientId,
+        clientSecret: options.github.clientSecret,
+        connections,
+        privateKey: options.github.privateKey,
+        tokenEncryptionKey: options.github.tokenEncryptionKey
+      })
+    : null;
   const tools = new StaticToolRegistry(
     [
       createKnowledgeSearchTool({
@@ -108,7 +134,29 @@ export async function processAgentRun(
                 gmailAccessTokens.getAccessToken(context),
               timeoutMs: options.gmail!.timeoutMs
             })
-          : [])
+          : []),
+      ...(githubAccessTokens
+        ? createGithubTools({
+            assertRepositoryAccess: async (context, repositoryFullName) => {
+              const repository =
+                await githubInstallations.findActiveRepositoryAuthorizationByFullName(
+                  context,
+                  repositoryFullName
+                );
+              if (!repository) {
+                throw new Error("GitHub repository is not authorized.");
+              }
+              return {
+                providerInstallationId: repository.providerInstallationId
+              };
+            },
+            getAccessToken: (context, authorization) =>
+              githubAccessTokens.getAccessToken(context, authorization),
+            listRepositories: (context) =>
+              githubInstallations.listRepositories(context),
+            timeoutMs: options.github!.timeoutMs
+          })
+        : [])
     ],
     toolAudit
   );
