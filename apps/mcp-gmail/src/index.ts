@@ -21,7 +21,7 @@ async function main(): Promise<void> {
     version: "0.0.0"
   });
   const options = {
-    getAccessToken: async () => requiredEnv("GMAIL_ACCESS_TOKEN")
+    getAccessToken: async () => diagnosticAccessToken()
   };
 
   const searchTool = createGmailSearchThreadsTool(options);
@@ -126,9 +126,18 @@ async function main(): Promise<void> {
 function requiredEnv(name: string): string {
   const value = process.env[name];
   if (!value) {
-    throw new Error(`${name} is required for the Gmail MCP server.`);
+    throw new Error(`${name} is required for diagnostic Gmail MCP mode.`);
   }
   return value;
+}
+
+function diagnosticAccessToken(): string {
+  if (process.env.GMAIL_MCP_DIAGNOSTIC_MODE !== "true") {
+    throw new Error(
+      "apps/mcp-gmail is a local diagnostic server. Production Gmail tools use the API/worker server-side token provider; set GMAIL_MCP_DIAGNOSTIC_MODE=true only for local diagnostics."
+    );
+  }
+  return requiredEnv("GMAIL_ACCESS_TOKEN");
 }
 
 const serverContext: McpTenantContext = {

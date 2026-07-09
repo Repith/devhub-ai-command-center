@@ -1,9 +1,12 @@
-import type { GmailDraftReviewRecord } from "@devhub/database";
+import type {
+  GmailConnectionRecord,
+  GmailDraftReviewRecord
+} from "@devhub/database";
 import {
   BadRequestException,
   ServiceUnavailableException
 } from "@nestjs/common";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { GmailService } from "../src/gmail/gmail.service";
 import { GmailOAuthStateService } from "../src/gmail/oauth-state.service";
@@ -15,6 +18,8 @@ describe("Gmail security helpers", () => {
 
   afterEach(() => {
     process.env = { ...previousEnv };
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it("encrypts refresh tokens without leaving plaintext in storage", () => {
@@ -104,6 +109,154 @@ describe("Gmail security helpers", () => {
     expect(url.searchParams.get("redirect_uri")).toBe(
       "http://localhost:3000/gmail/oauth/callback"
     );
+    expect(url.searchParams.get("scope")).toContain(
+      "https://www.googleapis.com/auth/gmail.readonly"
+    );
+    expect(url.searchParams.get("scope")).toContain(
+      "https://www.googleapis.com/auth/gmail.compose"
+    );
+    expect(url.searchParams.get("state")).toEqual(expect.any(String));
+  });
+
+  it("completes OAuth with encrypted tokens and metadata-only audit", async () => {
+    configureOAuthEnv();
+    const audit = { records: [] as unknown[] };
+    const upserts: unknown[] = [];
+    const service = gmailService({
+      audit,
+      connections: {
+        upsertGmail: (input: unknown) => {
+          upserts.push(input);
+          return Promise.resolve(input);
+        }
+      }
+    });
+    stubGoogleOAuth({
+      token: {
+        access_token: "access-token-secret",
+        refresh_token: "refresh-token-secret",
+        expires_in: 3600,
+        scope:
+          "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.compose"
+      },
+      profile: { emailAddress: "owner@example.com" }
+    });
+
+    await service.completeOAuth(principal(), {
+      code: "auth-code",
+      state: oauthState()
+    });
+
+    const serializedUpserts = JSON.stringify(upserts);
+    expect(serializedUpserts).not.toContain("access-token-secret");
+    expect(serializedUpserts).not.toContain("refresh-token-secret");
+    expect(audit.records).toEqual([
+      expect.objectContaining({
+        action: "gmail.connected",
+        metadata: {
+          provider: "GMAIL",
+          accountEmail: "owner@example.com",
+          scopes: [
+            "https://www.googleapis.com/auth/gmail.readonly",
+            "https://www.googleapis.com/auth/gmail.compose"
+          ]
+        }
+      })
+    ]);
+  });
+
+  it("rejects a bad OAuth state with a stable error code", async () => {
+    configureOAuthEnv();
+    const service = gmailService({});
+
+    await expect(
+      service.completeOAuth(principal(), {
+        code: "auth-code",
+        state: "invalid-state"
+      })
+    ).rejects.toMatchObject({
+      response: {
+        code: "OAUTH_STATE_INVALID",
+        message: "Invalid Gmail OAuth state."
+      }
+    });
+  });
+
+  it("rejects OAuth callbacks when Google omits a refresh token", async () => {
+    configureOAuthEnv();
+    const service = gmailService({});
+    stubGoogleOAuth({
+      token: {
+        access_token: "access-token-secret",
+        expires_in: 3600,
+        scope: "https://www.googleapis.com/auth/gmail.readonly"
+      },
+      profile: { emailAddress: "owner@example.com" }
+    });
+
+    await expect(
+      service.completeOAuth(principal(), {
+        code: "auth-code",
+        state: oauthState()
+      })
+    ).rejects.toMatchObject({
+      response: {
+        code: "GMAIL_REFRESH_TOKEN_MISSING",
+        message: "Google did not return a refresh token."
+      }
+    });
+  });
+
+  it("maps Google token exchange failures to a typed error", async () => {
+    configureOAuthEnv();
+    const service = gmailService({});
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() =>
+        Promise.resolve(
+          new Response(JSON.stringify({ error: "invalid_grant" }), {
+            status: 400,
+            headers: { "Content-Type": "application/json" }
+          })
+        )
+      )
+    );
+
+    await expect(
+      service.completeOAuth(principal(), {
+        code: "auth-code",
+        state: oauthState()
+      })
+    ).rejects.toMatchObject({
+      response: {
+        code: "GMAIL_OAUTH_EXCHANGE_FAILED",
+        message: "Google OAuth token exchange failed."
+      }
+    });
+  });
+
+  it("disconnects Gmail without requiring provider config values in output", async () => {
+    configureOAuthEnv();
+    const audit = { records: [] as unknown[] };
+    const service = gmailService({
+      audit,
+      connection: gmailConnectionRecord()
+    });
+
+    await expect(service.disconnect(principal())).resolves.toMatchObject({
+      status: "DISCONNECTED",
+      accountEmail: null,
+      scopes: [],
+      missingConfigKeys: []
+    });
+    expect(JSON.stringify(audit.records)).not.toContain("access-token-secret");
+    expect(JSON.stringify(audit.records)).not.toContain("refresh-token-secret");
+    expect(audit.records).toEqual([
+      expect.objectContaining({
+        action: "gmail.disconnected",
+        metadata: { provider: "GMAIL" }
+      })
+    ]);
   });
 
   it("returns a stable misconfigured code for OAuth actions", () => {
@@ -163,9 +316,11 @@ describe("Gmail security helpers", () => {
 
 function gmailService(options: {
   audit?: { records: unknown[] };
+  connection?: GmailConnectionRecord | null;
   connections?: {
-    findGmail(): Promise<null>;
+    findGmail?(): Promise<GmailConnectionRecord | null>;
     upsertGmail?(input: unknown): Promise<unknown>;
+    disconnect?(): Promise<unknown>;
   };
   draftReviews?: {
     findById?(): Promise<GmailDraftReviewRecord | null>;
@@ -173,14 +328,33 @@ function gmailService(options: {
   };
 }): GmailService {
   const audit = options.audit ?? { records: [] as unknown[] };
+  let currentConnection = options.connection ?? null;
   return new GmailService(
     {
       findGmail:
-        options.connections?.findGmail ?? (() => Promise.resolve(null)),
-      upsertGmail: (_context: unknown, input: unknown) =>
-        options.connections?.upsertGmail
+        options.connections?.findGmail ??
+        (() => Promise.resolve(currentConnection)),
+      upsertGmail: (_context: unknown, input: unknown) => {
+        currentConnection = gmailConnectionRecord(
+          input as Partial<GmailConnectionRecord>
+        );
+        return options.connections?.upsertGmail
           ? options.connections.upsertGmail(input)
-          : Promise.resolve(input)
+          : Promise.resolve(currentConnection);
+      },
+      disconnect: () => {
+        currentConnection = gmailConnectionRecord({
+          accountEmail: null,
+          scopes: [],
+          encryptedAccessToken: null,
+          encryptedRefreshToken: null,
+          expiresAt: null,
+          status: "DISCONNECTED"
+        });
+        return options.connections?.disconnect
+          ? options.connections.disconnect()
+          : Promise.resolve(currentConnection);
+      }
     } as never,
     {
       findById:
@@ -199,6 +373,41 @@ function gmailService(options: {
     new TokenCryptoService(),
     new GmailOAuthStateService()
   );
+}
+
+function configureOAuthEnv(): void {
+  process.env.GMAIL_CLIENT_ID = "client-id";
+  process.env.GMAIL_CLIENT_SECRET = "client-secret";
+  process.env.GMAIL_REDIRECT_URI = "http://localhost:3000/gmail/oauth/callback";
+  process.env.GMAIL_TOKEN_ENCRYPTION_KEY = "local-test-encryption-key";
+  process.env.JWT_SECRET = "local-jwt-secret";
+}
+
+function oauthState(): string {
+  return new GmailOAuthStateService().sign(
+    process.env.JWT_SECRET!,
+    principal().tenantId,
+    principal().userId
+  );
+}
+
+function stubGoogleOAuth(input: {
+  token: Record<string, unknown>;
+  profile: Record<string, unknown>;
+}): void {
+  const fetchMock = vi.fn((url: string | URL | Request) => {
+    const target = String(url);
+    const body = target.includes("oauth2.googleapis.com")
+      ? input.token
+      : input.profile;
+    return Promise.resolve(
+      new Response(JSON.stringify(body), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      })
+    );
+  });
+  vi.stubGlobal("fetch", fetchMock);
 }
 
 function principal(): RequestPrincipal {
@@ -233,6 +442,30 @@ function gmailDraftReviewRecord(
     createdAt: now,
     updatedAt: now,
     sentAt: null,
+    ...input
+  };
+}
+
+function gmailConnectionRecord(
+  input: Partial<GmailConnectionRecord> = {}
+): GmailConnectionRecord {
+  const now = new Date();
+  return {
+    id: "00000000-0000-4000-8000-000000000201",
+    tenantId: principal().tenantId,
+    userId: principal().userId,
+    provider: "GMAIL",
+    accountEmail: "owner@example.com",
+    scopes: [
+      "https://www.googleapis.com/auth/gmail.readonly",
+      "https://www.googleapis.com/auth/gmail.compose"
+    ],
+    encryptedAccessToken: "encrypted-access-token-secret",
+    encryptedRefreshToken: "encrypted-refresh-token-secret",
+    expiresAt: new Date(Date.now() + 3600 * 1000),
+    status: "CONNECTED",
+    createdAt: now,
+    updatedAt: now,
     ...input
   };
 }

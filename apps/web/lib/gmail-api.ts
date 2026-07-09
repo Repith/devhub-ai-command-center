@@ -52,6 +52,15 @@ export function connectGmailDevMock(
   });
 }
 
+export function disconnectGmail(
+  accessToken: string
+): Promise<GmailConnectionStatus> {
+  return apiRequest("/gmail/disconnect", gmailConnectionStatusSchema, {
+    method: "DELETE",
+    accessToken
+  });
+}
+
 export async function listGmailDraftReviews(
   accessToken: string
 ): Promise<GmailDraftReview[]> {

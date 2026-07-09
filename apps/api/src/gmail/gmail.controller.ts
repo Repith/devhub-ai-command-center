@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -65,6 +66,15 @@ export class GmailController {
     @CurrentUser() principal: RequestPrincipal
   ): Promise<GmailDevConnectResponse> {
     return this.gmail.connectDevMock(principal);
+  }
+
+  @Delete("disconnect")
+  @HttpCode(HttpStatus.OK)
+  @Roles("OWNER", "ADMIN", "MEMBER")
+  public disconnect(
+    @CurrentUser() principal: RequestPrincipal
+  ): Promise<GmailConnectionStatus> {
+    return this.gmail.disconnect(principal);
   }
 
   @Post("oauth/callback")

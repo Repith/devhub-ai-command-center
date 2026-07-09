@@ -117,6 +117,12 @@ Gmail workspace will offer a simulated connection, and worker-side Gmail tools
 will use deterministic mock threads and drafts. Sending still goes through the
 authenticated draft-review API path and never becomes a model-callable tool.
 
+`apps/mcp-gmail` is a standalone diagnostic server only. The production and
+normal local application path uses the API/worker server-side token provider,
+not `GMAIL_ACCESS_TOKEN`. To run the diagnostic server manually, set
+`GMAIL_MCP_DIAGNOSTIC_MODE=true` and provide a short-lived
+`GMAIL_ACCESS_TOKEN`; do not use that mode for the application runtime.
+
 ## Integration Status and GitHub App Config
 
 `GET /api/v1/integrations` returns tenant/user-scoped setup status for Gmail

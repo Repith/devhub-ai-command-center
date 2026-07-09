@@ -746,24 +746,24 @@ Acceptance: the app has one server-side, tenant-scoped integration foundation th
 
 ## PR 38: Production Gmail OAuth Hardening
 
-- [ ] Preserve and harden the Gmail flow:
+- [x] Preserve and harden the Gmail flow:
   - `POST /api/v1/gmail/connect`,
   - browser callback page at `/gmail/oauth/callback`,
   - `POST /api/v1/gmail/oauth/callback`,
   - `GET /api/v1/gmail/status`.
-- [ ] Require production Gmail config:
+- [x] Require production Gmail config:
   - `GMAIL_CLIENT_ID`,
   - `GMAIL_CLIENT_SECRET`,
   - `GMAIL_REDIRECT_URI=https://<domain>/gmail/oauth/callback`,
   - `GMAIL_TOKEN_ENCRYPTION_KEY`.
-- [ ] Add `DELETE /api/v1/gmail/disconnect`.
-- [ ] Return explicit `MISCONFIGURED` status with `missingConfigKeys` containing key names only.
-- [ ] Keep scopes limited to:
+- [x] Add `DELETE /api/v1/gmail/disconnect`.
+- [x] Return explicit `MISCONFIGURED` status with `missingConfigKeys` containing key names only.
+- [x] Keep scopes limited to:
   - `https://www.googleapis.com/auth/gmail.readonly`,
   - `https://www.googleapis.com/auth/gmail.compose`.
-- [ ] Keep email sending outside MCP: sending is only an authenticated review API action.
-- [ ] Make `apps/mcp-gmail` dev-diagnostic only unless it can use the server-side token provider without `GMAIL_ACCESS_TOKEN`.
-- [ ] Add tests for:
+- [x] Keep email sending outside MCP: sending is only an authenticated review API action.
+- [x] Make `apps/mcp-gmail` dev-diagnostic only unless it can use the server-side token provider without `GMAIL_ACCESS_TOKEN`.
+- [x] Add tests for:
   - OAuth URL redirect/state/offline access/incremental scopes,
   - callback success and failure,
   - bad state,
