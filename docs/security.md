@@ -77,7 +77,9 @@ requests `https://www.googleapis.com/auth/gmail.readonly` and
 `https://www.googleapis.com/auth/gmail.compose`. These are Google restricted
 scopes, so a public production deployment must complete Google's verification
 and security assessment process before broad use. Local development should use
-test users and never commit OAuth credentials.
+test users and never commit OAuth credentials. Disconnecting Gmail clears the
+encrypted access and refresh tokens server-side and records only provider
+metadata in audit logs.
 
 GitHub App production configuration requires `GITHUB_APP_ID`,
 `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `GITHUB_PRIVATE_KEY`,

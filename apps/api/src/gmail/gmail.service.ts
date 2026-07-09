@@ -164,6 +164,18 @@ export class GmailService {
     return this.status(principal);
   }
 
+  public async disconnect(
+    principal: RequestPrincipal
+  ): Promise<GmailConnectionStatus> {
+    await this.connections.disconnect(this.context(principal), "GMAIL");
+    await this.audit.record(principal, {
+      action: "gmail.disconnected",
+      resourceType: "external_connection",
+      metadata: { provider: "GMAIL" }
+    });
+    return this.status(principal);
+  }
+
   public async completeOAuth(
     principal: RequestPrincipal,
     input: GmailOAuthCallback
@@ -183,7 +195,10 @@ export class GmailService {
           )
         : null);
     if (!refreshToken) {
-      throw new BadRequestException("Google did not return a refresh token.");
+      throw new BadRequestException({
+        code: "GMAIL_REFRESH_TOKEN_MISSING",
+        message: "Google did not return a refresh token."
+      });
     }
     await this.connections.upsertGmail(context, {
       accountEmail: profile.emailAddress ?? null,
@@ -380,7 +395,10 @@ export class GmailService {
       body: new URLSearchParams(params)
     });
     if (!response.ok) {
-      throw new BadRequestException("Google OAuth token exchange failed.");
+      throw new BadRequestException({
+        code: "GMAIL_OAUTH_EXCHANGE_FAILED",
+        message: "Google OAuth token exchange failed."
+      });
     }
     return (await response.json()) as GoogleTokenResponse;
   }
@@ -392,7 +410,10 @@ export class GmailService {
       headers: { Authorization: `Bearer ${accessToken}` }
     });
     if (!response.ok) {
-      throw new BadRequestException("Gmail profile lookup failed.");
+      throw new BadRequestException({
+        code: "GMAIL_PROFILE_LOOKUP_FAILED",
+        message: "Gmail profile lookup failed."
+      });
     }
     return (await response.json()) as GmailProfileResponse;
   }
@@ -418,7 +439,10 @@ export class GmailService {
         principal.userId
       );
     } catch {
-      throw new BadRequestException("Invalid Gmail OAuth state.");
+      throw new BadRequestException({
+        code: "OAUTH_STATE_INVALID",
+        message: "Invalid Gmail OAuth state."
+      });
     }
   }
 
