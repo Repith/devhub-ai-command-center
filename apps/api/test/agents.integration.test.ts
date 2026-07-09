@@ -261,8 +261,23 @@ describeWithDatabase("agent configuration and tenant isolation", () => {
   });
 
   it("allows owners to save a valid tenant workflow", async () => {
+    const workflowAgentResponse = await request(app!.getHttpServer())
+      .post("/api/v1/agents")
+      .set("Authorization", `Bearer ${ownerToken}`)
+      .send({
+        name: "Workflow Validation Assistant",
+        description: "Owns the allowlist used by workflow validation tests.",
+        provider: "ollama",
+        model: "qwen3:8b",
+        systemPrompt: "Validate workflow persistence.",
+        enabledToolIds: ["knowledge.search"],
+        knowledgeBaseIds: []
+      })
+      .expect(201);
+    const workflowAgent = workflowAgentResponse.body as AgentDefinition;
+
     const validateResponse = await request(app!.getHttpServer())
-      .post(`/api/v1/agents/${agent.id}/workflow/validate`)
+      .post(`/api/v1/agents/${workflowAgent.id}/workflow/validate`)
       .set("Authorization", `Bearer ${ownerToken}`)
       .send(validWorkflow())
       .expect(200);
@@ -272,7 +287,7 @@ describeWithDatabase("agent configuration and tenant isolation", () => {
     } satisfies AgentWorkflowValidationResponse);
 
     const saveResponse = await request(app!.getHttpServer())
-      .put(`/api/v1/agents/${agent.id}/workflow`)
+      .put(`/api/v1/agents/${workflowAgent.id}/workflow`)
       .set("Authorization", `Bearer ${ownerToken}`)
       .send({ definition: validWorkflow() })
       .expect(200);
@@ -286,7 +301,7 @@ describeWithDatabase("agent configuration and tenant isolation", () => {
     ]);
 
     const readResponse = await request(app!.getHttpServer())
-      .get(`/api/v1/agents/${agent.id}/workflow`)
+      .get(`/api/v1/agents/${workflowAgent.id}/workflow`)
       .set("Authorization", `Bearer ${ownerToken}`)
       .expect(200);
     expect((readResponse.body as AgentWorkflowResponse).version).toBe(1);
