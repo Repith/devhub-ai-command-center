@@ -1,14 +1,8 @@
-import {
-  createCipheriv,
-  createDecipheriv,
-  createHash,
-  randomBytes
-} from "node:crypto";
-
 import type {
   GmailConnectionRecord,
   PrismaExternalConnectionRepository
 } from "@devhub/database";
+import { tokenCrypto } from "@devhub/database";
 import type { TenantContext } from "@devhub/domain";
 
 const googleTokenUrl = "https://oauth2.googleapis.com/token";
@@ -95,33 +89,11 @@ export class GmailAccessTokenProvider {
 }
 
 export function encrypt(secret: string, value: string): string {
-  const iv = randomBytes(12);
-  const cipher = createCipheriv("aes-256-gcm", key(secret), iv);
-  const encrypted = Buffer.concat([
-    cipher.update(value, "utf8"),
-    cipher.final()
-  ]);
-  const tag = cipher.getAuthTag();
-  return [iv, tag, encrypted]
-    .map((part) => part.toString("base64url"))
-    .join(".");
+  return tokenCrypto.encrypt(secret, value);
 }
 
 export function decrypt(secret: string, value: string): string {
-  const [ivText, tagText, encryptedText] = value.split(".");
-  if (!ivText || !tagText || !encryptedText) {
-    throw new Error("Encrypted token payload is malformed.");
-  }
-  const decipher = createDecipheriv(
-    "aes-256-gcm",
-    key(secret),
-    Buffer.from(ivText, "base64url")
-  );
-  decipher.setAuthTag(Buffer.from(tagText, "base64url"));
-  return Buffer.concat([
-    decipher.update(Buffer.from(encryptedText, "base64url")),
-    decipher.final()
-  ]).toString("utf8");
+  return tokenCrypto.decrypt(secret, value);
 }
 
 function hasUsableAccessToken(connection: GmailConnectionRecord): boolean {
@@ -134,8 +106,4 @@ function hasUsableAccessToken(connection: GmailConnectionRecord): boolean {
 
 function expiresAt(seconds: number | undefined): Date | null {
   return seconds ? new Date(Date.now() + seconds * 1000) : null;
-}
-
-function key(secret: string): Buffer {
-  return createHash("sha256").update(secret).digest();
 }

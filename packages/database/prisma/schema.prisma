@@ -59,6 +59,7 @@ enum MessageRole {
 
 enum ExternalConnectionProvider {
   GMAIL
+  GITHUB
 }
 
 enum ExternalConnectionStatus {
@@ -165,29 +166,29 @@ model RefreshSession {
 }
 
 model AgentDefinition {
-  id               String         @id @default(uuid()) @db.Uuid
-  tenantId         String         @db.Uuid
-  name             String
-  description      String?
-  provider         String
-  model            String
-  systemPrompt     String
-  templateKey      String?
-  maxSteps         Int            @default(8)
-  maxToolCalls     Int            @default(4)
-  maxTokens        Int?
-  timeoutMs        Int            @default(120000)
-  enabledToolIds   String[]       @default([])
-  knowledgeBaseIds String[]       @default([])
+  id                 String         @id @default(uuid()) @db.Uuid
+  tenantId           String         @db.Uuid
+  name               String
+  description        String?
+  provider           String
+  model              String
+  systemPrompt       String
+  templateKey        String?
+  maxSteps           Int            @default(8)
+  maxToolCalls       Int            @default(4)
+  maxTokens          Int?
+  timeoutMs          Int            @default(120000)
+  enabledToolIds     String[]       @default([])
+  knowledgeBaseIds   String[]       @default([])
   workflowDefinition Json?
-  workflowVersion Int?
-  tenant           Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  conversations    Conversation[]
-  runs             AgentRun[]
-  goldenCases      GoldenCase[]
-  createdAt        DateTime       @default(now()) @db.Timestamptz(3)
-  updatedAt        DateTime       @updatedAt @db.Timestamptz(3)
-  deletedAt        DateTime?      @db.Timestamptz(3)
+  workflowVersion    Int?
+  tenant             Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  conversations      Conversation[]
+  runs               AgentRun[]
+  goldenCases        GoldenCase[]
+  createdAt          DateTime       @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime       @updatedAt @db.Timestamptz(3)
+  deletedAt          DateTime?      @db.Timestamptz(3)
 
   @@unique([tenantId, id])
   @@unique([tenantId, templateKey])

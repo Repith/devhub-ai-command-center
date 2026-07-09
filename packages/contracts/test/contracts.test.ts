@@ -12,6 +12,10 @@ import {
   documentStatusSchema,
   gmailDraftReviewSchema,
   gmailSearchThreadsInputSchema,
+  integrationsStatusResponseSchema,
+  integrationErrorCodeSchema,
+  integrationProviderSchema,
+  integrationStatusSchema,
   mcpToolIdSchema,
   newsFeedSchema,
   registerSchema,
@@ -197,6 +201,41 @@ describe("contracts", () => {
     expect(mcpToolIdSchema.safeParse("gmail.create_draft").success).toBe(true);
     expect(mcpToolIdSchema.safeParse("gmail.update_draft").success).toBe(true);
     expect(mcpToolIdSchema.safeParse("gmail.send").success).toBe(false);
+  });
+
+  it("validates shared OAuth integration contracts", () => {
+    expect(integrationProviderSchema.safeParse("GMAIL").success).toBe(true);
+    expect(integrationProviderSchema.safeParse("GITHUB").success).toBe(true);
+    expect(integrationStatusSchema.safeParse("MISCONFIGURED").success).toBe(
+      true
+    );
+    expect(
+      integrationErrorCodeSchema.safeParse("OAUTH_STATE_INVALID").success
+    ).toBe(true);
+    expect(
+      integrationsStatusResponseSchema.safeParse({
+        data: [
+          {
+            provider: "GMAIL",
+            status: "CONNECTED",
+            accountLabel: "owner@example.com",
+            scopes: ["https://www.googleapis.com/auth/gmail.readonly"],
+            missingConfigKeys: [],
+            connectedAt: "2026-06-09T12:00:00.000Z",
+            updatedAt: "2026-06-09T12:00:00.000Z"
+          },
+          {
+            provider: "GITHUB",
+            status: "MISCONFIGURED",
+            accountLabel: null,
+            scopes: [],
+            missingConfigKeys: ["GITHUB_APP_ID"],
+            connectedAt: null,
+            updatedAt: null
+          }
+        ]
+      }).success
+    ).toBe(true);
   });
 
   it("validates Gmail thread search and draft review responses", () => {

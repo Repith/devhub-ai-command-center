@@ -9,6 +9,7 @@ export * from "./documents.js";
 export * from "./events.js";
 export * from "./golden.js";
 export * from "./gmail.js";
+export * from "./integrations.js";
 export * from "./mcp.js";
 export * from "./news-feeds.js";
 export * from "./realtime.js";
