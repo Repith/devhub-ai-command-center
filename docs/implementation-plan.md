@@ -844,27 +844,27 @@ Acceptance: agents can read authorized GitHub repositories through safe MCP-styl
 
 ## PR 41: Integrations Workspace and Agent Setup UX
 
-- [ ] Add an `Integrations` workspace.
-- [ ] Add Gmail card states:
+- [x] Add an `Integrations` workspace.
+- [x] Add Gmail card states:
   - status,
   - account,
   - scopes,
   - connect,
   - reconnect,
   - disconnect.
-- [ ] Add GitHub card states:
+- [x] Add GitHub card states:
   - status,
   - account or installation,
   - repository count,
   - install/connect,
   - sync,
   - disconnect.
-- [ ] Add browser callback page for GitHub at `/github/oauth/callback`.
-- [ ] Show setup state in agent templates:
+- [x] Add browser callback page for GitHub at `/github/oauth/callback`.
+- [x] Show setup state in agent templates:
   - Gmail templates show missing Gmail connection or misconfiguration,
   - Repository Researcher shows missing GitHub installation or repositories.
-- [ ] Show available repositories and enabled tools in chat/agent UI.
-- [ ] Add tests for:
+- [x] Show available repositories and enabled tools in chat/agent UI.
+- [x] Add tests for:
   - Gmail card states,
   - GitHub card states,
   - callback success/failure UI,

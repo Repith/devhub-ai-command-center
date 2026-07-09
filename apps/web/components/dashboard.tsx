@@ -8,6 +8,7 @@ import { AnalyticsWorkspace } from "./analytics-workspace";
 import { ChatWorkspace } from "./chat-workspace";
 import { DashboardHome } from "./dashboard-home";
 import { GmailWorkspace } from "./gmail-workspace";
+import { IntegrationsWorkspace } from "./integrations-workspace";
 import { KnowledgeWorkspace } from "./knowledge-workspace";
 import { NewsWorkspace } from "./news-workspace";
 import type { AuthenticatedUser } from "@devhub/contracts";
@@ -24,6 +25,7 @@ type DashboardSection =
   | "agents"
   | "chat"
   | "analytics"
+  | "integrations"
   | "knowledge"
   | "gmail"
   | "news";
@@ -89,12 +91,21 @@ export function Dashboard({
             Analytics
           </button>
           <button
+            className={`nav-item ${section === "integrations" ? "active" : ""}`}
+            type="button"
+            aria-current={section === "integrations" ? "page" : undefined}
+            onClick={() => setSection("integrations")}
+          >
+            <span aria-hidden="true">05</span>
+            Integrations
+          </button>
+          <button
             className={`nav-item ${section === "gmail" ? "active" : ""}`}
             type="button"
             aria-current={section === "gmail" ? "page" : undefined}
             onClick={() => setSection("gmail")}
           >
-            <span aria-hidden="true">05</span>
+            <span aria-hidden="true">06</span>
             Gmail
           </button>
           <button
@@ -103,7 +114,7 @@ export function Dashboard({
             aria-current={section === "knowledge" ? "page" : undefined}
             onClick={() => setSection("knowledge")}
           >
-            <span aria-hidden="true">06</span>
+            <span aria-hidden="true">07</span>
             Knowledge
           </button>
           <button
@@ -112,12 +123,12 @@ export function Dashboard({
             aria-current={section === "news" ? "page" : undefined}
             onClick={() => setSection("news")}
           >
-            <span aria-hidden="true">07</span>
+            <span aria-hidden="true">08</span>
             News
           </button>
           {plannedSections.map((section, index) => (
             <span className="nav-item planned" key={section}>
-              <span aria-hidden="true">0{index + 8}</span>
+              <span aria-hidden="true">0{index + 9}</span>
               {section}
               <small>Planned</small>
             </span>
@@ -160,6 +171,11 @@ export function Dashboard({
           <ChatWorkspace accessToken={accessToken} />
         ) : section === "analytics" ? (
           <AnalyticsWorkspace accessToken={accessToken} />
+        ) : section === "integrations" ? (
+          <IntegrationsWorkspace
+            accessToken={accessToken}
+            canManage={user.role !== "MEMBER"}
+          />
         ) : section === "gmail" ? (
           <GmailWorkspace accessToken={accessToken} />
         ) : section === "news" ? (
@@ -184,6 +200,7 @@ function isDashboardSection(value: string | null): value is DashboardSection {
     value === "agents" ||
     value === "chat" ||
     value === "analytics" ||
+    value === "integrations" ||
     value === "knowledge" ||
     value === "gmail" ||
     value === "news"
