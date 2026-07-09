@@ -8,6 +8,7 @@ export * from "./conversations.js";
 export * from "./documents.js";
 export * from "./events.js";
 export * from "./golden.js";
+export * from "./github.js";
 export * from "./gmail.js";
 export * from "./integrations.js";
 export * from "./mcp.js";

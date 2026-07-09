@@ -160,6 +160,24 @@ through the authenticated API review endpoint; it is not an MCP tool.
 The response is additive and secret-safe: `missingConfigKeys` contains key
 names only, never values.
 
+## GitHub
+
+- `GET /github/status`
+- `POST /github/connect`
+- `POST /github/oauth/callback`
+- `POST /github/installations/sync`
+- `GET /github/repositories`
+- `DELETE /github/disconnect`
+- `POST /github/webhook`
+
+GitHub uses GitHub App user OAuth plus installation synchronization. OAuth
+tokens are encrypted server-side in `ExternalConnection` and are never returned
+to the browser. Installation and repository metadata are stored as tenant-owned
+records after `POST /github/installations/sync`; repository responses include
+repository identifiers, owner/name, privacy flag, default branch, and URL only.
+`POST /github/webhook` validates `X-Hub-Signature-256` before marking
+installations active, suspended, or deleted.
+
 ## News Feeds
 
 - `GET|POST /news/feeds`

@@ -14,6 +14,10 @@ export type IntegrationStatus = z.infer<typeof integrationStatusSchema>;
 export const integrationErrorCodeSchema = z.enum([
   "EXTERNAL_CONNECTION_EXPIRED",
   "EXTERNAL_CONNECTION_NOT_FOUND",
+  "GITHUB_APP_MISCONFIGURED",
+  "GITHUB_API_REQUEST_FAILED",
+  "GITHUB_OAUTH_EXCHANGE_FAILED",
+  "GITHUB_WEBHOOK_SIGNATURE_INVALID",
   "OAUTH_STATE_INVALID"
 ]);
 export type IntegrationErrorCode = z.infer<typeof integrationErrorCodeSchema>;

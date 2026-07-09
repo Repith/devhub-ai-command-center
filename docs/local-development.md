@@ -136,7 +136,9 @@ real GitHub App integration will require `GITHUB_APP_ID`, `GITHUB_CLIENT_ID`,
 `GITHUB_REDIRECT_URI`, and `GITHUB_TOKEN_ENCRYPTION_KEY`. For local planning,
 the default callback value is
 `http://localhost:3000/github/oauth/callback`; configure the matching callback
-in the GitHub App before enabling the later connect flow.
+in the GitHub App before enabling the connect flow. The webhook receiver is
+`http://localhost:4000/api/v1/github/webhook` in local API development; expose
+it through a tunnel only when testing real GitHub installation events.
 
 ## Connections
 
