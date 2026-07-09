@@ -171,7 +171,8 @@ describeWithDatabase("agent configuration and tenant isolation", () => {
       "daily-news-briefing",
       "gmail-triage",
       "gmail-reply-assistant",
-      "usage-analyst"
+      "usage-analyst",
+      "repository-researcher"
     ]);
 
     const beforeInstall = await request(app!.getHttpServer())
@@ -184,9 +185,9 @@ describeWithDatabase("agent configuration and tenant isolation", () => {
       .post("/api/v1/agents/templates/install")
       .set("Authorization", `Bearer ${ownerToken}`)
       .expect(201);
-    expect(installResponse.body.installedAgentIds).toHaveLength(5);
+    expect(installResponse.body.installedAgentIds).toHaveLength(6);
     expect(installResponse.body.actionCounts).toMatchObject({
-      unchanged: 5
+      unchanged: 6
     });
 
     const afterInstall = await request(app!.getHttpServer())
@@ -209,8 +210,8 @@ describeWithDatabase("agent configuration and tenant isolation", () => {
       .post("/api/v1/agents/templates/reset")
       .set("Authorization", `Bearer ${ownerToken}`)
       .expect(201);
-    expect(resetResponse.body.installedAgentIds).toHaveLength(5);
-    expect(resetResponse.body.actionCounts).toMatchObject({ reset: 5 });
+    expect(resetResponse.body.installedAgentIds).toHaveLength(6);
+    expect(resetResponse.body.actionCounts).toMatchObject({ reset: 6 });
   });
 
   it("rejects client-provided tenant context", async () => {
