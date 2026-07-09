@@ -56,6 +56,11 @@ describeWithDatabase("tenant news feeds", () => {
 
   afterAll(async () => {
     if (database) {
+      if (owner?.userId) {
+        await database.tenantNewsFeed.deleteMany({
+          where: { createdByUserId: owner.userId }
+        });
+      }
       await database.user.deleteMany({ where: { email: ownerEmail } });
     }
     await app?.close();
