@@ -4,22 +4,29 @@ import {
   BadRequestException,
   Inject,
   Injectable,
+  NotFoundException,
   ServiceUnavailableException,
   UnauthorizedException
 } from "@nestjs/common";
 
 import type {
+  CreateGithubActionReview,
+  GithubActionReview,
+  GithubActionReviewList,
   GithubConnectResponse,
   GithubConnectionStatus,
   GithubOAuthCallback,
   GithubRepository,
-  GithubRepositoryList
+  GithubRepositoryList,
+  UpdateGithubActionReview
 } from "@devhub/contracts";
 import type {
   ExternalConnectionRecord,
   ExternalRepositoryRecord,
   PrismaExternalConnectionRepository,
   PrismaExternalInstallationRepository,
+  PrismaGithubActionReviewRepository,
+  GithubActionReviewRecord,
   SyncExternalInstallationInput
 } from "@devhub/database";
 import type { TenantContext } from "@devhub/domain";
@@ -33,6 +40,7 @@ import {
   type GithubConfig
 } from "./github.config";
 import {
+  GITHUB_ACTION_REVIEW_REPOSITORY,
   GITHUB_CONNECTION_REPOSITORY,
   GITHUB_INSTALLATION_REPOSITORY
 } from "./github.tokens";
@@ -73,6 +81,10 @@ interface GithubRepositoryResponse {
   owner?: { login?: string };
 }
 
+interface GithubActionResponse {
+  html_url?: string;
+}
+
 @Injectable()
 export class GithubService {
   private readonly config: GithubConfig = loadGithubConfig();
@@ -82,6 +94,8 @@ export class GithubService {
     private readonly connections: PrismaExternalConnectionRepository,
     @Inject(GITHUB_INSTALLATION_REPOSITORY)
     private readonly installations: PrismaExternalInstallationRepository,
+    @Inject(GITHUB_ACTION_REVIEW_REPOSITORY)
+    private readonly actionReviews: PrismaGithubActionReviewRepository,
     @Inject(AuditService) private readonly audit: AuditService,
     @Inject(GithubTokenCryptoService)
     private readonly tokenCrypto: GithubTokenCryptoService,
@@ -179,6 +193,109 @@ export class GithubService {
       this.context(principal)
     );
     return { data: records.map(toRepository) };
+  }
+
+  public async listActionReviews(
+    principal: RequestPrincipal
+  ): Promise<GithubActionReviewList> {
+    const records = await this.actionReviews.list(this.context(principal));
+    return {
+      data: records.map(toActionReview),
+      page: { cursor: null, nextCursor: null, limit: 100 }
+    };
+  }
+
+  public async createActionReview(
+    principal: RequestPrincipal,
+    input: CreateGithubActionReview
+  ): Promise<GithubActionReview> {
+    const context = this.context(principal);
+    const repository = await this.installations.findActiveRepositoryByFullName(
+      context,
+      input.repositoryFullName
+    );
+    if (!repository) {
+      throw new NotFoundException("GitHub repository was not found.");
+    }
+    const record = await this.actionReviews.create(context, {
+      ...input,
+      repository
+    });
+    await this.auditActionReview(
+      principal,
+      "github.action_review.created",
+      record
+    );
+    return toActionReview(record);
+  }
+
+  public async updateActionReview(
+    principal: RequestPrincipal,
+    reviewId: string,
+    input: UpdateGithubActionReview
+  ): Promise<GithubActionReview> {
+    const record = await this.actionReviews.update(
+      this.context(principal),
+      reviewId,
+      input
+    );
+    if (!record) {
+      throw new NotFoundException("GitHub action review was not found.");
+    }
+    await this.auditActionReview(
+      principal,
+      "github.action_review.updated",
+      record
+    );
+    return toActionReview(record);
+  }
+
+  public async rejectActionReview(
+    principal: RequestPrincipal,
+    reviewId: string
+  ): Promise<GithubActionReview> {
+    const record = await this.actionReviews.reject(
+      this.context(principal),
+      reviewId
+    );
+    if (!record) {
+      throw new NotFoundException("GitHub action review was not found.");
+    }
+    await this.auditActionReview(
+      principal,
+      "github.action_review.rejected",
+      record
+    );
+    return toActionReview(record);
+  }
+
+  public async submitActionReview(
+    principal: RequestPrincipal,
+    reviewId: string
+  ): Promise<GithubActionReview> {
+    this.requireConfigured();
+    const context = this.context(principal);
+    const record = await this.actionReviews.findById(context, reviewId);
+    if (!record || !["NEEDS_REVIEW", "UPDATED"].includes(record.status)) {
+      throw new NotFoundException("GitHub action review was not found.");
+    }
+    const repository = await this.installations.findActiveRepositoryByFullName(
+      context,
+      record.repositoryFullName
+    );
+    if (!repository || repository.id !== record.repositoryId) {
+      throw new NotFoundException("GitHub repository was not found.");
+    }
+    const accessToken = await this.accessToken(context);
+    const response = await this.submitReviewedAction(record, accessToken);
+    const sent = await this.actionReviews.markSent(context, reviewId, {
+      externalUrl: response.html_url ?? repository.htmlUrl
+    });
+    if (!sent) {
+      throw new NotFoundException("GitHub action review was not found.");
+    }
+    await this.auditActionReview(principal, "github.action_review.sent", sent);
+    return toActionReview(sent);
   }
 
   public async disconnect(
@@ -309,6 +426,65 @@ export class GithubService {
     return (await response.json()) as T;
   }
 
+  private async githubPost<T>(
+    path: string,
+    accessToken: string,
+    body: Record<string, unknown>
+  ): Promise<T> {
+    const response = await fetch(`${githubApiUrl}${path}`, {
+      method: "POST",
+      headers: {
+        Accept: "application/vnd.github+json",
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+        "X-GitHub-Api-Version": "2022-11-28"
+      },
+      body: JSON.stringify(body)
+    });
+    if (!response.ok) {
+      throw new BadRequestException({
+        code: "GITHUB_API_REQUEST_FAILED",
+        message: "GitHub API request failed."
+      });
+    }
+    return (await response.json()) as T;
+  }
+
+  private submitReviewedAction(
+    record: GithubActionReviewRecord,
+    accessToken: string
+  ): Promise<GithubActionResponse> {
+    const repositoryPath = githubRepositoryPath(record.repositoryFullName);
+    if (record.kind === "ISSUE_CREATION") {
+      if (!record.title) {
+        throw new BadRequestException({
+          code: "GITHUB_ACTION_REVIEW_INVALID",
+          message: "GitHub issue creation review is missing a title."
+        });
+      }
+      return this.githubPost<GithubActionResponse>(
+        `/repos/${repositoryPath}/issues`,
+        accessToken,
+        { title: record.title, body: record.body }
+      );
+    }
+    const number =
+      record.kind === "PULL_REQUEST_COMMENT"
+        ? record.pullRequestNumber
+        : record.issueNumber;
+    if (!number) {
+      throw new BadRequestException({
+        code: "GITHUB_ACTION_REVIEW_INVALID",
+        message: "GitHub action review is missing a target number."
+      });
+    }
+    return this.githubPost<GithubActionResponse>(
+      `/repos/${repositoryPath}/issues/${number}/comments`,
+      accessToken,
+      { body: record.body }
+    );
+  }
+
   private requireConfigured(): void {
     if (!isGithubConfigured(this.config)) {
       throw new ServiceUnavailableException({
@@ -386,6 +562,27 @@ export class GithubService {
   private stateSecret(): string {
     return process.env.JWT_SECRET ?? "local-github-oauth-state-secret";
   }
+
+  private async auditActionReview(
+    principal: RequestPrincipal,
+    action: string,
+    record: GithubActionReviewRecord
+  ): Promise<void> {
+    await this.audit.record(principal, {
+      action,
+      resourceType: "github_action_review",
+      resourceId: record.id,
+      metadata: {
+        kind: record.kind,
+        status: record.status,
+        repositoryFullName: record.repositoryFullName,
+        issueNumber: record.issueNumber,
+        pullRequestNumber: record.pullRequestNumber,
+        hasTitle: Boolean(record.title),
+        bodyLength: record.body.length
+      }
+    });
+  }
 }
 
 function parseScopes(value: string | undefined): string[] {
@@ -449,6 +646,36 @@ function toRepository(record: ExternalRepositoryRecord): GithubRepository {
     htmlUrl: record.htmlUrl,
     updatedAt: record.updatedAt.toISOString()
   };
+}
+
+function toActionReview(record: GithubActionReviewRecord): GithubActionReview {
+  return {
+    id: record.id,
+    repositoryId: record.repositoryId,
+    repositoryFullName: record.repositoryFullName,
+    kind: record.kind,
+    issueNumber: record.issueNumber,
+    pullRequestNumber: record.pullRequestNumber,
+    title: record.title,
+    body: record.body,
+    status: record.status,
+    createdAt: record.createdAt.toISOString(),
+    updatedAt: record.updatedAt.toISOString(),
+    sentAt: record.sentAt?.toISOString() ?? null,
+    externalUrl: record.externalUrl
+  };
+}
+
+function githubRepositoryPath(fullName: string): string {
+  const parts = fullName.split("/");
+  const [owner, repository] = parts;
+  if (parts.length !== 2 || !owner || !repository) {
+    throw new BadRequestException({
+      code: "GITHUB_REPOSITORY_INVALID",
+      message: "GitHub repository name is invalid."
+    });
+  }
+  return `${encodeURIComponent(owner)}/${encodeURIComponent(repository)}`;
 }
 
 function installationIdFromPayload(payload: unknown): string | null {

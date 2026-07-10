@@ -875,20 +875,20 @@ Acceptance: users can understand and operate Gmail and GitHub integrations from 
 
 ## PR 42: User-Reviewed External Writes
 
-- [ ] Keep Gmail draft review/send as the only Gmail write path.
-- [ ] Add GitHub action review records for planned write actions:
+- [x] Keep Gmail draft review/send as the only Gmail write path.
+- [x] Add GitHub action review records for planned write actions:
   - issue comment draft,
   - pull request comment draft,
   - issue creation draft.
-- [ ] Add API:
+- [x] Add API:
   - `GET /api/v1/github/action-reviews`,
   - `POST /api/v1/github/action-reviews`,
   - `PATCH /api/v1/github/action-reviews/:id`,
   - `POST /api/v1/github/action-reviews/:id/submit`,
   - `POST /api/v1/github/action-reviews/:id/reject`.
-- [ ] Allow GitHub MCP tools to prepare draft content, but never publish comments or create issues directly.
-- [ ] Re-check repository, installation, tenant, user, and permission state on submit.
-- [ ] Add tests for:
+- [x] Allow GitHub MCP tools to prepare draft content, but never publish comments or create issues directly.
+- [x] Re-check repository, installation, tenant, user, and permission state on submit.
+- [x] Add tests for:
   - model cannot execute write tools,
   - submit requires authenticated user,
   - foreign tenant/user review blocked,
