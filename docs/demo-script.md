@@ -25,12 +25,14 @@ Docker Compose.
 
 Open the command center and install the default templates if they are not
 already present. The tenant should have Knowledge Researcher, Daily News
-Briefing, Gmail Triage, Gmail Reply Assistant, and Usage Analyst agents.
+Briefing, Gmail Triage, Gmail Reply Assistant, Usage Analyst, and Repository
+Researcher agents.
 
 Open the Agents workspace. Template setup should reflect current tenant state:
 Knowledge needs indexed documents, Daily News needs enabled RSS feeds, Gmail
 templates need a Gmail connection or show a misconfigured state when OAuth
-environment variables are missing, and Usage Analyst should be ready.
+environment variables are missing, Repository Researcher needs a GitHub
+connection with synced repositories, and Usage Analyst should be ready.
 
 Open `/api/v1/audit-log` through the browser session or an authenticated API
 client. The tenant audit log should show template install/reset actions and
@@ -69,18 +71,31 @@ with the configured feed selected. The run should fetch only tenant-owned feed
 configuration, treat feed entries as untrusted input, summarize with links, and
 record tool audit rows for the worker MCP calls.
 
-## 6. Connect Or Simulate Gmail
+## 6. Connect Or Simulate External Integrations
 
-If Gmail OAuth is configured, connect Gmail from Settings or the Gmail setup
-prompt. If OAuth is not configured on the machine, keep the template in
-`MISCONFIGURED` setup state and use the API tests or a seeded local connection
-when validating the review path.
+Open the Integrations workspace. If Gmail OAuth is configured, connect Gmail
+from the Gmail card or the Gmail setup prompt. If OAuth is not configured on the
+machine, keep the template in `MISCONFIGURED` setup state and use
+`GMAIL_DEV_MOCK_ENABLED=true` when validating the local review path.
 
 Run Gmail Reply Assistant with an explicit thread ID. The worker may create or
 update a Gmail draft, but sending remains an authenticated API action. Open the
 Gmail review queue, edit the draft, reject one draft, and send another only
 through `POST /api/v1/gmail/draft-reviews/:reviewId/send`. Audit metadata must
 not include the message body.
+
+If GitHub App credentials are configured, connect GitHub from the GitHub card,
+finish the browser callback, install the app on a test repository, and run
+repository sync. If credentials are not configured, use the mocked E2E path or a
+seeded local installation to validate read tools without external calls.
+
+Run Repository Researcher against the synced repository. The worker should use
+only read-only GitHub MCP tools such as `github.list_repositories`,
+`github.get_file`, `github.search_code`, `github.list_issues`, and
+`github.list_pull_requests`. Create a GitHub action review for an issue or pull
+request comment, edit it, reject one review, and submit another only through the
+authenticated action-review API. The agent must never publish GitHub writes
+directly through MCP.
 
 ## 7. Evaluate The Golden Set
 
@@ -104,8 +119,8 @@ curl -X POST http://localhost:4000/api/v1/evaluations/golden-set \
 The worker consumes `evaluate-golden-set` and writes a report with pass/fail,
 score, latency, token usage, retrieval hit, tool calls used, workflow version,
 terminal status, and config version. The seeded cases cover RAG, MCP, budget
-behavior, realtime recovery, Gmail missing setup, saved workflow execution, and
-tenant isolation.
+behavior, realtime recovery, Gmail missing setup, GitHub missing setup, saved
+workflow execution, and tenant isolation.
 
 ## 8. Review Hardening Evidence
 

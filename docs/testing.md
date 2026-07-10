@@ -18,8 +18,8 @@ summaries derived from `TokenUsage` rows created by chat-triggered runs.
 
 End-to-end tests exercise the release command-center path from registration
 through template-backed agents, upload, indexing, cited answers, MCP calls,
-Gmail draft review, RSS news, timeline, usage, saved workflows, and
-full-runtime evaluation.
+Gmail draft review, GitHub repository reads, reviewed GitHub write drafts, RSS
+news, timeline, usage, saved workflows, and full-runtime evaluation.
 
 ## Required Security Scenarios
 
@@ -36,13 +36,16 @@ full-runtime evaluation.
   enforcement.
 - A Gmail draft can be sent only through the authenticated review API, never as
   a model-callable tool.
+- A GitHub issue or pull request write can be submitted only through the
+  authenticated action-review API, never as a model-callable MCP tool.
 
 ## Failure Scenarios
 
 Tests cover unavailable Ollama, embedding timeout, malformed PDF, retry after
 worker failure, Qdrant outage, MCP timeout, duplicate job delivery,
 cancellation, budget exhaustion, LangGraph node failure, Gmail OAuth failure,
-draft rejection, RSS fetch failure, and WebSocket reconnect.
+GitHub OAuth failure, draft rejection, reviewed-write rejection, RSS fetch
+failure, and WebSocket reconnect.
 
 ## Golden Set
 
@@ -62,10 +65,12 @@ may run in a separate workflow but must pass before a release tag.
 `npm run test:e2e` executes the release command-center flow in `apps/e2e`.
 This suite is deterministic and validates the shared contracts used by the
 documented demo path: registration, template-backed durable runs, indexed
-knowledge, RSS briefing inputs, Gmail draft review, usage observability, run
-timeline snapshots, and full-runtime golden evaluation. It complements the
-database-backed integration suites; it does not replace a manual clean-checkout
-demo with PostgreSQL, Redis, Qdrant, Ollama, and optional Gmail OAuth running.
+knowledge, RSS briefing inputs, Gmail mock or OAuth status, GitHub App
+installation metadata, read-only GitHub tools, reviewed write records, usage
+observability, run timeline snapshots, and full-runtime golden evaluation. It
+complements the database-backed integration suites; it does not replace a
+manual clean-checkout demo with PostgreSQL, Redis, Qdrant, Ollama, and optional
+Gmail/GitHub OAuth running.
 
 Database-backed integration tests are skipped when `DATABASE_URL` is missing.
 Treat a skipped integration run as incomplete release evidence, not as proof

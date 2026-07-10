@@ -8,10 +8,10 @@ depending on cloud model APIs.
 
 The release includes tenant registration, JWT and refresh-token rotation, agent
 configuration, Ollama chat, document ingestion, embeddings, Qdrant retrieval,
-MCP tools, Gmail draft review, RSS news briefings, durable BullMQ runs,
-Socket.IO timelines, saved workflow execution, usage budgets, full-runtime
-golden-set evaluation, structured request logs, rate limits, upload hardening,
-and tenant audit views.
+MCP tools, Gmail draft review, GitHub App repository reads and reviewed write
+drafts, RSS news briefings, durable BullMQ runs, Socket.IO timelines, saved
+workflow execution, usage budgets, full-runtime golden-set evaluation,
+structured request logs, rate limits, upload hardening, and tenant audit views.
 
 ```mermaid
 flowchart LR
@@ -23,14 +23,16 @@ flowchart LR
   Worker --> Ollama[Ollama]
   Worker --> MCP[MCP tools]
   Worker --> Gmail[Gmail API]
+  Worker --> GitHub[GitHub App API]
   Worker --> Postgres
   Worker --> Qdrant
   Worker --> Redis
 ```
 
 The demo runs locally through Docker Compose for PostgreSQL, Redis, and Qdrant.
-Next.js, the API, the worker, MCP servers, Gmail OAuth callbacks, and Ollama run
-on the host to keep iteration fast and GPU access simple.
+Next.js, the API, the worker, MCP servers, Gmail and GitHub OAuth callbacks,
+GitHub webhook handling, and Ollama run on the host to keep iteration fast and
+GPU access simple.
 
 ## Hardening Notes
 
@@ -45,9 +47,10 @@ authorization headers, refresh tokens, prompts, uploaded document text, and tool
 outputs.
 
 The audit view stores tenant-scoped security events for resource mutations,
-search actions, and worker MCP tool calls. It records action, resource type,
+search actions, OAuth connect/disconnect, GitHub installation sync, reviewed
+external actions, and worker MCP tool calls. It records action, resource type,
 resource ID, metadata, and timestamp. Browser-supplied tenant IDs are never
-accepted, and Gmail tool payloads are redacted before audit persistence.
+accepted, and Gmail/GitHub tool payloads are redacted before audit persistence.
 
 Upload hardening keeps the allowlist narrow: Markdown, text, PDF, JPEG, PNG,
 and WebP. Filenames are display metadata, storage keys are generated, PDF files
@@ -69,7 +72,7 @@ release can add model-graded evaluation as a separate evaluator type without
 replacing the deterministic baseline.
 
 Screenshots should be captured from a local run before tagging: Home command
-center, Agents setup state, Knowledge upload and retrieval, Runs timeline,
-Usage, Gmail review queue, News feeds, Workflow editor, Audit log, and
-Evaluation report. The demo script in [demo-script.md](demo-script.md) defines
-the capture path.
+center, Agents setup state, Integrations, Knowledge upload and retrieval, Runs
+timeline, Usage, Gmail review queue, GitHub repository and action-review flows,
+News feeds, Workflow editor, Audit log, and Evaluation report. The demo script
+in [demo-script.md](demo-script.md) defines the capture path.

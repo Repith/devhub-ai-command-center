@@ -13,6 +13,9 @@ import type { DatabaseClient } from "@devhub/database";
 import { configureApp } from "../src/app-config";
 import { AppModule } from "../src/app.module";
 import { DATABASE_CLIENT } from "../src/database/database.module";
+import { BullMqDocumentIngestionQueue } from "../src/documents/document-queue.service";
+import { BullMqGoldenEvaluationQueue } from "../src/golden/golden-queue.service";
+import { BullMqAgentRunQueue } from "../src/runs/agent-run-queue.service";
 
 const ownerEmail = `integrations-owner-${crypto.randomUUID()}@example.com`;
 const foreignEmail = `integrations-foreign-${crypto.randomUUID()}@example.com`;
@@ -37,7 +40,14 @@ describeWithDatabase("integration status API", () => {
 
     const module = await Test.createTestingModule({
       imports: [AppModule]
-    }).compile();
+    })
+      .overrideProvider(BullMqAgentRunQueue)
+      .useValue(noopQueue())
+      .overrideProvider(BullMqDocumentIngestionQueue)
+      .useValue(noopQueue())
+      .overrideProvider(BullMqGoldenEvaluationQueue)
+      .useValue(noopQueue())
+      .compile();
     app = module.createNestApplication();
     configureApp(app);
     await app.init();
@@ -128,6 +138,34 @@ describeWithDatabase("integration status API", () => {
     expect(JSON.stringify(body)).not.toContain("encrypted");
     expect(JSON.stringify(body)).not.toContain("secret");
   });
+
+  it("returns stable OAuth callback errors with correlation IDs", async () => {
+    await request(app!.getHttpServer())
+      .post("/api/v1/gmail/oauth/callback")
+      .set("Authorization", `Bearer ${ownerToken}`)
+      .set("x-correlation-id", "gmail-callback-correlation")
+      .send({ code: "oauth-code", state: "bad-state" })
+      .expect(400)
+      .expect(({ body }) => {
+        expect(body).toMatchObject({
+          code: "OAUTH_STATE_INVALID",
+          correlationId: "gmail-callback-correlation"
+        });
+      });
+
+    await request(app!.getHttpServer())
+      .post("/api/v1/github/oauth/callback")
+      .set("Authorization", `Bearer ${ownerToken}`)
+      .set("x-correlation-id", "github-callback-correlation")
+      .send({ code: "oauth-code", state: "bad-state" })
+      .expect(400)
+      .expect(({ body }) => {
+        expect(body).toMatchObject({
+          code: "OAUTH_STATE_INVALID",
+          correlationId: "github-callback-correlation"
+        });
+      });
+  });
 });
 
 function externalConnection(
@@ -171,4 +209,10 @@ function configureOAuthEnvironment(): void {
   process.env.GITHUB_REDIRECT_URI =
     "https://app.example.com/github/oauth/callback";
   process.env.GITHUB_TOKEN_ENCRYPTION_KEY = "github-token-key";
+}
+
+function noopQueue(): { enqueue(): Promise<void> } {
+  return {
+    enqueue: () => Promise.resolve()
+  };
 }

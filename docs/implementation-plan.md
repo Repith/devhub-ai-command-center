@@ -899,20 +899,20 @@ Acceptance: external writes exist only as deliberate, authenticated user actions
 
 ## PR 43: OAuth Integrations Release Readiness
 
-- [ ] Add docs:
+- [x] Add docs:
   - Google Cloud OAuth setup,
   - Google restricted Gmail scope verification and security assessment notes,
   - GitHub App registration,
   - GitHub callback and webhook setup,
   - GitHub permissions,
   - local development alternatives.
-- [ ] Add E2E coverage:
+- [x] Add E2E coverage:
   - Gmail mocked or simulated OAuth,
   - GitHub mocked App installation,
   - agent run with Gmail tools,
   - agent run with GitHub tools,
   - reviewed write flow.
-- [ ] Add observability:
+- [x] Add observability:
   - correlation IDs on OAuth callbacks,
   - stable error codes in UI,
   - audit rows for connect, disconnect, sync, tool calls, review submit, and review reject.

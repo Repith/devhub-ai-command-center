@@ -168,6 +168,10 @@ names only, never values.
 - `POST /github/installations/sync`
 - `GET /github/repositories`
 - `DELETE /github/disconnect`
+- `GET|POST /github/action-reviews`
+- `PATCH /github/action-reviews/:reviewId`
+- `POST /github/action-reviews/:reviewId/submit`
+- `POST /github/action-reviews/:reviewId/reject`
 - `POST /github/webhook`
 
 GitHub uses GitHub App user OAuth plus installation synchronization. OAuth
@@ -184,6 +188,15 @@ browser endpoints: `github.list_repositories`, `github.get_file`,
 `github.get_pull_request`. Each call is validated against the agent
 `enabledToolIds`, tenant-owned synchronized repositories, bounded output
 schemas, and server-side token providers. No GitHub write tool is exposed.
+
+GitHub writes use local review records. Supported review kinds are
+`ISSUE_COMMENT`, `PULL_REQUEST_COMMENT`, and `ISSUE_CREATION`; statuses are
+`NEEDS_REVIEW`, `UPDATED`, `SENT`, and `REJECTED`. Submit re-checks the
+authenticated user, active tenant, review ownership, mutable status, and
+tenant-owned repository access before calling GitHub. Reject and submit are
+terminal for the review record. Responses include the draft body because the
+authenticated user must inspect and edit it, but audit metadata records only
+kind, target numbers, repository full name, status, and body length.
 
 ## News Feeds
 
