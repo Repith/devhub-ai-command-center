@@ -94,6 +94,14 @@ tokens, installation tokens, private keys, or raw provider payloads. GitHub tool
 audit previews are redacted so repository content is not copied into logs or
 audit metadata.
 
+GitHub write actions are review records, not MCP tools. A model may propose an
+issue comment, pull request comment, or issue creation draft only by producing
+content for an authenticated API review record. Submission requires a separate
+user request and revalidates tenant, user, review state, and active
+tenant-owned repository access before GitHub is called. Audit metadata for
+review submit and reject records the action shape and target, never the draft
+body.
+
 The model may prepare Gmail drafts but may not send mail through MCP in the
 first Gmail workflow. Sending requires an authenticated API request against a
 local review record whose recipients, subject, and body are visible and
@@ -111,6 +119,11 @@ Tenant audit logs record resource mutations and security-relevant actions such
 as agent changes, document uploads and searches, run starts and cancellations,
 golden-case updates, and evaluation starts. Audit responses omit tenant IDs and
 are available only to owner/admin roles in the active tenant.
+
+OAuth callback failures use the shared error envelope and include the
+request's correlation ID. Operators should use that ID to match browser-visible
+errors to structured API request logs. Server stack traces and provider error
+details stay server-side.
 
 ## Threat Model Priorities
 

@@ -141,6 +141,10 @@ in the GitHub App before enabling the connect flow. The webhook receiver is
 `http://localhost:4000/api/v1/github/webhook` in local API development; expose
 it through a tunnel only when testing real GitHub installation events.
 
+Detailed provider setup, verification notes, webhook configuration, reviewed
+write behavior, and release smoke tests live in
+[`docs/oauth-integrations.md`](./oauth-integrations.md).
+
 ## Connections
 
 Default local endpoints:

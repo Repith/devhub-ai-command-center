@@ -5,6 +5,7 @@ import {
   authenticatedUserSchema,
   createAgentRunSchema,
   createGmailDraftReviewSchema,
+  createGithubActionReviewSchema,
   createGoldenCaseSchema,
   createNewsFeedSchema,
   documentChunkListSchema,
@@ -12,6 +13,10 @@ import {
   evaluationReportSchema,
   gmailConnectionStatusSchema,
   gmailDraftReviewListSchema,
+  githubActionReviewListSchema,
+  githubConnectionStatusSchema,
+  githubRepositoryListSchema,
+  integrationsStatusResponseSchema,
   registerSchema,
   startGoldenEvaluationSchema,
   usageSummarySchema,
@@ -28,6 +33,9 @@ const chunkId = "00000000-0000-4000-8000-000000000007";
 const reviewId = "00000000-0000-4000-8000-000000000008";
 const evaluationRunId = "00000000-0000-4000-8000-000000000009";
 const goldenCaseId = "00000000-0000-4000-8000-000000000010";
+const githubRepositoryId = "00000000-0000-4000-8000-000000000013";
+const githubInstallationId = "00000000-0000-4000-8000-000000000014";
+const githubReviewId = "00000000-0000-4000-8000-000000000015";
 const now = "2026-06-15T08:00:00.000Z";
 
 describe("release command center flow", () => {
@@ -111,8 +119,15 @@ describe("release command center flow", () => {
       gmailConnectionStatusSchema.parse({
         status: "CONNECTED",
         accountEmail: "owner@example.com",
-        scopes: ["https://www.googleapis.com/auth/gmail.modify"],
-        requiredScopes: ["https://www.googleapis.com/auth/gmail.modify"],
+        scopes: [
+          "https://www.googleapis.com/auth/gmail.readonly",
+          "https://www.googleapis.com/auth/gmail.compose"
+        ],
+        requiredScopes: [
+          "https://www.googleapis.com/auth/gmail.readonly",
+          "https://www.googleapis.com/auth/gmail.compose"
+        ],
+        missingConfigKeys: [],
         connectedAt: now,
         updatedAt: now,
         autoSendAllowed: false
@@ -133,6 +148,90 @@ describe("release command center flow", () => {
         data: [{ id: reviewId, status: "NEEDS_REVIEW" }]
       }
     );
+    expect(
+      createAgentRunSchema.parse({
+        message: "Triage recent Gmail from the last week.",
+        gmailSearchQuery: "newer_than:7d",
+        retrievalLimit: 5
+      })
+    ).toMatchObject({ gmailSearchQuery: "newer_than:7d" });
+    expect(agentRunSnapshotSchema.parse(gmailRunSnapshot())).toMatchObject({
+      run: { configSnapshot: { enabledToolIds: ["gmail.search_threads"] } },
+      steps: [expect.objectContaining({ kind: "mcp.gmail" })]
+    });
+
+    expect(
+      githubConnectionStatusSchema.parse({
+        provider: "GITHUB",
+        status: "CONNECTED",
+        accountLogin: "octo-user",
+        scopes: ["repo"],
+        missingConfigKeys: [],
+        connectedAt: now,
+        updatedAt: now,
+        installationCount: 1,
+        repositoryCount: 1
+      })
+    ).toMatchObject({ repositoryCount: 1 });
+    expect(
+      githubRepositoryListSchema.parse(githubRepositories())
+    ).toMatchObject({
+      data: [{ fullName: "octo-org/hello-world" }]
+    });
+    expect(
+      integrationsStatusResponseSchema
+        .parse({
+          data: [
+            {
+              provider: "GMAIL",
+              status: "CONNECTED",
+              accountLabel: "owner@example.com",
+              scopes: [
+                "https://www.googleapis.com/auth/gmail.readonly",
+                "https://www.googleapis.com/auth/gmail.compose"
+              ],
+              missingConfigKeys: [],
+              connectedAt: now,
+              updatedAt: now
+            },
+            {
+              provider: "GITHUB",
+              status: "CONNECTED",
+              accountLabel: "octo-user",
+              scopes: ["repo"],
+              missingConfigKeys: [],
+              connectedAt: now,
+              updatedAt: now
+            }
+          ]
+        })
+        .data.map((item) => item.provider)
+    ).toEqual(["GMAIL", "GITHUB"]);
+    expect(
+      createAgentRunSchema.parse({
+        message: "Inspect authorized repositories for release blockers.",
+        retrievalLimit: 5
+      })
+    ).toMatchObject({ message: expect.stringContaining("repositories") });
+    expect(agentRunSnapshotSchema.parse(githubRunSnapshot())).toMatchObject({
+      run: {
+        configSnapshot: { enabledToolIds: ["github.list_repositories"] }
+      },
+      steps: [expect.objectContaining({ kind: "mcp.github" })]
+    });
+    expect(
+      createGithubActionReviewSchema.parse({
+        repositoryFullName: "octo-org/hello-world",
+        kind: "ISSUE_COMMENT",
+        issueNumber: 7,
+        body: "Looks good after the release checks."
+      })
+    ).toMatchObject({ kind: "ISSUE_COMMENT" });
+    expect(
+      githubActionReviewListSchema.parse(githubActionReviews())
+    ).toMatchObject({
+      data: [{ id: githubReviewId, status: "NEEDS_REVIEW" }]
+    });
 
     expect(
       usageSummarySchema.parse({
@@ -318,6 +417,109 @@ function gmailDraftReviews() {
       }
     ],
     page: page(100)
+  };
+}
+
+function githubRepositories() {
+  return {
+    data: [
+      {
+        id: githubRepositoryId,
+        installationId: githubInstallationId,
+        providerRepositoryId: "123",
+        owner: "octo-org",
+        name: "hello-world",
+        fullName: "octo-org/hello-world",
+        private: false,
+        defaultBranch: "main",
+        htmlUrl: "https://github.com/octo-org/hello-world",
+        updatedAt: now
+      }
+    ]
+  };
+}
+
+function githubActionReviews() {
+  return {
+    data: [
+      {
+        id: githubReviewId,
+        repositoryId: githubRepositoryId,
+        repositoryFullName: "octo-org/hello-world",
+        kind: "ISSUE_COMMENT",
+        issueNumber: 7,
+        pullRequestNumber: null,
+        title: null,
+        body: "Looks good after the release checks.",
+        status: "NEEDS_REVIEW",
+        createdAt: now,
+        updatedAt: now,
+        sentAt: null,
+        externalUrl: null
+      }
+    ],
+    page: page(100)
+  };
+}
+
+function gmailRunSnapshot() {
+  return runSnapshotWithTools({
+    message: "Triage recent Gmail from the last week.",
+    templateKey: "gmail-triage",
+    enabledToolIds: ["gmail.search_threads"],
+    steps: [step(1, "mcp.gmail", '{"threads":[{"id":"thread-1"}]}')]
+  });
+}
+
+function githubRunSnapshot() {
+  return runSnapshotWithTools({
+    message: "Inspect authorized repositories for release blockers.",
+    templateKey: "repository-researcher",
+    enabledToolIds: ["github.list_repositories"],
+    steps: [step(1, "mcp.github", '{"repositories":["octo-org/hello-world"]}')]
+  });
+}
+
+function runSnapshotWithTools(input: {
+  enabledToolIds: string[];
+  message: string;
+  steps: ReturnType<typeof step>[];
+  templateKey: string;
+}) {
+  return {
+    run: {
+      id: runId,
+      agentId,
+      conversationId,
+      status: "COMPLETED",
+      input: {
+        message: input.message,
+        retrievalLimit: 5
+      },
+      configSnapshot: {
+        agentId,
+        provider: "ollama",
+        model: "qwen3:8b",
+        systemPrompt: "Use enabled external tools only.",
+        templateKey: input.templateKey,
+        maxSteps: 8,
+        maxToolCalls: 4,
+        maxTokens: null,
+        timeoutMs: 120000,
+        enabledToolIds: input.enabledToolIds,
+        knowledgeBaseIds: [],
+        configVersion: `agent:release:${input.templateKey}`,
+        workflowVersion: 1
+      },
+      correlationId: "release-e2e",
+      startedAt: now,
+      completedAt: now,
+      errorCode: null,
+      errorMessage: null,
+      createdAt: now,
+      updatedAt: now
+    },
+    steps: input.steps
   };
 }
 
