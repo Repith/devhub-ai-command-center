@@ -14,6 +14,9 @@ import type { DatabaseClient } from "@devhub/database";
 import { configureApp } from "../src/app-config";
 import { AppModule } from "../src/app.module";
 import { DATABASE_CLIENT } from "../src/database/database.module";
+import { BullMqDocumentIngestionQueue } from "../src/documents/document-queue.service";
+import { BullMqGoldenEvaluationQueue } from "../src/golden/golden-queue.service";
+import { BullMqAgentRunQueue } from "../src/runs/agent-run-queue.service";
 
 const alphaEmail = `usage-alpha-${crypto.randomUUID()}@example.com`;
 const betaEmail = `usage-beta-${crypto.randomUUID()}@example.com`;
@@ -41,7 +44,14 @@ describeWithDatabase("usage summary", () => {
 
     const module = await Test.createTestingModule({
       imports: [AppModule]
-    }).compile();
+    })
+      .overrideProvider(BullMqAgentRunQueue)
+      .useValue(noopQueue())
+      .overrideProvider(BullMqDocumentIngestionQueue)
+      .useValue(noopQueue())
+      .overrideProvider(BullMqGoldenEvaluationQueue)
+      .useValue(noopQueue())
+      .compile();
     app = module.createNestApplication();
     configureApp(app);
     await app.init();
@@ -211,3 +221,9 @@ describeWithDatabase("usage summary", () => {
     return run.id;
   }
 });
+
+function noopQueue(): { enqueue(): Promise<void> } {
+  return {
+    enqueue: () => Promise.resolve()
+  };
+}
