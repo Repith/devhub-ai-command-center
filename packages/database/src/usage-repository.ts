@@ -185,15 +185,24 @@ function groupByPeriod(
   period: UsagePeriod
 ): UsagePeriodBucket[] {
   const map = new Map<string, UsagePeriodBucket>();
+  const countedRuns = new Set<string>();
   for (const record of records) {
     const start = bucketStart(record.createdAt, period);
     const end = bucketEnd(start, period);
     const current = map.get(start.toISOString()) ?? {
       periodStart: start.toISOString(),
       periodEnd: end.toISOString(),
+      runCount: 0,
       ...emptyTotals()
     };
-    map.set(start.toISOString(), addRecord(current, record));
+    const next = addRecord(current, record);
+    const runBucketKey = `${start.toISOString()}\u0000${record.agentRunId}`;
+    const firstUsageForRun = !countedRuns.has(runBucketKey);
+    countedRuns.add(runBucketKey);
+    map.set(start.toISOString(), {
+      ...next,
+      runCount: current.runCount + (firstUsageForRun ? 1 : 0)
+    });
   }
   return [...map.values()].sort((left, right) =>
     left.periodStart.localeCompare(right.periodStart)

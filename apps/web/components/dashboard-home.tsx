@@ -11,13 +11,15 @@ import type {
   GmailConnectionStatus,
   GmailDraftReview,
   NewsFeed,
+  OllamaRuntimeStatus,
   UsageSummary
 } from "@devhub/contracts";
 
-import { listAgents } from "@/lib/agents-api";
+import { installAgentTemplates, listAgents } from "@/lib/agents-api";
 import { listDocuments } from "@/lib/documents-api";
 import { getGmailStatus, listGmailDraftReviews } from "@/lib/gmail-api";
 import { listNewsFeeds } from "@/lib/news-api";
+import { getOllamaStatus } from "@/lib/ollama-api";
 import { listRuns, startRun } from "@/lib/runs-api";
 import {
   useDurableRunChat,
@@ -62,6 +64,11 @@ export function DashboardHome({
   const agentsQuery = useQuery({
     queryKey: ["agents", accessToken],
     queryFn: () => listAgents(accessToken)
+  });
+  const ollamaQuery = useQuery({
+    queryKey: ["ollama-status"],
+    queryFn: () => getOllamaStatus(accessToken),
+    refetchInterval: 30_000
   });
   const documentsQuery = useQuery({
     queryKey: ["documents"],
@@ -124,6 +131,12 @@ export function DashboardHome({
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["runs"] });
       await queryClient.invalidateQueries({ queryKey: ["usage"] });
+    }
+  });
+  const installAgentsMutation = useMutation({
+    mutationFn: () => installAgentTemplates(accessToken),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["agents"] });
     }
   });
 
@@ -196,7 +209,9 @@ export function DashboardHome({
             assistantDraft={chat.assistantDraft}
             usage={chat.usage}
             error={chat.error}
+            ollama={ollamaQuery.data ?? null}
             onRetryAgents={() => void agentsQuery.refetch()}
+            onInstallAgents={() => void installAgentsMutation.mutateAsync()}
           />
           <form className="home-composer" onSubmit={sendMessage}>
             <label className="sr-only" htmlFor="home-chat-message">
@@ -315,7 +330,9 @@ function HomeChatBody({
   assistantDraft,
   usage,
   error,
-  onRetryAgents
+  ollama,
+  onRetryAgents,
+  onInstallAgents
 }: {
   agents: readonly AgentDefinition[];
   isLoading: boolean;
@@ -324,7 +341,9 @@ function HomeChatBody({
   assistantDraft: string;
   usage: ChatUsage | undefined;
   error: string;
+  ollama: OllamaRuntimeStatus | null;
   onRetryAgents(): void;
+  onInstallAgents(): void;
 }): React.JSX.Element {
   if (isLoading) {
     return <PanelState label="Loading agents" />;
@@ -339,10 +358,29 @@ function HomeChatBody({
     );
   }
   if (agents.length === 0) {
-    return <PanelState label="Install or create an agent to start chatting." />;
+    return (
+      <PanelState
+        label="Ollama models are runtime resources. Install a saved agent definition to start chatting."
+        actionLabel="Install default agents"
+        onAction={onInstallAgents}
+      />
+    );
   }
   return (
     <div className="home-message-list" aria-live="polite">
+      {ollama ? (
+        <div
+          className={`runtime-status ${ollama.available && ollama.configuredModelAvailable ? "ready" : "misconfigured"}`}
+        >
+          <strong>Ollama {ollama.available ? "online" : "offline"}</strong>
+          <span>
+            Model {ollama.configuredModel}{" "}
+            {ollama.configuredModelAvailable
+              ? "is available"
+              : "is not available"}
+          </span>
+        </div>
+      ) : null}
       {messages.length === 0 && !assistantDraft ? (
         <div className="home-empty-chat">
           <strong>Ready for the first command.</strong>

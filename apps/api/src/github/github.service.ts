@@ -32,6 +32,11 @@ import type {
 import type { TenantContext } from "@devhub/domain";
 
 import { AuditService } from "../audit/audit.service";
+import {
+  brokerConfigured,
+  prepareBrokerOAuth,
+  redeemBrokerGrant
+} from "../integrations/oauth-broker.client";
 import type { RequestPrincipal } from "../auth/auth.types";
 import {
   isGithubConfigured,
@@ -121,6 +126,16 @@ export class GithubService {
       principal.tenantId,
       principal.userId
     );
+    if (brokerConfigured()) {
+      return {
+        authorizationUrl: prepareBrokerOAuth(
+          "github",
+          state,
+          process.env.GITHUB_REDIRECT_URI ??
+            "http://localhost:3000/github/oauth/callback"
+        )
+      };
+    }
     const url = new URL(githubAuthorizeUrl);
     url.search = new URLSearchParams({
       client_id: this.config.clientId!,
@@ -136,21 +151,27 @@ export class GithubService {
   ): Promise<GithubConnectionStatus> {
     this.requireConfigured();
     this.verifyState(principal, input.state);
-    const token = await this.exchangeCode(input.code);
-    const user = await this.fetchUser(token.access_token);
+    const grant = brokerConfigured()
+      ? await redeemBrokerGrant(input.state, input.code)
+      : null;
+    const token = grant
+      ? (grant.tokens as unknown as GithubTokenResponse)
+      : await this.exchangeCode(input.code);
+    const user = grant
+      ? { login: grant.identity }
+      : await this.fetchUser(token.access_token);
+    const encryptionKey =
+      this.config.tokenEncryptionKey ?? process.env.JWT_SECRET!;
     await this.connections.upsert(this.context(principal), {
       provider: "GITHUB",
       accountEmail: user.login,
       scopes: parseScopes(token.scope),
       encryptedAccessToken: this.tokenCrypto.encrypt(
-        this.config.tokenEncryptionKey!,
+        encryptionKey,
         token.access_token
       ),
       encryptedRefreshToken: token.refresh_token
-        ? this.tokenCrypto.encrypt(
-            this.config.tokenEncryptionKey!,
-            token.refresh_token
-          )
+        ? this.tokenCrypto.encrypt(encryptionKey, token.refresh_token)
         : null,
       expiresAt: expiresAt(token.expires_in),
       status: "CONNECTED"

@@ -1,4 +1,6 @@
 import { XMLParser } from "fast-xml-parser";
+import { isIP } from "node:net";
+import { lookup as dnsLookup } from "node:dns/promises";
 
 import {
   newsFetchRssInputSchema,
@@ -15,6 +17,7 @@ const maxRssBytes = 512 * 1024;
 export interface NewsFetchRssToolOptions {
   fetch?: typeof fetch;
   timeoutMs?: number;
+  lookup?: (hostname: string) => Promise<readonly string[]>;
 }
 
 export function createNewsFetchRssTool(
@@ -33,11 +36,8 @@ async function fetchRss(
   options: NewsFetchRssToolOptions,
   input: NewsFetchRssInput
 ): Promise<NewsFetchRssOutput> {
-  assertHttpUrl(input.url);
   const request = options.fetch ?? fetch;
-  const response = await request(input.url, {
-    signal: AbortSignal.timeout(options.timeoutMs ?? 10_000)
-  });
+  const response = await safeFetch(input.url, request, options);
   if (!response.ok) {
     throw new Error(`RSS fetch failed with HTTP ${response.status}.`);
   }
@@ -54,11 +54,79 @@ async function fetchRss(
   };
 }
 
-function assertHttpUrl(value: string): void {
-  const url = new URL(value);
+async function safeFetch(
+  value: string,
+  request: typeof fetch,
+  options: NewsFetchRssToolOptions
+): Promise<Response> {
+  let url = new URL(value);
+  for (let redirect = 0; redirect <= 3; redirect += 1) {
+    await assertSafeHttpUrl(url, options.lookup ?? resolveAddresses);
+    const response = await request(url, {
+      redirect: "manual",
+      signal: AbortSignal.timeout(options.timeoutMs ?? 10_000)
+    });
+    if (![301, 302, 303, 307, 308].includes(response.status)) {
+      return response;
+    }
+    const location = response.headers.get("location");
+    if (!location || redirect === 3) {
+      throw new Error("RSS redirect limit exceeded.");
+    }
+    url = new URL(location, url);
+  }
+  throw new Error("RSS redirect limit exceeded.");
+}
+
+async function assertSafeHttpUrl(
+  url: URL,
+  lookup: (hostname: string) => Promise<readonly string[]>
+): Promise<void> {
   if (!["http:", "https:"].includes(url.protocol)) {
     throw new Error("RSS URL must use http or https.");
   }
+  const hostname = url.hostname.toLowerCase();
+  if (hostname === "localhost" || hostname.endsWith(".localhost")) {
+    throw new Error("RSS URL cannot target a private network.");
+  }
+  const addresses = isIP(hostname) ? [hostname] : await lookup(hostname);
+  if (addresses.length === 0 || addresses.some(isPrivateAddress)) {
+    throw new Error("RSS URL cannot target a private network.");
+  }
+}
+
+async function resolveAddresses(hostname: string): Promise<readonly string[]> {
+  const results = await dnsLookup(hostname, { all: true, verbatim: true });
+  return results.map((result) => result.address);
+}
+
+function isPrivateAddress(address: string): boolean {
+  const normalized = address.toLowerCase();
+  if (normalized.includes(":")) {
+    return (
+      normalized === "::" ||
+      normalized === "::1" ||
+      normalized.startsWith("fc") ||
+      normalized.startsWith("fd") ||
+      normalized.startsWith("fe8") ||
+      normalized.startsWith("fe9") ||
+      normalized.startsWith("fea") ||
+      normalized.startsWith("feb") ||
+      normalized.startsWith("::ffff:127.") ||
+      normalized.startsWith("::ffff:10.") ||
+      normalized.startsWith("::ffff:192.168.")
+    );
+  }
+  const octets = normalized.split(".").map(Number);
+  return (
+    octets[0] === 0 ||
+    octets[0] === 10 ||
+    octets[0] === 127 ||
+    (octets[0] === 169 && octets[1] === 254) ||
+    (octets[0] === 172 && (octets[1] ?? 0) >= 16 && (octets[1] ?? 0) <= 31) ||
+    (octets[0] === 192 && octets[1] === 168) ||
+    (octets[0] ?? 0) >= 224
+  );
 }
 
 async function readBoundedText(response: Response): Promise<string> {

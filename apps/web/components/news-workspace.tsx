@@ -3,15 +3,22 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 
-import type { NewsFeed } from "@devhub/contracts";
+import type {
+  AgentRun,
+  NewsFeed,
+  NewsFeedRefreshResponse
+} from "@devhub/contracts";
 
 import {
   createNewsFeed,
   deleteNewsFeed,
   listNewsFeeds,
+  refreshNewsFeeds,
   updateNewsFeed
 } from "@/lib/news-api";
 import { formatApiClientError } from "@/lib/api-client";
+import { listAgents } from "@/lib/agents-api";
+import { getRunSnapshot, startRun } from "@/lib/runs-api";
 
 interface NewsWorkspaceProps {
   accessToken: string;
@@ -32,11 +39,33 @@ export function NewsWorkspace({
   const queryClient = useQueryClient();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [refreshResult, setRefreshResult] =
+    useState<NewsFeedRefreshResponse | null>(null);
+  const [briefingRun, setBriefingRun] = useState<AgentRun | null>(null);
   const feedsQuery = useQuery({
     queryKey: ["news-feeds"],
     queryFn: () => listNewsFeeds(accessToken)
   });
   const feeds = feedsQuery.data ?? [];
+  const agentsQuery = useQuery({
+    queryKey: ["agents", accessToken],
+    queryFn: () => listAgents(accessToken)
+  });
+  const briefingAgent = agentsQuery.data?.find(
+    (agent) => agent.templateKey === "daily-news-briefing"
+  );
+  const briefingQuery = useQuery({
+    queryKey: ["run-snapshot", briefingRun?.id],
+    queryFn: () => getRunSnapshot(accessToken, briefingRun!.id),
+    enabled: Boolean(briefingRun),
+    refetchInterval: (query) => {
+      const status = query.state.data?.run.status;
+      return status &&
+        ["COMPLETED", "FAILED", "CANCELLED", "TIMED_OUT"].includes(status)
+        ? false
+        : 1_500;
+    }
+  });
   const selectedFeed =
     feeds.find((feed) => feed.id === selectedId) ??
     (creating ? null : (feeds[0] ?? null));
@@ -61,6 +90,30 @@ export function NewsWorkspace({
       await queryClient.invalidateQueries({ queryKey: ["news-feeds"] });
     }
   });
+  const refreshMutation = useMutation({
+    mutationFn: () => refreshNewsFeeds(accessToken),
+    onSuccess: async (result) => {
+      setRefreshResult(result);
+      await queryClient.invalidateQueries({ queryKey: ["news-feeds"] });
+    }
+  });
+  const briefingMutation = useMutation({
+    mutationFn: () => {
+      if (!briefingAgent) {
+        throw new Error("Install the Daily News Briefing agent first.");
+      }
+      return startRun(accessToken, briefingAgent.id, {
+        message:
+          "Prepare a concise briefing from the enabled tenant RSS feeds.",
+        retrievalLimit: 5,
+        newsFeedIds: feeds
+          .filter((feed) => feed.enabled)
+          .slice(0, 10)
+          .map((feed) => feed.id)
+      });
+    },
+    onSuccess: setBriefingRun
+  });
 
   return (
     <section className="workspace" id="news" aria-labelledby="news-title">
@@ -74,6 +127,28 @@ export function NewsWorkspace({
           </p>
         </div>
         <div className="workspace-actions">
+          <button
+            className="secondary-button"
+            type="button"
+            disabled={
+              refreshMutation.isPending || feeds.every((feed) => !feed.enabled)
+            }
+            onClick={() => void refreshMutation.mutateAsync()}
+          >
+            {refreshMutation.isPending ? "Refreshing..." : "Refresh feeds"}
+          </button>
+          <button
+            className="primary-button"
+            type="button"
+            disabled={
+              briefingMutation.isPending ||
+              !briefingAgent ||
+              feeds.every((feed) => !feed.enabled)
+            }
+            onClick={() => void briefingMutation.mutateAsync()}
+          >
+            {briefingMutation.isPending ? "Starting..." : "Run briefing"}
+          </button>
           <div className="environment-badge">
             <span className="status-dot" aria-hidden="true" />
             RSS only
@@ -134,6 +209,65 @@ export function NewsWorkspace({
           }}
         />
       </div>
+      <section className="news-results" aria-live="polite">
+        <div className="panel-heading">
+          <div>
+            <p className="section-kicker">Latest items</p>
+            <h2>RSS reader</h2>
+          </div>
+          {refreshResult ? (
+            <span>
+              {refreshResult.fetchedFeedCount} feeds /{" "}
+              {refreshResult.failedFeedCount} failed
+            </span>
+          ) : null}
+        </div>
+        {refreshResult?.items.length ? (
+          <ol className="feed-list">
+            {refreshResult.items.map((item, index) => (
+              <li key={`${item.feedId}-${item.url ?? item.title}-${index}`}>
+                <article>
+                  <span>
+                    {item.feedName}
+                    {item.publishedAt ? ` / ${item.publishedAt}` : ""}
+                  </span>
+                  <h3>
+                    {item.url ? (
+                      <a href={item.url} target="_blank" rel="noreferrer">
+                        {item.title}
+                      </a>
+                    ) : (
+                      item.title
+                    )}
+                  </h3>
+                  <p>{item.summary}</p>
+                </article>
+              </li>
+            ))}
+          </ol>
+        ) : (
+          <p>Refresh enabled feeds to display their latest items.</p>
+        )}
+        {briefingQuery.data ? (
+          <div className="template-detail">
+            <strong>Briefing: {briefingQuery.data.run.status}</strong>
+            <p>
+              {briefingQuery.data.steps
+                .toSorted((a, b) => b.sequence - a.sequence)
+                .find((step) => step.outputPreview)?.outputPreview ??
+                "Waiting for the worker..."}
+            </p>
+          </div>
+        ) : null}
+        {refreshMutation.error instanceof Error ||
+        briefingMutation.error instanceof Error ? (
+          <p className="workspace-alert" role="alert">
+            {formatApiClientError(
+              (refreshMutation.error ?? briefingMutation.error) as Error
+            )}
+          </p>
+        ) : null}
+      </section>
     </section>
   );
 }

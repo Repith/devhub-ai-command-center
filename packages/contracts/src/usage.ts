@@ -53,7 +53,8 @@ export type UsageByProviderModel = z.infer<typeof usageByProviderModelSchema>;
 
 export const usagePeriodBucketSchema = usageTotalsSchema.extend({
   periodStart: z.iso.datetime(),
-  periodEnd: z.iso.datetime()
+  periodEnd: z.iso.datetime(),
+  runCount: z.number().int().nonnegative()
 });
 export type UsagePeriodBucket = z.infer<typeof usagePeriodBucketSchema>;
 

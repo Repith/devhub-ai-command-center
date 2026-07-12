@@ -11,6 +11,7 @@ import { GoldenModule } from "./golden/golden.module";
 import { GithubModule } from "./github/github.module";
 import { IntegrationsModule } from "./integrations/integrations.module";
 import { NewsModule } from "./news/news.module";
+import { OllamaModule } from "./ollama/ollama.module";
 import { RealtimeModule } from "./realtime/realtime.module";
 import { RunsModule } from "./runs/runs.module";
 import { UsageModule } from "./usage/usage.module";
@@ -27,6 +28,7 @@ import { UsageModule } from "./usage/usage.module";
     GithubModule,
     IntegrationsModule,
     NewsModule,
+    OllamaModule,
     RealtimeModule,
     RunsModule,
     UsageModule

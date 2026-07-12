@@ -18,7 +18,7 @@ type AnalyticsTab = "activity" | "usage" | "quality";
 export function AnalyticsWorkspace({
   accessToken
 }: AnalyticsWorkspaceProps): React.JSX.Element {
-  const [tab, setTab] = useState<AnalyticsTab>("activity");
+  const [tab, setTab] = useState<AnalyticsTab>("usage");
   const [usagePeriod, setUsagePeriod] = useState<UsagePeriod>("30d");
   const usageQuery = useQuery({
     queryKey: ["usage", usagePeriod],
@@ -37,8 +37,8 @@ export function AnalyticsWorkspace({
           <p className="section-kicker">Analytics</p>
           <h1 id="analytics-title">Track activity, tokens, and quality.</h1>
           <p>
-            Activity shows durable run timelines, Usage explains token burn, and
-            Quality checks run golden cases against the same runtime path.
+            Usage is the default operational dashboard. Runs contains durable
+            timelines, while Quality contains explicit golden-case evaluations.
           </p>
         </div>
         <div className="usage-heading-actions" role="tablist">
@@ -51,7 +51,7 @@ export function AnalyticsWorkspace({
             aria-selected={tab === "activity"}
             onClick={() => setTab("activity")}
           >
-            Activity
+            Runs
           </button>
           <button
             className={tab === "usage" ? "primary-button" : "secondary-button"}
@@ -60,7 +60,7 @@ export function AnalyticsWorkspace({
             aria-selected={tab === "usage"}
             onClick={() => setTab("usage")}
           >
-            Usage
+            Usage dashboard
           </button>
           <button
             className={

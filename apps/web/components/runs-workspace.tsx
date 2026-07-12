@@ -448,9 +448,36 @@ export function UsagePanel({
       </div>
       <div className="usage-stats">
         <UsageStat label="Tokens" value={usage.tenant.totalTokens} />
+        <UsageStat label="Runs" value={usage.runs.length} />
         <UsageStat label="Input" value={usage.tenant.inputTokens} />
         <UsageStat label="Output" value={usage.tenant.outputTokens} />
         <UsageStat label="Latency" value={`${usage.tenant.latencyMs} ms`} />
+      </div>
+      <div className="usage-chart" aria-label="Tokens and runs over time">
+        {usage.periods.length === 0 ? (
+          <span>No chart data yet.</span>
+        ) : (
+          usage.periods.map((bucket) => {
+            const maximum = Math.max(
+              ...usage.periods.map((item) => item.totalTokens),
+              1
+            );
+            return (
+              <div
+                className="usage-chart-column"
+                key={bucket.periodStart}
+                title={`${bucket.totalTokens} tokens / ${bucket.runCount} runs`}
+              >
+                <span
+                  style={{
+                    height: `${Math.max(4, (bucket.totalTokens / maximum) * 100)}%`
+                  }}
+                />
+                <small>{bucket.runCount}</small>
+              </div>
+            );
+          })
+        )}
       </div>
       <UsageList
         title="By agent"

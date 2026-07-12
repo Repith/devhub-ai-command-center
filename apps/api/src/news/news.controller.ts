@@ -19,6 +19,7 @@ import {
   type CreateNewsFeed,
   type NewsFeed,
   type NewsFeedList,
+  type NewsFeedRefreshResponse,
   type UpdateNewsFeed
 } from "@devhub/contracts";
 
@@ -41,6 +42,15 @@ export class NewsController {
     @CurrentUser() principal: RequestPrincipal
   ): Promise<NewsFeedList> {
     return this.news.list(principal);
+  }
+
+  @Post("refresh")
+  @HttpCode(HttpStatus.OK)
+  @Roles("OWNER", "ADMIN", "MEMBER")
+  public refresh(
+    @CurrentUser() principal: RequestPrincipal
+  ): Promise<NewsFeedRefreshResponse> {
+    return this.news.refresh(principal);
   }
 
   @Post()
