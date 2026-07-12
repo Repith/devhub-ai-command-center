@@ -1,28 +1,5 @@
 # OAuth Integrations
 
-## Shared OAuth Broker
-
-Local installations can use the public `apps/oauth-broker` service instead of
-storing provider application credentials. Set only `OAUTH_BROKER_URL` in the
-root `.env`; the existing `JWT_SECRET` becomes the local token-encryption root.
-Provider secrets and account allowlists belong exclusively to the broker.
-
-Deploy the included `render.yaml` and configure `OAUTH_BROKER_PUBLIC_ORIGIN`,
-`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_ALLOWED_EMAILS`,
-`GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, and `GITHUB_ALLOWED_LOGINS` in
-Render. Register these callbacks with the providers:
-
-```text
-https://<broker-domain>/api/v1/broker/callback/gmail
-https://<broker-domain>/api/v1/broker/callback/github
-```
-
-The local API creates a PKCE verifier, the broker validates the provider
-identity against its allowlist, and the local API redeems a two-minute,
-single-use code. Provider tokens are never added to browser URLs or broker
-logs. The current in-memory grant store requires a single broker instance;
-move pending sessions to Redis before scaling horizontally.
-
 ## Runtime Model
 
 Gmail and GitHub are user-authorized integrations scoped by the active tenant.
