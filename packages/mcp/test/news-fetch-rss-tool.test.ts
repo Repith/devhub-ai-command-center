@@ -11,6 +11,7 @@ const context = {
 describe("news.fetch_rss", () => {
   it("parses RSS items with an output limit", async () => {
     const tool = createNewsFetchRssTool({
+      lookup: () => Promise.resolve(["93.184.216.34"]),
       fetch: (() =>
         Promise.resolve(
           new Response(`
@@ -35,6 +36,14 @@ describe("news.fetch_rss", () => {
         }
       ]
     });
+  });
+
+  it("rejects private network targets", async () => {
+    const tool = createNewsFetchRssTool();
+
+    await expect(
+      tool.execute({ url: "http://127.0.0.1/feed.xml", limit: 1 }, context)
+    ).rejects.toThrow(/private network/i);
   });
 
   it("rejects non-http URLs", async () => {

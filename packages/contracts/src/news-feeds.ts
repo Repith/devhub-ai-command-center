@@ -54,3 +54,26 @@ export const updateNewsFeedSchema = createNewsFeedSchema
     message: "At least one field must be provided."
   });
 export type UpdateNewsFeed = z.infer<typeof updateNewsFeedSchema>;
+
+export const newsFeedItemSchema = z
+  .object({
+    feedId: uuidSchema,
+    feedName: z.string().min(1).max(120),
+    title: z.string().max(500),
+    url: z.url().nullable(),
+    publishedAt: z.string().nullable(),
+    summary: z.string().max(4000)
+  })
+  .strict();
+export type NewsFeedItem = z.infer<typeof newsFeedItemSchema>;
+
+export const newsFeedRefreshResponseSchema = z
+  .object({
+    items: z.array(newsFeedItemSchema).max(200),
+    fetchedFeedCount: z.number().int().nonnegative(),
+    failedFeedCount: z.number().int().nonnegative()
+  })
+  .strict();
+export type NewsFeedRefreshResponse = z.infer<
+  typeof newsFeedRefreshResponseSchema
+>;

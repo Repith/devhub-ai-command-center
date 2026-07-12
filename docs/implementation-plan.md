@@ -926,3 +926,21 @@ Acceptance: external writes exist only as deliberate, authenticated user actions
   - `npm run test:e2e`.
 
 Acceptance: Gmail and GitHub are production-ready SaaS integrations with documented setup, observable failures, safe token handling, tenant isolation, read-only MCP tools, and user-reviewed writes.
+
+## PR 44: Local Runtime Recovery, News Reader, Usage Dashboard, and OAuth Broker
+
+- [x] Add an authenticated Ollama diagnostics endpoint and Home status showing runtime availability, configured model, and installed models.
+- [x] Add recovery for existing tenants with no saved agents through an explicit `Install default agents` action. New tenants already received templates transactionally, so registration was not duplicated.
+- [x] Keep the existing durable run and workflow-editor architecture. The reported Agents/workflow failure was traced to unapplied integration migrations rather than missing graph-builder behavior.
+- [x] Turn News into an RSS reader with bounded refresh, normalized articles, fetch metadata, and briefing launch/result display on the same page.
+- [x] Harden the shared RSS tool against private-network targets, unsafe redirects, oversized responses, and excessive redirect chains.
+- [x] Make Usage the default Analytics view and add token/run charts backed by a `runCount` period bucket.
+- [x] Add `apps/oauth-broker` with provider allowlists, PKCE-bound single-use grants, Gmail/GitHub callbacks, Render Blueprint configuration, and local API integration through `OAUTH_BROKER_URL`.
+- [x] Reuse the local `JWT_SECRET` as the token-encryption root only when broker mode is enabled; direct provider configuration remains backward compatible.
+- [x] Validate with `npm run lint`, `npm run typecheck`, `npm test`, and `npm run build`.
+- [ ] Apply the three pending integration migrations in the developer database and repeat the authenticated browser smoke test with Ollama, Polsat RSS, API, and worker running.
+- [ ] Deploy the broker and run real Gmail/GitHub OAuth smoke tests after provider credentials, callback URLs, and allowlists are configured.
+
+Implementation note: the original plan proposed changing the workflow builder and template registration. Inspection showed both were already implemented; the runtime failure instead came from database schema drift. The broker uses an in-memory two-minute grant store for a single Render instance. Redis-backed grants and horizontally scaled deployment remain deferred.
+
+Acceptance: existing local tenants can recover agent templates, inspect Ollama availability, read RSS items, run a news briefing, understand usage over time, and opt into one-click brokered OAuth without storing provider client secrets locally.

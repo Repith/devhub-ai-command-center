@@ -16,15 +16,21 @@ export function loadGithubConfig(): GithubConfig {
     privateKey: process.env.GITHUB_PRIVATE_KEY ?? null,
     webhookSecret: process.env.GITHUB_WEBHOOK_SECRET ?? null,
     redirectUri: process.env.GITHUB_REDIRECT_URI ?? null,
-    tokenEncryptionKey: process.env.GITHUB_TOKEN_ENCRYPTION_KEY ?? null
+    tokenEncryptionKey:
+      process.env.GITHUB_TOKEN_ENCRYPTION_KEY ??
+      (process.env.OAUTH_BROKER_URL ? (process.env.JWT_SECRET ?? null) : null)
   };
 }
 
 export function isGithubConfigured(config: GithubConfig): boolean {
-  return missingGithubConfigKeys(config).length === 0;
+  return (
+    Boolean(process.env.OAUTH_BROKER_URL) ||
+    missingGithubConfigKeys(config).length === 0
+  );
 }
 
 export function missingGithubConfigKeys(config: GithubConfig): string[] {
+  if (process.env.OAUTH_BROKER_URL) return [];
   const missing: string[] = [];
   if (!config.appId) {
     missing.push("GITHUB_APP_ID");

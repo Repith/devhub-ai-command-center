@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: devhub-oauth-broker
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run build --workspace @devhub/oauth-broker
+    startCommand: npm run start --workspace @devhub/oauth-broker
+    healthCheckPath: /api/v1/broker/status
+    envVars:
+      - key: OAUTH_BROKER_PUBLIC_ORIGIN
+        sync: false
+      - key: OAUTH_BROKER_ALLOWED_REDIRECT_ORIGINS
+        value: http://localhost:3000
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_ALLOWED_EMAILS
+        sync: false
+      - key: GITHUB_CLIENT_ID
+        sync: false
+      - key: GITHUB_CLIENT_SECRET
+        sync: false
+      - key: GITHUB_ALLOWED_LOGINS
+        sync: false

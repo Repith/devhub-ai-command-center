@@ -13,7 +13,9 @@ export function loadGmailConfig(): GmailConfig {
     clientId: process.env.GMAIL_CLIENT_ID ?? null,
     clientSecret: process.env.GMAIL_CLIENT_SECRET ?? null,
     redirectUri: process.env.GMAIL_REDIRECT_URI ?? null,
-    tokenEncryptionKey: process.env.GMAIL_TOKEN_ENCRYPTION_KEY ?? null,
+    tokenEncryptionKey:
+      process.env.GMAIL_TOKEN_ENCRYPTION_KEY ??
+      (process.env.OAUTH_BROKER_URL ? (process.env.JWT_SECRET ?? null) : null),
     autoSendAllowed: process.env.AUTO_SEND_ALLOWED === "true",
     devMockEnabled: process.env.GMAIL_DEV_MOCK_ENABLED === "true",
     requiredScopes: [
@@ -24,10 +26,14 @@ export function loadGmailConfig(): GmailConfig {
 }
 
 export function isGmailConfigured(config: GmailConfig): boolean {
-  return missingGmailConfigKeys(config).length === 0;
+  return (
+    Boolean(process.env.OAUTH_BROKER_URL) ||
+    missingGmailConfigKeys(config).length === 0
+  );
 }
 
 export function missingGmailConfigKeys(config: GmailConfig): string[] {
+  if (process.env.OAUTH_BROKER_URL) return [];
   const missing: string[] = [];
   if (!config.clientId) {
     missing.push("GMAIL_CLIENT_ID");

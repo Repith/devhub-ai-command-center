@@ -1,0 +1,10 @@
+{
+  "extends": "../../packages/config/node.json",
+  "compilerOptions": {
+    "types": ["node"],
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "rootDir": "."
+  },
+  "include": ["src/**/*.ts"]
+}

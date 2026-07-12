@@ -1,9 +1,11 @@
 import {
   createNewsFeedSchema,
   newsFeedListSchema,
+  newsFeedRefreshResponseSchema,
   newsFeedSchema,
   type CreateNewsFeed,
   type NewsFeed,
+  type NewsFeedRefreshResponse,
   type UpdateNewsFeed
 } from "@devhub/contracts";
 
@@ -14,6 +16,15 @@ export async function listNewsFeeds(accessToken: string): Promise<NewsFeed[]> {
     accessToken
   });
   return response.data;
+}
+
+export function refreshNewsFeeds(
+  accessToken: string
+): Promise<NewsFeedRefreshResponse> {
+  return apiRequest("/news/feeds/refresh", newsFeedRefreshResponseSchema, {
+    method: "POST",
+    accessToken
+  });
 }
 
 export function createNewsFeed(

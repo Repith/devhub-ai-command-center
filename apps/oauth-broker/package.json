@@ -1,0 +1,26 @@
+{
+  "name": "@devhub/oauth-broker",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsx watch src/main.ts",
+    "lint": "eslint src",
+    "start": "node dist/main.js",
+    "test": "vitest run --passWithNoTests",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@nestjs/common": "11.1.26",
+    "@nestjs/core": "11.1.26",
+    "@nestjs/platform-express": "11.1.26",
+    "reflect-metadata": "0.2.2",
+    "rxjs": "7.8.2",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/express": "5.0.6",
+    "@types/node": "25.9.2",
+    "tsx": "4.22.4"
+  }
+}

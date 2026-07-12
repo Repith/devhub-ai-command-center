@@ -28,6 +28,11 @@ import { GmailRestClient } from "@devhub/mcp";
 import type { RequestPrincipal } from "../auth/auth.types";
 import { AuditService } from "../audit/audit.service";
 import {
+  brokerConfigured,
+  prepareBrokerOAuth,
+  redeemBrokerGrant
+} from "../integrations/oauth-broker.client";
+import {
   canUseGmailDevMock,
   isGmailConfigured,
   loadGmailConfig,
@@ -113,6 +118,17 @@ export class GmailService {
       principal.tenantId,
       principal.userId
     );
+    if (brokerConfigured()) {
+      return {
+        authorizationUrl: prepareBrokerOAuth(
+          "gmail",
+          state,
+          process.env.GMAIL_REDIRECT_URI ??
+            "http://localhost:3000/gmail/oauth/callback"
+        ),
+        requiredScopes: [...this.config.requiredScopes]
+      };
+    }
     const authorizationUrl = new URL(
       "https://accounts.google.com/o/oauth2/v2/auth"
     );
@@ -184,13 +200,22 @@ export class GmailService {
     this.verifyState(principal, input.state);
     const context = this.context(principal);
     const previous = await this.connections.findGmail(context);
-    const token = await this.exchangeCode(input.code);
-    const profile = await this.fetchProfile(token.access_token);
+    const grant = brokerConfigured()
+      ? await redeemBrokerGrant(input.state, input.code)
+      : null;
+    const token = grant
+      ? (grant.tokens as unknown as GoogleTokenResponse)
+      : await this.exchangeCode(input.code);
+    const profile = grant
+      ? { emailAddress: grant.identity }
+      : await this.fetchProfile(token.access_token);
+    const encryptionKey =
+      this.config.tokenEncryptionKey ?? process.env.JWT_SECRET!;
     const refreshToken =
       token.refresh_token ??
       (previous?.encryptedRefreshToken
         ? this.tokenCrypto.decrypt(
-            this.config.tokenEncryptionKey!,
+            encryptionKey,
             previous.encryptedRefreshToken
           )
         : null);
@@ -204,11 +229,11 @@ export class GmailService {
       accountEmail: profile.emailAddress ?? null,
       scopes: parseScopes(token.scope),
       encryptedAccessToken: this.tokenCrypto.encrypt(
-        this.config.tokenEncryptionKey!,
+        encryptionKey,
         token.access_token
       ),
       encryptedRefreshToken: this.tokenCrypto.encrypt(
-        this.config.tokenEncryptionKey!,
+        encryptionKey,
         refreshToken
       ),
       expiresAt: expiresAt(token.expires_in),

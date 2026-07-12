@@ -36,6 +36,12 @@ export function loadWorkerConfig(): WorkerConfig {
   if (!databaseUrl) {
     throw new Error("DATABASE_URL is required.");
   }
+  const gmailTokenEncryptionKey =
+    process.env.GMAIL_TOKEN_ENCRYPTION_KEY ??
+    (process.env.OAUTH_BROKER_URL ? process.env.JWT_SECRET : undefined);
+  const githubTokenEncryptionKey =
+    process.env.GITHUB_TOKEN_ENCRYPTION_KEY ??
+    (process.env.OAUTH_BROKER_URL ? process.env.JWT_SECRET : undefined);
   return {
     databaseUrl,
     embeddingModel: process.env.OLLAMA_EMBEDDING_MODEL ?? "nomic-embed-text",
@@ -47,9 +53,7 @@ export function loadWorkerConfig(): WorkerConfig {
       ? { gmailClientSecret: process.env.GMAIL_CLIENT_SECRET }
       : {}),
     gmailDevMockEnabled: process.env.GMAIL_DEV_MOCK_ENABLED === "true",
-    ...(process.env.GMAIL_TOKEN_ENCRYPTION_KEY
-      ? { gmailTokenEncryptionKey: process.env.GMAIL_TOKEN_ENCRYPTION_KEY }
-      : {}),
+    ...(gmailTokenEncryptionKey ? { gmailTokenEncryptionKey } : {}),
     gmailToolTimeoutMs: Number(process.env.GMAIL_TOOL_TIMEOUT_MS ?? 15000),
     ...(process.env.GITHUB_APP_ID
       ? { githubAppId: process.env.GITHUB_APP_ID }
@@ -63,9 +67,7 @@ export function loadWorkerConfig(): WorkerConfig {
     ...(process.env.GITHUB_PRIVATE_KEY
       ? { githubPrivateKey: process.env.GITHUB_PRIVATE_KEY }
       : {}),
-    ...(process.env.GITHUB_TOKEN_ENCRYPTION_KEY
-      ? { githubTokenEncryptionKey: process.env.GITHUB_TOKEN_ENCRYPTION_KEY }
-      : {}),
+    ...(githubTokenEncryptionKey ? { githubTokenEncryptionKey } : {}),
     githubToolTimeoutMs: Number(process.env.GITHUB_TOOL_TIMEOUT_MS ?? 15000),
     llmModel: process.env.OLLAMA_CHAT_MODEL ?? "qwen3:8b",
     llmTimeoutMs: Number(process.env.OLLAMA_CHAT_TIMEOUT_MS ?? 120000),

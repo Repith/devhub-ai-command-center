@@ -13,6 +13,7 @@ export * from "./gmail.js";
 export * from "./integrations.js";
 export * from "./mcp.js";
 export * from "./news-feeds.js";
+export * from "./ollama.js";
 export * from "./realtime.js";
 export * from "./runs.js";
 export * from "./statuses.js";

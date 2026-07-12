@@ -9,8 +9,10 @@ import type {
   CreateNewsFeed,
   NewsFeed,
   NewsFeedList,
+  NewsFeedRefreshResponse,
   UpdateNewsFeed
 } from "@devhub/contracts";
+import { createNewsFetchRssTool } from "@devhub/mcp";
 import {
   NewsFeedAlreadyExistsError,
   type NewsFeedRecord,
@@ -87,6 +89,60 @@ export class NewsService {
       resourceType: "news_feed",
       resourceId: feedId
     });
+  }
+
+  public async refresh(
+    principal: RequestPrincipal
+  ): Promise<NewsFeedRefreshResponse> {
+    const context = this.context(principal);
+    const feeds = await this.feeds.listEnabled(context, 10);
+    const tool = createNewsFetchRssTool({
+      timeoutMs: Number(process.env.RSS_TOOL_TIMEOUT_MS ?? 10_000)
+    });
+    const results = await Promise.all(
+      feeds.map(async (feed) => {
+        try {
+          const output = await tool.execute(
+            { url: feed.url, limit: 20 },
+            context
+          );
+          await this.feeds.recordFetch(context, feed.id, {
+            status: "COMPLETED",
+            itemCount: output.items.length,
+            errorCode: null
+          });
+          return {
+            failed: false,
+            items: output.items.map((item) => ({
+              feedId: feed.id,
+              feedName: feed.name,
+              title: item.title.slice(0, 500),
+              url: item.url,
+              publishedAt: item.publishedAt,
+              summary: item.summary.slice(0, 4000)
+            }))
+          };
+        } catch {
+          await this.feeds.recordFetch(context, feed.id, {
+            status: "FAILED",
+            itemCount: null,
+            errorCode: "NEWS_FEED_FETCH_FAILED"
+          });
+          return { failed: true, items: [] };
+        }
+      })
+    );
+    const failedFeedCount = results.filter((result) => result.failed).length;
+    await this.audit.record(principal, {
+      action: "news_feeds.refreshed",
+      resourceType: "news_feed",
+      metadata: { feedCount: feeds.length, failedCount: failedFeedCount }
+    });
+    return {
+      items: results.flatMap((result) => result.items).slice(0, 200),
+      fetchedFeedCount: results.length - failedFeedCount,
+      failedFeedCount
+    };
   }
 
   private context(principal: RequestPrincipal): TenantContext {
